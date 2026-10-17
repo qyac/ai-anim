@@ -47,6 +47,25 @@ export {
   NUDGE_SPLIT, NUDGE_PHASE, MAX_STAGGER_SPAN, GLOW_PEAK_CAP,
 } from './motion.js';
 
+/**
+ * `src/kit/carry.js` —— **衔接（carry）**的纯函数词表（BACKLOG 1-36，2026-10-17；
+ * 判据与出处：`docs/REFERENCE-onetake.md` §2.4 / §4 —— 外部项目 PolyForm Noncommercial，
+ * **只抄思路与数值口径，不抄代码**）。
+ *
+ * 解决的是「切点上有东西活下来并变成下一个画面」：`morphRect`（按下的东西变成结果）、
+ * `iris`（主体打开自己的世界）、`zoomThrough`（推近穿透成下一场景）、`hop`（主体跳到
+ * 下一个槽）、`gather`（一群元素收拢成标志）、`operatorCam`（键控摄影机之上的
+ * "操作员手感"：跟主体提前 0.1s、落点先 key、hold 浮动归零、落地 shake）。
+ *
+ * 全部只吃 t 与参数、不碰 GPU / 浏览器（只 import `../core/util.js`），可离线单测：
+ * `node tools/test-carry.mjs`。⚠ 提前量 / 弧高 / 阈值是**外部经验值，我方未实测**
+ * （MOTION.md §0 的分级照用）。
+ */
+export {
+  morphRect, iris, zoomThrough, hop, gather, operatorCam,
+  CARRY_MOVE_FRAC, CARRY_SCALE_FRAC, CARRY_ANCHOR_FRAC,
+} from './carry.js';
+
 export { panel, fillRect, kicker, footer, reticle, marker } from './elements.js';
 
 /**

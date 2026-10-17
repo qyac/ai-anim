@@ -67,6 +67,9 @@
 | **已经在那儿的东西**显隐（不是到达） | `fade(f.lt, delay)` → `{ alpha: [0,1], t, staggerDur }` | 淡出随便；**淡入只给"本来就在"的东西**（面板重新出现、整屏压暗再回来） | 【引擎默认值】`src/kit/layout.js:74` |
 | 文字**逐字上浮**入场（我们现在的默认写法） | `type.write(..., { stagger, from: 'up', t: f.lt })` | ⚠ 它**是淡入**（`al = e`），与上一行冲突；**我方没做过对照实验** —— 见 §3.3 | 【引擎默认值】`src/core/text.js:296–304` |
 | 转场：**新内容把旧内容推走**（物理碰撞式） | `handlesTransition` + `transitionPass` + `enterOffset`（新内容从反方向落位） | **受害者的时长 = 入侵者的 40–50%**；三个 tween 落在**同一时间点** | 【外部经验值】[REFERENCE-hyperframes.md](REFERENCE-hyperframes.md) **518 行**（`reactive-displacement`）。**kit 里还没有这个函数**，见 §4 |
+| **切点上有东西活下来**（连贯 / carry）：按下的东西变成结果、卡片推近成场景、一群元素收拢成标志 | `src/kit/carry.js`：`morphRect`（容器形变）/ `iris`（圆形揭示）/ `zoomThrough`（推近穿透）/ `hop`（弧线跳）/ `gather`（收拢）；衔接物的选择表见 [REFERENCE-onetake.md](REFERENCE-onetake.md) §2.4 | **验收**：`anim carry` 判 carried/anchored/bare；**carry score < 0.5 = 像 PPT**（四版对照 0.00/0.40 被否、0.75/0.83 通过）。跨元素合成的缝（量具判 bare 但观众认）用 `cut(..., { carry: 'morph' })` 声明 | 【外部经验值】[REFERENCE-onetake.md](REFERENCE-onetake.md) §2（probe 判据：位移 ≥2% 对角线 / 缩放 ≥10%） |
+| **操作员摄影机**（跟主体、甩到落点、hold 真空静） | `operatorCam(makeCam(...), { lead, hits, rests })`（`src/kit/carry.js`） | `lead` 提前量 ~0.1s（"一帧不落"= 摄影机**先到**）；**rests 区间内浮动必须归零**（浮动着的机位永远不"死静"，静帧判据会假红）；每次落地配 `hits` 的确定性衰减 shake | 【外部经验值】同上 §4（one-dot：定机位版被否「缺灵动的跟踪运镜」、操作员版通过） |
+| **镜头长度不许匀速**（节奏：CoV ≥ 0.25） | 时间线设计层的事 —— 长枪 8–13s、短击 2–4s、burst 里 0.2–0.5s；`check` 的「节奏（静态）」腿自动报 | **变异系数 < 0.25 = 节拍器**：观众读作"一格一格翻灯片"，不管每镜多好看；单段 / `--only` 没有分布可判（进 skipped） | 【外部经验值】同上 §3（motion-web 匀速两版都被否；通过片实测 0.44 / 0.67） |
 | hero 元素背后的**柔光 / 辉光**（无触发、有界呼吸） | 自己叠一层径向辉光（`lines` 的第 4 个分量 + `mul`），或 `post` 的 `bloom` / `halation` | **峰值 opacity ≤ ~0.45**（`glowPeakCap()`，新，§3.4）；只有信号色才允许 > 0.85 线性亮度去泛光 | 【外部经验值】同上 **522 行**（`ambient-glow-bloom`）；0.85 那条是【我方】[AGENTS.md](../AGENTS.md) §5 |
 | **粒子 / 彩带**（确定性、可 scrub） | 固定池 + `rng(seed)` 发射值 + **一个单 driver**，把每个粒子算成时间的纯弹道函数 | **≤ ~40 个粒子** | 【外部经验值】同上 **523 行**（`particle-burst`） |
 | **抖动 / 手持** | `shakeSmooth(f.t, amp)` 交给 `post.shake` | ≤2px 呼吸；3–5px 手持（0.85Hz）；≥5px 只许是故意的冲击 | 【我方实测】[AGENTS.md](../AGENTS.md) §5 的幅度表 + `node scripts/anim.mjs shake <任务>`（第三轮事故："最后像地震"） |
@@ -197,4 +200,5 @@ if (!g.ok) { ctx.warnings.push(g.warning); hero.alpha = g.suggested[0]; }
 | 抖动怎么给（幅度表 + `anim shake`） | [AGENTS.md](../AGENTS.md) §5 |
 | 一屏一个主体（运动之外的另一半） | [LAYOUT.md](LAYOUT.md) |
 | 节奏的宏观数值（每 20–40 秒换版面、8 秒静帧红线…**附证据强度**） | [STYLE.md](STYLE.md) §7 |
+| **连贯（carry）**：镜头边界上"有没有东西活下来变成下一个画面" —— 判据、词表、验收口径 | [REFERENCE-onetake.md](REFERENCE-onetake.md) §2（拆解报告；落地待办见 [BACKLOG.md](BACKLOG.md) §1.D） |
 | 这三个函数的单测 | `node tools/test-motion.mjs`（纯 JS，不需要 GPU） |

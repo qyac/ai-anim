@@ -134,6 +134,21 @@
 > 多语言要重写整份 `SCENE` 文案与 `words` —— 先等 **1-23**（`variants` + `narration.json` 可指定）落地再谈，
 > 否则会做两遍。
 
+### 1.D 连贯 / 节奏（2026-10-17 拆解外部项目 `onetake` 之后列的，**按性价比排序**）
+
+> 来源：[`REFERENCE-onetake.md`](REFERENCE-onetake.md)（feitangyuan/onetake 的拆解报告，每条都有原文引用）。
+> 那个项目的核心资产是**把「像不像 PPT」变成可度量的验收**（边界 carry 分类 + carry score，四个版本 0.00/0.40/0.75/0.83 与人审结论逐版一致）。
+> **许可证是 PolyForm Noncommercial：代码、色板字面值一律不抄**，只抄思路、判据、数值口径，用我们的 JS/GLSL 重写。
+> 第 1、2 条不引入画面变化（纯增量工具），先做；第 3 条是画面能力，与 1-13（参数化转场）合并推进。
+
+| # | 事 | 从哪接着做 | 出处 |
+|---|---|---|---|
+| ~~1-34~~ | **已完成（2026-10-17）**：`anim carry` 落地 —— 判据/块匹配/汇总在 `src/timeline.js`（`planCarryBoundaries` / `classifyCarry` / `summarizeCarry`），实测 demo 0.50（两个硬切 bare）/ beat 1.00（共享背景 carry），见 §4 | | |
+| ~~1-35 前半~~ | **已完成（2026-10-17）**：`check` 的「节奏（静态）」腿（CoV）落地 —— `rhythmStats()` 纯函数，默认只报读数、`--strict` 才进 errs；单段/`--only` 进 skipped。后半（静帧占比）记成 **1-38** | | |
+| ~~1-36~~ | **已完成（2026-10-17）**：`src/kit/carry.js` 落地（六个纯函数 + 三个判据常量）+ `tools/test-carry.mjs`（33 项）+ index.js 再导出 + regress-all 登记，见 §4 | | |
+| 1-37 | **动作图册**：每个 kit 动作一张「六帧 + 速度曲线」接片图（`anim gallery` 或 tools 脚本） | 照对方 `gallery/sheets/<move>.png` 的形状；同时把对方的速度谱（whip 540 / iris 206 / zoomThrough 72 px/frame）升级成【我方实测】，给「什么时候需要更多子帧」一个判据。**carry.js 的六个新动作（morphRect/iris/zoomThrough/hop/gather/operatorCam）排最前 —— 它们还没有一张图** | 同上 §5（速度谱出处表） |
+| 1-38 | **静帧占比测量**（1-35 的后半）：死静帧 ≥ 25%、最长静段 ≥ 1s | CoV 前半已落地（`check` 的「节奏（静态）」腿）；静帧需要渲帧 —— 降采样 2fps 渲染比对（复用 `hashes` 车道），接成 `check --rhythm` 可选段，默认只报读数。⚠ rest 必须真空静：1→1.05 的慢推在量具眼里永远不静（clearing 首渲假红的教训） | 同上 §3（「停顿才让动作落得下来」）与 §4 |
+
 ---
 
 ## 2. 内容 / 片子
@@ -242,6 +257,7 @@
 | **1.B-25 并发子代理的 brief 模板** | **2026-10-16**：`docs/SCENE-BRIEF-TEMPLATE.md` 新增 §10（349 → 453 行，`git diff --numstat` = 104/0 纯新增）；三条要点各带 `REFERENCE-video-use.md` 的行号出处 |
 | **1.B-27 运动规则表 + 3 个 kit 函数** | **2026-10-16**：`docs/MOTION.md`（12 条规则 + 四级证据分级）、`src/kit/motion.js`（`nudgeCurve` / `waterfallStagger` / `waterfallOver` / `glowPeakCap`）、`tools/test-motion.mjs`（42 项，已挂 `unit:motion`）。⚠ 数值是外部项目 hyperframes 的**经验值、我方未实测**；**留下的一半**（三个上限未接进守门）记成 §1.B-33 |
 | **第二轮清磁盘** | **2026-10-16**：`out/` 27.6 → 25.9 GB（释放 1.77 GB）；`_postlab` 的两个读数脚本搬进 `tools/` |
+| **1.D-34 / 1.D-35 前半 / 1.D-36（onetake 拆解的第一批落地）** | **2026-10-17**：`docs/REFERENCE-onetake.md`（拆解报告）+ 三件落地 —— ① `anim carry` 连贯度 oracle（判据纯函数 `planCarryBoundaries` / `classifyCarry` / `summarizeCarry` 在 `src/timeline.js`，块匹配在 CLI 页面侧，**默认只报读数、--strict 才 gate**；`cut(..., { carry })` 声明接线进 TIMELINE_KEYS/cut/build 三处）；② `check` 的「节奏（静态）」腿（`rhythmStats()` CoV，零渲染；单段进 skipped）；③ `src/kit/carry.js`（`morphRect/iris/zoomThrough/hop/gather/operatorCam` 六个纯函数 + 三个判据常量，只 import `core/util.js`，NaN 当场抛）。**验收**：`tools/test-carry.mjs` **33 项**（挂 `unit:carry`）；`regress-all --only unit` **22/22**；`hashes demo` / `beat` 基线各 **11/11 逐像素不变**；`anim carry` 实测 demo **0.50**（title→chart、chart→kinetic 两个硬切 bare —— 真实诊断：这三段各画各的世界）/ beat **1.00**（共享背景让硬切两侧 74–97% 配对）。**过程中抓到的**：lint-doc-facts 把注释里的 `'morph'/'anchor'/'any'` 字符串当 TIMELINE_KEYS 数了（守门按口径工作，改注释措辞）；`gather` 第一版端点不精确（行程抖动在 k=1 不归零，收拢收不齐 —— 抖动乘 `sin(πk)` 窗修掉）；`operatorCam` 的 rest 归零漏出 `-0`（显式 `env > 0` 分支修掉）。**留下**：1-37（动作图册）、1-38（静帧占比） |
 
 ---
 

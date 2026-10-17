@@ -61,6 +61,10 @@ const TIMELINE_KEYS = new Set([
   // 主体声明（版面守门，docs/LAYOUT.md）：配置档节点上也写得了 ——
   // 不加进这张表它就会被当成模板参数，"参数名拼错"抛出去（正是这张表存在的理由）。
   'focus',
+  // 连贯声明（carry 审计，BACKLOG 1-34 / docs/REFERENCE-onetake.md §2.3①）：
+  // 取值 morph = 跨元素合成的衔接（量具判 bare，但对观众成立）、
+  // anchor = 刻意锚定、any = 交给量具（不豁免不预设）。
+  'carry',
 ]);
 
 /**
@@ -71,7 +75,7 @@ const TIMELINE_KEYS = new Set([
  * 而不是静默吃默认值画出一张看起来正常的图（`docs/history/IMPROVEMENTS-1-3.md` 那类 bug 的通用解法）。
  */
 function configToCut(node, where) {
-  const { type, id, dur, at, overlap, params, post, maxSamples, handlesTransition, note, world, worldPass, focus, ...rest } = node;
+  const { type, id, dur, at, overlap, params, post, maxSamples, handlesTransition, note, world, worldPass, focus, carry, ...rest } = node;
   const tparams = { ...rest, ...(params ?? {}) };
   if (id != null) tparams.id = id;          // ⚠ 不能写成 tparams.id = id：undefined 会盖掉模板默认段名
   let scene;
@@ -96,6 +100,7 @@ function configToCut(node, where) {
     note,
     world: worldPass ? 'auto' : world,
     focus,
+    carry,
   };
 }
 
@@ -130,6 +135,9 @@ export function cut(scene, opts = {}) {
     world: opts.worldPass ? 'auto' : opts.world,
     // 主体声明（版面守门）：与 world 一样在这里白名单化 —— 忘了这一行就会静默丢失
     focus: opts.focus,
+    // 连贯声明（carry 审计）：段对象上声明这条缝的衔接方式（'morph' | 'anchor' | 'any'），
+    // 场景对象上声明的那份由 planCarryBoundaries 自己读（it.carry ?? scene.carry）。
+    carry: opts.carry,
   };
 }
 
@@ -268,6 +276,8 @@ export function build(plan, music = {}) {
       note: c.note,
       // 共享背景：'auto' = 用 task.worldPass；对象 = 本段专用 Pass；false = 本段自己负责底
       world: c.world,
+      // 连贯声明（carry 审计，BACKLOG 1-34）：搬运到段上，`planCarryBoundaries()` 读它。
+      carry: c.carry,
     });
     return start + dur;
   };
@@ -566,6 +576,189 @@ export function worldAuditVerdict(plan, samples) {
   const blackTail = !!p.risky && !!tail && !tail.error
     && typeof tail.mean === 'number' && tail.mean < 0.004;
   return { missing, blackTail, tail };
+}
+
+/* ================================================================ carry（连贯度审计） */
+
+/**
+ * **carry（连贯）审计的边界计划**（纯函数，BACKLOG 1-34，2026-10-17）。
+ *
+ * 出自外部项目 onetake 的拆解（`docs/REFERENCE-onetake.md` §2）：**「像不像 PPT」的核心
+ * 不是节奏，是「每个镜头边界上有没有东西活下来并变成下一个画面」**。它的 probe 在同一条
+ * 片子的四个版本上量出 carry 0.00 / 0.40 / 0.75 / 0.83，与人审结论逐版一致，而**节奏腿
+ * 在四版里全都通过** —— 连贯是节奏看不见的另一个维度。判据（全部【外部经验值】）：
+ *
+ *   · **carried**  ：边界两侧有区域配得上对，且移动 ≥ 画面对角线的 2% 或缩放 ≥ 10%；
+ *   · **anchored** ：唯一幸存区域很大（≥ 画面 3%）且基本没动（作为锚定）；
+ *   · **bare**     ：什么都不剩 —— 互相替换，无论节奏多好都读作换灯片。
+ *
+ * 豁免（probe 的口径）：burst（≥3 次相邻硬切）、片尾 1.2s、显式登记（见下）。
+ * **显式登记**是我们补的：跨元素合成的 carry（卡片淡出 + 同位置新页淡入）probe 会判成
+ * bare，但它对观众是成立的 —— 对方用 `__meta.cuts` 登记这类缝，我们用段对象上的
+ * `carry: 'morph' | 'anchor'` 声明（写在 `cut(...)` 的第二参数 / 配置档节点上）。
+ *
+ * ⚠ 它自己写的两条**盲区**（抄判据必须连盲区一起抄，REFERENCE-onetake.md §2.3）：
+ *   ① 连续世界（一镜到底、没有内部切点）**没有边界可判** —— continuity 1.00 over
+ *     0 boundaries 的 PASS **不是证据**，那时 carry 只能靠眼睛；本函数把这种情况
+ *     报成 `noBoundaries`，调用方必须说「没边界可判」而不是「通过」。
+ *   ② 块匹配在**低对比画面**上会假红/假绿 —— 读数给出匹配质量，人要抽查。
+ *
+ * @param {any[]} items `build()` 的产物或 `engine.timeline`（同 `auditUnderRequires` 的口径）
+ * @param {{ tailExempt?: number }} [opts] `tailExempt` 片尾豁免秒数（默认 1.2，probe 口径）
+ * @returns {{ id: string, at: number, index: number, prevId: string, overlap: number,
+ *   registered: string | null, exemptTail: boolean }[]}
+ *   `at` = 边界时刻（有交叠取交叠中点、硬切取切点本身）；`registered` = 段对象上
+ *   `carry` 声明的值（'morph' | 'anchor' | 'any'）；`overlap` = 交叠秒数（硬切为 0）
+ */
+export function planCarryBoundaries(items, opts = {}) {
+  const list = Array.isArray(items) ? items : [];
+  const tailExempt = Number.isFinite(opts.tailExempt) ? /** @type {number} */ (opts.tailExempt) : 1.2;
+  const dur = list.length ? Math.max(...list.map((i) => Number(i?.end ?? 0))) : 0;
+  const out = [];
+  for (let i = 1; i < list.length; i++) {
+    const it = list[i] ?? {}, prev = list[i - 1] ?? {};
+    const start = Number(it.start ?? 0), prevEnd = Number(prev.end ?? 0);
+    const overlap = Math.max(0, prevEnd - start);
+    // 硬切（overlap = 0）也判：probe 的口径是"边界"不区分转场/硬切 ——
+    // 硬切上什么都没活下来，恰恰是最常见的 bare。
+    const at = overlap > 0.02 ? start + overlap * 0.5 : start;
+    const carry = it.carry ?? (it._scene ?? it.scene ?? {}).carry ?? null;
+    const lastStart = list.length ? Math.max(0, dur - tailExempt) : 0;
+    out.push({
+      id: String(it.id ?? `scene_#${i}`),
+      prevId: String(prev.id ?? `scene_#${i - 1}`),
+      index: i,
+      at,
+      overlap,
+      registered: typeof carry === 'string' && carry ? carry : null,
+      exemptTail: at >= lastStart,
+    });
+  }
+  return out;
+}
+
+/**
+ * **carry 的单边界判定**（纯函数）：把"边界两侧各渲一帧的块匹配结果"变成 carried / anchored / bare。
+ *
+ * 块匹配的口径（自定，判据阈值是 onetake probe 的【外部经验值】）：
+ *   · 把两帧各切成 `grid` × `grid` 的块，块均值四舍五入到 `quant`（显示空间 0..255）；
+ *   · 在 maxShift 半径内找 A 帧每块在 B 帧里的最近配对（块灰度差的绝对值）；
+ *   · 匹配差 ≤ tolerance 视为"同一块内容"，统计其位移/缩放；
+ *   · **carried**：有足够块数（≥ minBlocks）配对成功且平均位移 ≥ 对角线的 2%
+ *     或平均尺度变化 ≥ 10%；**anchored**：配对区域 ≥ 画面 3% 且平均位移 < 2% 对角线；
+ *     其余 = **bare**。
+ *
+ * @param {object} match 单个边界的块匹配结果（页面侧算，字段见 `cmdCarry`）：
+ *   `{ matched: number, total: number, avgShiftFrac: number, avgScale: number, quality: number }`
+ * @param {object} [opts] `{ diagFrac = 0.02, anchorFrac = 0.03, scaleFrac = 0.10, minBlocks = 6 }`
+ * @returns {{ verdict: 'carried'|'anchored'|'bare', reason: string }}
+ */
+export function classifyCarry(match, opts = {}) {
+  const m = match ?? {};
+  const diagFrac = opts.diagFrac ?? 0.02;
+  const anchorFrac = opts.anchorFrac ?? 0.03;
+  const scaleFrac = opts.scaleFrac ?? 0.10;
+  const minBlocks = opts.minBlocks ?? 6;
+  const matched = Number(m.matched ?? 0);
+  const total = Math.max(1, Number(m.total ?? 0));
+  const cover = matched / total;                    // 配对成功区域占画面比例
+  const shift = Number(m.avgShiftFrac ?? 0);        // 平均位移（对角线的比例）
+  const scale = Number(m.avgScale ?? 1);            // 平均尺度（配对块边长之比）
+  if (matched >= minBlocks && shift >= diagFrac) {
+    return { verdict: 'carried', reason: `配对 ${matched} 块平均位移 ${(shift * 100).toFixed(1)}% 对角线（≥${diagFrac * 100}%）` };
+  }
+  if (matched >= minBlocks && Math.abs(scale - 1) >= scaleFrac) {
+    return { verdict: 'carried', reason: `配对 ${matched} 块平均缩放 ${(scale - 1 >= 0 ? '+' : '') + ((scale - 1) * 100).toFixed(1)}%（≥${scaleFrac * 100}%）` };
+  }
+  if (cover >= anchorFrac && shift < diagFrac) {
+    return { verdict: 'anchored', reason: `${(cover * 100).toFixed(0)}% 的画面基本没动（<${diagFrac * 100}% 对角线）—— 幸存物是锚` };
+  }
+  return { verdict: 'bare', reason: `只有 ${matched} 块配对成功（覆盖 ${(cover * 100).toFixed(1)}%，位移 ${(shift * 100).toFixed(2)}% 对角线）—— 两个画面在互相替换` };
+}
+
+/**
+ * **carry score 汇总**（纯函数）：`score = (carried + anchored/2) / 计入的边界数`。
+ *
+ * 豁免不计入分母：burst（一个边界的前后 1.5s 里还有 ≥2 个别的边界 ⇒ 硬切连击）、
+ * 片尾 `exemptTail`、显式登记（`registered` 有值的边界按登记值计：'morph' 计 carried、
+ * 'anchor' 计 anchored、'any' 不计也不豁免 —— 留给 `anim carry` 报读数）。
+ *
+ * @param {{ verdict: 'carried'|'anchored'|'bare'|'exempt', registered: string|null,
+ *           exemptTail: boolean, at: number }[]} rows 每个边界一行（`classifyCarry` 的产物 + 计划字段）
+ * @param {{ failBelow?: number, warnBelow?: number }} [opts] `failBelow` 默认 0.5、`warnBelow` 默认 0.7（probe 口径）
+ * @returns {{ score: number, judged: number, exempt: number, carried: number, anchored: number,
+ *   bare: number, tier: 'pass'|'warn'|'fail', noBoundaries: boolean }}
+ */
+export function summarizeCarry(rows, opts = {}) {
+  const list = Array.isArray(rows) ? rows : [];
+  const failBelow = opts.failBelow ?? 0.5;
+  const warnBelow = opts.warnBelow ?? 0.7;
+  if (!list.length) return { score: 0, judged: 0, exempt: 0, carried: 0, anchored: 0, bare: 0, tier: 'fail', noBoundaries: true };
+  // burst：相邻边界（1.5s 内 ≥3 个）整组豁免 —— staccato 硬切是合法的 bare
+  const times = list.map((r) => Number(r.at ?? 0));
+  const burstSet = new Set();
+  for (let i = 0; i < times.length; i++) {
+    let run = [times[i]];
+    for (let j = i + 1; j < times.length && times[j] - run[run.length - 1] <= 1.5; j++) run.push(times[j]);
+    if (run.length >= 3) { for (const t of run) burstSet.add(t); }
+  }
+  let carried = 0, anchored = 0, bare = 0, exempt = 0;
+  for (const r of list) {
+    const reg = r.registered;
+    if (r.exemptTail || burstSet.has(Number(r.at ?? 0))) { exempt++; continue; }
+    if (reg === 'morph') { carried++; continue; }        // 显式登记的合成 carry
+    if (reg === 'anchor') { anchored++; continue; }
+    if (r.verdict === 'carried') carried++;
+    else if (r.verdict === 'anchored') anchored++;
+    else bare++;
+  }
+  const judged = carried + anchored + bare;
+  if (!judged) return { score: 0, judged: 0, exempt, carried: 0, anchored: 0, bare: 0, tier: 'fail', noBoundaries: true };
+  const score = (carried + anchored / 2) / judged;
+  return {
+    score, judged, exempt, carried, anchored, bare,
+    tier: score < failBelow ? 'fail' : score < warnBelow ? 'warn' : 'pass',
+    noBoundaries: false,
+  };
+}
+
+/* ================================================================ 节奏（rhythm） */
+
+/**
+ * **节奏的静态读数**（纯函数，BACKLOG 1-35，2026-10-17）。
+ *
+ * 出自 onetake 的节奏教训（`docs/REFERENCE-onetake.md` §3）：motion-web 同一条片子
+ * v1 匀速 dolly / v2 等长硬切，两版都被否「依然是 PPT」；v3 镜头长度 0.22–2.2s 通过。
+ * **判据**（【外部经验值】）：**镜头长度的变异系数（CoV）≥ 0.25**，否则整片读作节拍器 ——
+ * 匀速镜头长度在观众眼里就是"一格一格翻灯片"，不管每个镜头内部多好看。
+ * （对方两条通过片的实测：0.44 / 0.67 —— 都远超线。）
+ *
+ * 单段 / `--only` 之后**没有节奏可言**：一段片子不存在镜头长度分布，报 `noRhythm`，
+ * 调用方必须说「没判」而不是「通过」（「空 ≠ 干净」）。
+ *
+ * @param {any[]} items `build()` 的产物或 `engine.timeline`
+ * @returns {{ count: number, cov: number, min: number, max: number, durs: number[],
+ *   metronome: boolean, noRhythm: boolean }}
+ *   `cov` = 标准差 / 均值（样本标准差，n-1）；`metronome` = cov < 0.25
+ */
+export function rhythmStats(items) {
+  const list = Array.isArray(items) ? items : [];
+  const durs = list.map((i) => Math.max(0, Number(i?.end ?? 0) - Number(i?.start ?? 0))).filter((d) => d > 0);
+  if (durs.length < 2) {
+    return { count: durs.length, cov: 0, min: durs[0] ?? 0, max: durs[0] ?? 0, durs, metronome: false, noRhythm: true };
+  }
+  const mean = durs.reduce((a, b) => a + b, 0) / durs.length;
+  const varr = durs.reduce((a, b) => a + (b - mean) ** 2, 0) / (durs.length - 1);
+  const cov = mean > 0 ? Math.sqrt(varr) / mean : 0;
+  return {
+    count: durs.length,
+    cov,
+    min: Math.min(...durs),
+    max: Math.max(...durs),
+    durs,
+    metronome: cov < 0.25,
+    noRhythm: false,
+  };
 }
 
 /** 打印时间线（CLI 的 tasks/check 用）。 */
