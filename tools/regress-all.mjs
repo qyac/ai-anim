@@ -47,6 +47,10 @@ const only = (() => {
 /** @type {Item[]} */
 const ITEMS = [
   // ── 纯 JS 单测（不需要 GPU、几秒钟）──
+  { name: 'unit:doc-facts', cmd: ['tools/lint-doc-facts.mjs'], note: 'TIMELINE_KEYS（13 个）↔ 文档键表：漏键/数字不符就红（2026-10-17 focus 漏过一次）' },
+  { name: 'unit:doc-facts-selftest', cmd: ['tools/lint-doc-facts.mjs', '--selftest'], note: '上面那个守门的判据自测（7 项，含"不误吃那 3 个面"的反例）' },
+  { name: 'unit:agents-refs', cmd: ['tools/lint-agents-refs.mjs'], note: 'AGENTS.md 的章节号是外部锚点：全部 § 引用可解析（docs/history/ 的归档断链不计）' },
+  { name: 'unit:agents-size', cmd: ['tools/lint-agents-size.mjs'], note: 'AGENTS.md 体积预算：超过 65536 B 会被注入器从尾部静默截断（当前余 ~10 KB）' },
   { name: 'unit:timeline-guard', cmd: ['tools/test-timeline-guard.mjs'], note: 'P0-2 伪时间线必须抛错 + 配置档展开（40 项）' },
   { name: 'unit:easing-warn', cmd: ['tools/test-easing-warn.mjs'], note: 'P2-3 缓动名写错要警告（7 项）' },
   { name: 'unit:narration', cmd: ['tools/test-narration.mjs'], note: 'P1-5 旁白表 + C 档词级时间戳（44 项）' },

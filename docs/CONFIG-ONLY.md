@@ -104,7 +104,7 @@ node scripts/anim.mjs video 我的片子            # 出成片 → out/我的�
 
 ## 3. 节点字段表：哪些键是时间线的，哪些键是模板参数
 
-时间线的每一项 = 一个对象。**属于时间线的键只有这 12 个**（`src/timeline.js` 的 `TIMELINE_KEYS`）：
+时间线的每一项 = 一个对象。**属于时间线的键只有这 13 个**（`src/timeline.js` 的 `TIMELINE_KEYS`）：
 
 | 字段 | 意思 |
 |---|---|
@@ -119,6 +119,7 @@ node scripts/anim.mjs video 我的片子            # 出成片 → out/我的�
 | `handlesTransition` | 这一段自己处理与上一段的衔接（`whip` 模板自带，一般不用写） |
 | `note` | 备注，只印在 `check` 的时间线表里，不影响画面 |
 | `world` / `worldPass` | 共享背景：`world: 'auto'` = "引擎铺底"（用 `task.config.mjs` 里 `export const world` 那张），`world: false` = "**这一段我刻意不铺底**"（背景守门**不判**它的铺底，但照样给它读数）。纯配置档里前者等于没写（没有 `task.world` 可解析），后者照旧生效 —— 见 §3.1 |
+| `focus` | **主体声明**（版面守门，见 `docs/LAYOUT.md`）：`'center'` 或 `{x,y,w,h}`。不写时退回场景对象自己声明的那份；**不声明 = 版面守门那两条判据不跑（进 `skipped`，没跑 ≠ 通过）** |
 
 **其余所有键都是模板参数**，会被原样交给 `shot(type, {…})`：
 
@@ -238,8 +239,11 @@ node tools/scene-harness.mjs _config-lab          # 离线跑场，不需要 GPU
 ```
 tasks/我的片子/task.config.mjs 的时间线不合法：
 timeline[0] 这一段（type: "chart2"）取不到镜头模板：
-  未知的镜头模板 "chart2"。可用的：title / chart / kinetic / whip / outro / wave / pulse / grid（看参数：node scripts/anim.mjs shots <名字>）
+  未知的镜头模板 "chart2"。可用的：title / chart / kinetic / whip / outro / wave / pulse / grid / quote / counter / compare（看参数：node scripts/anim.mjs shots <名字>）
 ```
+
+> ⚠ 上面那串名字是**报错原文**，它会随模板库增加而变化（2026-10 从 8 个变 11 个，这一行就过期过一次）。
+> **以 `node scripts/anim.mjs shots` 的输出为准**，不要照抄本文档里的列表。
 
 **② 参数名拼错** —— `{ type: 'chart', value: [0.3, 0.7], dur: 5 }`（少个 `s`）：
 
@@ -249,7 +253,7 @@ timeline[0] 这一段（type: "chart"）取不到镜头模板：
   镜头模板 "chart" 没有参数 "value"（大概是拼错了）。可用参数：id / values / title / sub / footer / peak
 ```
 
-**③ 时间线字段名拼错也会被抓**，走的是同一条路 —— 因为它不属于那 12 个键，会被当模板参数交出去：
+**③ 时间线字段名拼错也会被抓**，走的是同一条路 —— 因为它不属于那 13 个键，会被当模板参数交出去：
 `{ type: 'title', durs: 5 }` → `镜头模板 "title" 没有参数 "durs"（大概是拼错了）。可用参数：id / eyebrow / title / sub / readout`。
 
 **④ 配置档节点和"已经展开好的段"混写** —— 后者指带 `scene` 和数字 `start`/`end` 的对象
