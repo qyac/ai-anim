@@ -125,6 +125,7 @@ const ITEMS = [
   { name: 'probe:raymarch', cmd: ['tools/probe-raymarch.mjs'], note: 'raymarch 通电 + 手性/朝向 + 非有限值判据（14 项）', timeout: 20 * 60e3 },
   { name: 'probe:three', cmd: ['tools/probe-three.mjs'], note: '第 3 种 3D 的桥：朝向 / 两条颜色管线一致 / 线性 alpha（10 项）', timeout: 20 * 60e3 },
   { name: 'probe:nv12', cmd: ['tools/probe-nv12.mjs', '_calib'], note: '出片推流的新编码路径：GPU 的 NV12 vs CPU 参考实现（判据 ±1）', timeout: 20 * 60e3 },
+  { name: 'probe:r8', cmd: ['tools/probe-r8.mjs'], note: 'NV12 回读的 R8/RG8 路径：ANGLE 的 readPixels(RED/RG) 支持度 + PACK_ALIGNMENT（含非 4 对齐宽度；全绿才退出 0）', timeout: 20 * 60e3 },
   { name: 'probe:fonts', cmd: ['tools/probe-fonts.mjs', '_calib'], note: '任务字体真的生效', timeout: 20 * 60e3 },
   { name: 'probe:colorspace', cmd: ['tools/probe-colorspace.mjs', '_calib'], note: '导出 = 显示', timeout: 20 * 60e3 },
   { name: 'probe:trans2', cmd: ['tools/probe-trans2.mjs', '_calib'], note: '转场：推走而不是糊在一起（第四轮重写了判据）', timeout: 20 * 60e3 },

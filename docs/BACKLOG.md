@@ -58,12 +58,11 @@
 
 ---
 
-## 0. 拍板区（2026-10-16 复核后只剩下面**两条**"已定要做"；其余已关闭或已做 —— 见 §4）
+## 0. 拍板区（2026-10-17 复核后只剩下面**一条**"已定要做"；其余已关闭或已做 —— 见 §4）
 
 | # | 事 | 状态 / 代价 | 出处 |
 |---|---|---|---|
 | 0-6 | **后处理新参数真的用起来**（`tonemap` / `dither` / `bloomKaris` / `grainScale`） | **已定：做**（2026-10-16 用户拍板）。四个参数已进引擎，**默认值全部等于现状**（`hashes demo` / `beat` 各 11/11 `max 0` 验过）。实测：现状的软肩在输入 1.0 就输出 254、2.0 并到纯白（高光**没有层次**）；`tonemap: 'agx'` 配 `exposure: 0.75` 能把高光拉回来（1.0→200、2.0→238、4.0→247）且暗部反而更沉（均值 75.1→73.5），**代价是霓虹去饱和**（橙 253,253,120 → 237,218,151）；`'aces'` 是折中（1.0→232，霓虹 248,241,131）。**做法**：下一支片子的高光多镜头先用它出 A/B 图再定（`tasks/_post-lab/` 是现成的标定夹具） | [`ENGINE.md` §5](ENGINE.md)（参数表）· `tasks/_post-lab/`（标定夹具）· `out/_postlab/`（本轮实测数据与对比图） |
-| 0-8 | **R8/RG8 回读**（1-7 重估后的第一刀，**2026-10-17 用户拍板：做**） | `readNV12()` 的 Y/UV 平面从「RGBA 回读 8.3MB 再 CPU 紧凑化」改成「R8/RG8 直接回读 2.5MB」，紧凑化循环删掉；预估 60–80 行、半天，预期 81→~77ms/帧。**唯一风险 = ANGLE 对 R8/RG8 readPixels 的支持度**，探针先行（半小时出答案），不支持就 feature 回退。完整交接（背景/改动面/探针/验收/硬约束）→ **[`HANDOFF-R8RG8.md`](HANDOFF-R8RG8.md)** | [`PERF.md`](PERF.md) §5.6 第 5 条 · `src/core/gl.js:644-679` |
 
 ---
 
@@ -72,7 +71,7 @@
 | # | 事 | 从哪接着做 | 出处 |
 |---|---|---|---|
 | 1-1 | **`check` 增加几何自检**：随机取几个"已知应该可见"的面，验证"被铺的面 = 朝镜头的面" | 这类"不报错但画面全错"的几何 bug 目前**只能靠眼睛**（`facesToward` 反向那次出图核对了 20+ 帧才定位到）。判据可以先做成纯 JS 的（`tools/test-blocks.mjs` 已有正反用例可复用）。<br>⚠ **2026-10-10 核正：先解决「假覆盖」再动手** —— 今天**没有任何 `tasks/` 引用 `src/kit/blocks.js`**（老任务各自带一份私有拷贝），所以直接把它接进 `check` 会做出一个**永远绿**的检查（在现有任务集上不可能被触发）。要么先迁一个任务过来用 kit，要么专门做一个夹具任务 —— 否则这条等于没做 | [`history/IMPROVEMENTS-4-5.md`](history/IMPROVEMENTS-4-5.md) 第四轮 §6 **F**（⬜ 未做） |
-| 1-7 | **渲染提速的下一刀（2026-10-17 重估，NV12 之后旧三档的账已变）** | **改写**（旧 ②③ 已关、旧 ④ 并进来）：现状 12.3 fps ≈ 81ms/帧（渲染 ~45 + 传输 ~28 + 回读/编码 ~6 + ffmpeg ~4，PERF.md §5.2/5.4）。旧②「GPU 编码 8bit 回读」只省 6.4→5.2ms 的 1.2ms（1.5%）还要动基线 ⇒ **关**；旧③「PBO 藏 5ms」同理只值 6% 且引入异步时序 ⇒ **关**。**新的性价比排序**：ⓐ **R8/RG8 回读**（`gl.js:655` Y 平面现在按 RGBA 回读 8.3MB 再 CPU 抽 1 字节/像素 `:676` —— 改成 R8/RG8 目标直接回读 3.11MB，省掉回读带宽 + 紧凑化循环，PERF.md §5.6 第 5 条；先确认 ANGLE 支持 GLES3 表 3.2 组合）；ⓑ **WebCodecs**（浏览器内编码 38.7ms/帧、传输 3.11MB→27KB（314×），粗算 81→47ms = 1.7×，PERF.md §5.4b 已实测可行未落地；代价：放弃 CRF、`--segments`/音轨/`verify` 全要适配编码分片 + `-c copy` 封装）；ⓒ 渲染侧本身（独显 `--gpu high` 对填充重段已实测 2.15×，这个已经能用） | [`PERF.md`](PERF.md) §5.2/§5.3/§5.4/§5.6 · `src/core/gl.js:644-678`（readNV12 的 RGBA 回读证据） |
+| 1-7 | **渲染提速的下一刀（2026-10-17 重估；ⓐ 已落地，剩 ⓑ/ⓒ）** | **ⓐ R8/RG8 回读已做（2026-10-17，0-8）**：`readNV12()` 的 Y/UV 平面改成 R8/RG8 直接回读，总回读 **10.37 → 3.11MB/帧**、紧凑化循环删除；实测 `_calib` 720 帧 **47.8s → 44.5s（15.1 → 16.2 fps，1.07×；三次 44.3–44.6s）**，`probe-r8` / `probe-nv12` / `verify` / `hashes` 全绿（PERF.md §5.2/§5.4a/§5.6）。**剩下**：ⓑ **WebCodecs**（浏览器内编码 38.7ms/帧、传输 3.11MB→27KB（314×），粗算 81→47ms = 1.7×，PERF.md §5.4b 已实测可行未落地；代价：放弃 CRF、`--segments`/音轨/`verify` 全要适配编码分片 + `-c copy` 封装）；ⓒ 渲染侧本身（独显 `--gpu high` 对填充重段已实测 2.15×，这个已经能用）。旧②「GPU 编码 8bit 回读」与旧③「PBO」仍关（只值 1.5% / 6%） | [`PERF.md`](PERF.md) §5.2/§5.3/§5.4/§5.6 · `src/core/gl.js` 的 `RT.format` / `readNV12` |
 | 1-8 | **`dur: { vo }` 只能配内联旁白表** | 外部 `narration.json` 是页面启动后才 fetch 的，`build()` 时还没有表。想做"配置档 + 外挂旁白表"要先改这个时序 | [`STATUS.md` §15.5](STATUS.md) |
 | 1-31 | **`lint-fabricated-numbers` 判据 ③ 的假阴性：`values: [0.3, 0.7, 0.95]` 这种纯数字数组元素两边都不认**（判据 ① 只认字面量数字、③ 只认算出来的） | 本仓库的图表任务**全是这个写法** ⇒ 那串数**实际上没人验**（子代理 2026-10-16 实测：6 个有事实表的任务 194 个显示位里，`values` 元素一个都没被两条判据覆盖）。要做就得把 `values` 的元素纳进判据 ①（代价：所有图表任务染红，得逐个登记进 FACTS.md）；**先想清楚要不要**，别顺手加。另两条同类假阴性：裸变量实参 `type.write(cnt, …)`、跨文件流向 | 子代理报告（2026-10-16）· `tools/lint-fabricated-numbers.mjs` 文件头的诚实清单 |
 | 1-32 | **`String(cnt).padStart(2, '0')` 里的补零字符 `'0'` 被当成显示位字面量**（判据 ① 的假阳性） | 它其实是**格式参数**，不是画面上的数字。消掉要改判据 ① 的"实参里任意字面量"口径，会动**所有任务**的条数（本轮没做：夹具里刻意留着并登记了一行 `0`）。⚠ 改之前先量一遍"会影响几个任务、几条" | 同上 |
@@ -259,6 +258,7 @@
 | **1.B-27 运动规则表 + 3 个 kit 函数** | **2026-10-16**：`docs/MOTION.md`（12 条规则 + 四级证据分级）、`src/kit/motion.js`（`nudgeCurve` / `waterfallStagger` / `waterfallOver` / `glowPeakCap`）、`tools/test-motion.mjs`（42 项，已挂 `unit:motion`）。⚠ 数值是外部项目 hyperframes 的**经验值、我方未实测**；**留下的一半**（三个上限未接进守门）记成 §1.B-33 |
 | **第二轮清磁盘** | **2026-10-16**：`out/` 27.6 → 25.9 GB（释放 1.77 GB）；`_postlab` 的两个读数脚本搬进 `tools/` |
 | **1.D-34 / 1.D-35 前半 / 1.D-36（onetake 拆解的第一批落地）** | **2026-10-17**：`docs/REFERENCE-onetake.md`（拆解报告）+ 三件落地 —— ① `anim carry` 连贯度 oracle（判据纯函数 `planCarryBoundaries` / `classifyCarry` / `summarizeCarry` 在 `src/timeline.js`，块匹配在 CLI 页面侧，**默认只报读数、--strict 才 gate**；`cut(..., { carry })` 声明接线进 TIMELINE_KEYS/cut/build 三处）；② `check` 的「节奏（静态）」腿（`rhythmStats()` CoV，零渲染；单段进 skipped）；③ `src/kit/carry.js`（`morphRect/iris/zoomThrough/hop/gather/operatorCam` 六个纯函数 + 三个判据常量，只 import `core/util.js`，NaN 当场抛）。**验收**：`tools/test-carry.mjs` **33 项**（挂 `unit:carry`）；`regress-all --only unit` **22/22**；`hashes demo` / `beat` 基线各 **11/11 逐像素不变**；`anim carry` 实测 demo **0.50**（title→chart、chart→kinetic 两个硬切 bare —— 真实诊断：这三段各画各的世界）/ beat **1.00**（共享背景让硬切两侧 74–97% 配对）。**过程中抓到的**：lint-doc-facts 把注释里的 `'morph'/'anchor'/'any'` 字符串当 TIMELINE_KEYS 数了（守门按口径工作，改注释措辞）；`gather` 第一版端点不精确（行程抖动在 k=1 不归零，收拢收不齐 —— 抖动乘 `sin(πk)` 窗修掉）；`operatorCam` 的 rest 归零漏出 `-0`（显式 `env > 0` 分支修掉）。**留下**：1-37（动作图册）、1-38（静帧占比） |
+| **0-8 R8/RG8 回读（1-7 ⓐ）** | **2026-10-17**：`src/core/gl.js` 的 `RT` 新增 `format: 'r8' / 'rg8'`（不传 = 与之前逐字节相同的 RGBA8）；`readNV12()` 的两个平面改成 R8/RG8，按 `RED`/`RG` 回读（`PACK_ALIGNMENT` 钉 1），**紧凑化循环与两个中转缓冲删除**。验收：`tools/probe-r8.mjs` 新增并全绿（32×8 与 13×5 两种宽度、R8+RG8 逐字节 max 0；ANGLE / AMD / D3D11）；`probe-nv12` 全绿（max 1、>1 占 0.00%）；`_calib` 720 帧背靠背 **47.8s（15.1 fps）→ 44.5s（16.2 fps）= 1.07×**（三次 44.3–44.6s）；`verify _calib` **8/8**（mean 0.00–3.19）；`hashes demo` / `hashes beat --baseline` 各 **11/11 max 0**；`regress-all --only unit` 通过。数据在 `PERF.md` §5.2/§5.4a/§5.6 |
 
 ---
 

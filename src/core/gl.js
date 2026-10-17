@@ -264,22 +264,34 @@ export class RT {
    * @param {GL} gl
    * @param {number} w 物理像素宽
    * @param {number} h 物理像素高
-   * @param {{ float?: boolean, depth?: boolean, nearest?: boolean }} [opts]
+   * @param {{ float?: boolean, depth?: boolean, nearest?: boolean, format?: 'r8'|'rg8' }} [opts]
+   *   `format` 只对 8bit 目标生效：`'r8'` / `'rg8'` 把每像素存储降到 1 / 2 字节
+   *   （NV12 回读用，见 `readNV12`）。**不传 = RGBA8，与之前逐字节相同。**
    */
   constructor(gl, w, h, opts = {}) {
     this.gl = gl;
     const g = gl.ctx;
     const float = opts.float !== false;
-    const internal = float ? g.RGBA16F : g.RGBA8;
+    const fmt = float ? null : (opts.format ?? null);
+    const internal = float ? g.RGBA16F
+      : fmt === 'r8' ? g.R8
+        : fmt === 'rg8' ? g.RG8
+          : g.RGBA8;
+    const layout = float ? g.RGBA
+      : fmt === 'r8' ? g.RED
+        : fmt === 'rg8' ? g.RG
+          : g.RGBA;
     const type = float ? g.HALF_FLOAT : g.UNSIGNED_BYTE;
     const filter = opts.nearest ? g.NEAREST : g.LINEAR;
     this.w = Math.max(1, Math.round(w));
     this.h = Math.max(1, Math.round(h));
     /** 是否浮点存储（读回时要据此选类型：RGBA16F 只能用 FLOAT 读） */
     this.float = float;
+    /** 8bit 目标的 layout：null = RGBA8（默认），'r8' / 'rg8' = 单/双通道（回读要按它选格式） */
+    this.format = fmt;
     this.tex = g.createTexture();
     g.bindTexture(g.TEXTURE_2D, this.tex);
-    g.texImage2D(g.TEXTURE_2D, 0, internal, this.w, this.h, 0, g.RGBA, type, null);
+    g.texImage2D(g.TEXTURE_2D, 0, internal, this.w, this.h, 0, layout, type, null);
     g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, filter);
     g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, filter);
     g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
@@ -649,11 +661,13 @@ export class GL {
     if (!st || st.w !== w || st.h !== h) {
       st = this._nv12 = {
         w, h,
-        y: new RT(this, w, h, { float: false }),
-        uv: new RT(this, uw, uh, { float: false }),
+        // 两个平面按 1 / 2 字节每像素存储（R8 / RG8）—— 回读量因此从
+        // 「Y 按 RGBA 读 8.29MB + UV 2.07MB = 10.37MB」降到「2.07 + 1.04 = 3.11MB」，
+        // 也不再需要 CPU 紧凑化了。
+        // ANGLE 对 R8/RG8 的 readPixels(RED/RG) 支持由 `tools/probe-r8.mjs` 钉住。
+        y: new RT(this, w, h, { float: false, format: 'r8' }),
+        uv: new RT(this, uw, uh, { float: false, format: 'rg8' }),
         pass: new Pass(this, NV12_FRAG, { src: rt, mode: 0 }, { key: 'nv12_encode', blend: false }),
-        ybuf: new Uint8Array(w * h * 4),      // readPixels 总是按 RGBA 回读
-        uvbuf: new Uint8Array(uw * uh * 4),
         buf: new Uint8Array((w * h * 3) >> 1),
       };
       // 这一笔不是"画面的一部分"：别让它进背景守门的记账（`_notePaint`）
@@ -665,16 +679,17 @@ export class GL {
     p.set({ mode: 1 });
     p.render(this, st.uv, 0, 0);
 
-    st.y.bind();
-    g.readPixels(0, 0, w, h, g.RGBA, g.UNSIGNED_BYTE, st.ybuf);
-    st.uv.bind();
-    g.readPixels(0, 0, uw, uh, g.RGBA, g.UNSIGNED_BYTE, st.uvbuf);
-
     const out = st.buf;
-    const yb = st.ybuf, ub = st.uvbuf;
-    let o = 0;
-    for (let i = 0; i < yb.length; i += 4) out[o++] = yb[i];
-    for (let i = 0; i < ub.length; i += 4) { out[o++] = ub[i]; out[o++] = ub[i + 1]; }
+    // ⚠ `PACK_ALIGNMENT` 默认是 4：R8/RG8 的行宽不是 4 的倍数时 readPixels 会给**每一行**
+    //   补到 4 字节边界（probe-r8 量到 13 像素宽的 R8 行距是 16），直接按紧凑布局喂给
+    //   ffmpeg 会整片错位。钉成 1 之后两个平面直接落进 `out` 的连续区间 ——
+    //   以前那两行「逐像素抽 R / RG」的循环因此整个删掉。
+    g.pixelStorei(g.PACK_ALIGNMENT, 1);
+    st.y.bind();
+    g.readPixels(0, 0, w, h, g.RED, g.UNSIGNED_BYTE, out.subarray(0, w * h));
+    st.uv.bind();
+    g.readPixels(0, 0, uw, uh, g.RG, g.UNSIGNED_BYTE, out.subarray(w * h, w * h + uw * uh * 2));
+    g.pixelStorei(g.PACK_ALIGNMENT, 4);
     return out;
   }
 
