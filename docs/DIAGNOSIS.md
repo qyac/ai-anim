@@ -237,6 +237,8 @@
 | `节奏（静态）：N 段镜头长度 CoV 0.43（最短 1.10s / 最长 5.00s）  · ≥ 0.25`<br>`scripts/anim.mjs` 的 `cmdCheck`（`grep -n 节奏（静态） scripts/anim.mjs`） | `check` 的节奏腿读数：变异系数 ≥0.25，不是节拍器 | 无事可修（读数行） |
 | `⚠ 低于 0.25 —— 节拍器` + `  匀速镜头长度在观众眼里就是"一格一格翻灯片"…`<br>同上 | 镜头长度太匀（CoV <0.25）—— onetake motion-web 的教训：匀速两版都被否「依然是 PPT」，不管每镜多好看。**默认只 warn**，`--strict` 才进 errs | 镜头长度由旁白与信息量决定（`docs/NARRATION.md`）：长枪 8–13s、短击 2–4s、burst 里 0.2–0.5s，别平摊 |
 | `节奏（镜头长度 CoV）`：`时间线只有 N 段，没有长度分布可判 —— 这一条没跑`<br>同上（`pushSkipped`） | 单段 / `--only` 之后不存在长度分布 ⇒ **没判**（「空 ≠ 干净」） | 无事可修；要判节奏就跑全片（去掉 `--only`） |
+| `静帧占比 6%（判据 ≥25%）  最长静段 1.00s（判据 ≥1s）  静段 1 个 / 覆盖 17.0s` + `  hold  16.50 → 17.50s（1.00s）`<br>`scripts/anim.mjs` 的 `cmdRhythm`（`grep -n 静帧占比 scripts/anim.mjs`） | `anim rhythm` 的读数：死静步占比与静段区间表（降采样帧差量出来）。整片不达标是**事实读数**，不 gate（`--strict` 才进退出码） | 占比低 → 每 3–5 个动作 beat 放一个真空静的 hold；**hold 的写法**（慢推/drift 都不行、post 要关 grain 与 dither）见 `docs/MOTION.md` 节奏那行与 `tasks/_carry-lab/scenes/rhythm.js` |
+| `⚠ 死静帧占比 N% < 25%` / `⚠ 没有 ≥1s 的静段`<br>同上 | 「停顿才让动作落得下来」不达标 —— 永远在动的片子读作屏保 | 同上；注意两个隐形噪声源：默认 `grain 0.035` 与 `dither 'rpdf'` 的种子都来自帧号，hold 段必须 `return { grain: 0, dither: 'off' }` 才量得出"死静" |
 
 ### 1.10 探头与量具（`tools/`）
 

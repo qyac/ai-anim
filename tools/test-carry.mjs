@@ -27,7 +27,7 @@ import {
   CARRY_MOVE_FRAC, CARRY_SCALE_FRAC, CARRY_ANCHOR_FRAC,
 } from '../src/kit/carry.js';
 import {
-  planCarryBoundaries, classifyCarry, summarizeCarry, rhythmStats,
+  planCarryBoundaries, classifyCarry, summarizeCarry, rhythmStats, rhythmSegments,
 } from '../src/timeline.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -308,6 +308,46 @@ await t('rhythmStats：CoV 数值验算（样本标准差 n-1）', () => {
   const r = rhythmStats([seg('a', 0, 1), seg('b', 1, 3), seg('c', 3, 4)]);
   // durs = [1, 2, 1]，mean=4/3，样本方差 = ((1/3)²+(2/3)²+(1/3)²)/2 = 1/3，std=0.5774，cov=0.433
   assert.ok(Math.abs(r.cov - Math.sqrt(1 / 3) / (4 / 3)) < 1e-9, `cov=${r.cov}`);
+});
+
+/* ═══════════════════════ 5b. rhythmSegments —— 静/动分段（1-38） */
+
+await t('rhythmSegments：静 0.5 → burst 1.0 → 静 1.2 的标定形状（_carry-lab 夹具）', () => {
+  // 模拟夹具的 rhythm 段（0.5s 步长）：0-0.5 静（首步被首帧规则强制算动，不成段——0.5s < minHold
+  // 也本来不该成段）、0.5-1.5 动、1.5-2.7 静（成段，1.5s ≥ minHold）
+  const steps = [];
+  for (let i = 0; i <= 5; i++) {
+    const t = i * 0.5;
+    const still = t < 0.4 || t >= 1.5;
+    steps.push({ t, movedFrac: still ? 0.001 : 0.9 });
+  }
+  const seg1 = rhythmSegments(steps, { step: 0.5 });
+  assert.equal(seg1.holds.length, 1, `应量出 1 个静段（量出 ${JSON.stringify(seg1.holds)}）`);
+  assert.ok(Math.abs(seg1.longest - 1.5) < TOL, `最长静段 ${seg1.longest} 应为 1.5s（1.5→3.0）`);
+  assert.ok(seg1.stillRatio > 0.4, `静步占比 ${(seg1.stillRatio * 100).toFixed(0)}% 应 ≥40%`);
+});
+
+await t('rhythmSegments：孤立单步静不成段（镜头间的呼吸不算 hold）', () => {
+  // 一长串动帧中间夹一步静 —— 不许长出 ≥1s 的段
+  const steps = Array.from({ length: 10 }, (_, i) => ({ t: i * 0.5, movedFrac: i === 5 ? 0.001 : 0.9 }));
+  const r = rhythmSegments(steps, { step: 0.5 });
+  assert.equal(r.holds.length, 0, '单步静（0.5s < minHold）不该成段');
+  // stillRatio 照样统计（那一步确实是静的）；分母含首帧（首步是时间轴的一部分）
+  assert.ok(Math.abs(r.stillRatio - 1 / 10) < TOL, `占比口径 = 静步/全部步（含强制算动的首步），量出 ${r.stillRatio}`);
+});
+
+await t('rhythmSegments：慢推不是静（movedFrac 高于阈值的步不算静）', () => {
+  // 1→1.05 的慢推：每步 movedFrac 0.02（>0.005）⇒ 没有静段（clearing 假红教训的判据面）
+  const steps = Array.from({ length: 10 }, (_, i) => ({ t: i * 0.5, movedFrac: 0.02 }));
+  const r = rhythmSegments(steps, { step: 0.5 });
+  assert.equal(r.holds.length, 0);
+  assert.equal(r.stillRatio, 0);
+});
+
+await t('rhythmSegments：空表 / 单步 —— 没判（「空 ≠ 干净」）', () => {
+  assert.equal(rhythmSegments([]).total, 0);
+  assert.equal(rhythmSegments([{ t: 0, movedFrac: 1 }]).holds.length, 0);
+  assert.equal(rhythmSegments(null).stillRatio, 0, 'null 输入不许崩');
 });
 
 /* ═══════════════════════ 6. 静态扫描与接线自检（判据对了、接线没接上 = 白测） */

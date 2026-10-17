@@ -761,6 +761,57 @@ export function rhythmStats(items) {
   };
 }
 
+/**
+ * **静/动分段判定**（纯函数，BACKLOG 1-38，2026-10-17）。
+ *
+ * 把「一串采样帧的帧差」变成「静段区间表」。判据（【外部经验值】，
+ * `docs/REFERENCE-onetake.md` §3）：
+ *   · **死静帧占比 ≥ 25%**，且**最长静段 ≥ 1s** —— 「停顿才让动作落得下来」；
+ *     永远在动的片子读作屏保（Never let the frame be always in motion）。
+ *   · ⚠ **rest 必须真空静**：1→1.05 的慢推、持续 drift 在量具眼里永远不静
+ *     （clearing 首渲 rest 0.178 假红、改真空静后 0.294 —— 对方自己踩的坑）。
+ *
+ * 帧差口径：降采样渲相邻两帧、逐像素差分，**差过阈值（显示空间 6/255）
+ * 的像素占比 < 0.5%** 视为「这一步是静的」。连续静步 ≥ `minHold` 秒合成一个静段
+ * （孤立单步静是镜头间的呼吸，不算 hold）。
+ *
+ * @param {{ t: number, movedFrac: number }[]} steps 采样步：`t` = 帧时刻、
+ *   `movedFrac` = 与前一帧差过阈值的像素占比 0..1（第一帧给 1 = 强制算动）
+ * @param {{ step?: number, stillFrac?: number, minHold?: number }} [opts]
+ *   `step` 采样步长秒（默认 0.5，调用方保证 steps 间距与它一致）；`stillFrac` 判静阈值
+ *   （默认 0.005）；`minHold` 成段最小秒数（默认 1.0）
+ * @returns {{ stillRatio: number, longest: number, holds: { from: number, to: number }[],
+ *   total: number }}
+ *   `stillRatio` = 静步占比（等步长时 = 时间占比）；`holds` = 静段区间；`longest` = 最长静段秒
+ */
+export function rhythmSegments(steps, opts = {}) {
+  const list = Array.isArray(steps) ? steps.filter((s) => s && Number.isFinite(s.t)) : [];
+  const step = opts.step ?? 0.5;
+  const stillFrac = opts.stillFrac ?? 0.005;
+  const minHold = opts.minHold ?? 1.0;
+  if (list.length < 2) return { stillRatio: 0, longest: 0, holds: [], total: 0 };
+  const flags = list.map((s, i) => (i === 0 ? false : Number(s.movedFrac ?? 1) < stillFrac));
+  const holds = [];
+  let runStart = -1;
+  for (let i = 0; i < flags.length; i++) {
+    if (flags[i] && runStart < 0) runStart = i;
+    if ((!flags[i] || i === flags.length - 1) && runStart >= 0) {
+      const end = flags[i] ? i : i - 1;
+      const from = list[runStart].t;
+      const dur = (end - runStart + 1) * step;
+      if (dur >= minHold) holds.push({ from, to: from + dur });
+      runStart = -1;
+    }
+  }
+  const stillSteps = flags.filter(Boolean).length;
+  return {
+    stillRatio: stillSteps / flags.length,
+    longest: holds.reduce((m, h) => Math.max(m, h.to - h.from), 0),
+    holds,
+    total: list[list.length - 1].t - list[0].t,
+  };
+}
+
 /** 打印时间线（CLI 的 tasks/check 用）。 */
 export function describe(timeline) {
   return timeline.map((i) =>

@@ -104,6 +104,9 @@ const ITEMS = [
   { name: 'check:demo', cmd: ['scripts/anim.mjs', 'check', 'demo', '--quick'], note: '5 段', timeout: 30 * 60e3 },
   { name: 'check:beat', cmd: ['scripts/anim.mjs', 'check', 'beat', '--quick'], note: '3 段', timeout: 30 * 60e3 },
   { name: 'check:_calib', cmd: ['scripts/anim.mjs', 'check', '_calib', '--quick'], note: '标定夹具', timeout: 30 * 60e3 },
+  // carry 词表的图册 + 1-38 静/动标定样本（2026-10-17）：7 段全走 makeShot（rhythm 段裸场景），
+  // check 验证六个 carry 函数真的画得出来；节奏腿在它身上 CoV ≈0.27（好样本）。
+  { name: 'check:_carry-lab', cmd: ['scripts/anim.mjs', 'check', '_carry-lab', '--quick'], note: 'carry 图册夹具：morphRect/iris/zoomThrough/hop/gather/operatorCam 各一段 + rhythm 静/动标定', timeout: 30 * 60e3 },
   { name: 'check:nekohome', cmd: ['scripts/anim.mjs', 'check', 'nekohome', '--quick'], note: '8 段', timeout: 30 * 60e3 },
   { name: 'check:fidus', cmd: ['scripts/anim.mjs', 'check', 'fidus', '--quick'], note: '9 段', timeout: 30 * 60e3 },
   { name: 'check:pdoom-lab', cmd: ['scripts/anim.mjs', 'check', 'pdoom-lab'], note: '3D 验证片：raymarch 走廊 + 非有限值扫描', timeout: 30 * 60e3 },
