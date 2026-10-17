@@ -58,11 +58,12 @@
 
 ---
 
-## 0. 拍板区（2026-10-16 复核后只剩下面**一条**"已定要做"；其余已关闭或已做 —— 见 §4）
+## 0. 拍板区（2026-10-16 复核后只剩下面**两条**"已定要做"；其余已关闭或已做 —— 见 §4）
 
 | # | 事 | 状态 / 代价 | 出处 |
 |---|---|---|---|
 | 0-6 | **后处理新参数真的用起来**（`tonemap` / `dither` / `bloomKaris` / `grainScale`） | **已定：做**（2026-10-16 用户拍板）。四个参数已进引擎，**默认值全部等于现状**（`hashes demo` / `beat` 各 11/11 `max 0` 验过）。实测：现状的软肩在输入 1.0 就输出 254、2.0 并到纯白（高光**没有层次**）；`tonemap: 'agx'` 配 `exposure: 0.75` 能把高光拉回来（1.0→200、2.0→238、4.0→247）且暗部反而更沉（均值 75.1→73.5），**代价是霓虹去饱和**（橙 253,253,120 → 237,218,151）；`'aces'` 是折中（1.0→232，霓虹 248,241,131）。**做法**：下一支片子的高光多镜头先用它出 A/B 图再定（`tasks/_post-lab/` 是现成的标定夹具） | [`ENGINE.md` §5](ENGINE.md)（参数表）· `tasks/_post-lab/`（标定夹具）· `out/_postlab/`（本轮实测数据与对比图） |
+| 0-8 | **R8/RG8 回读**（1-7 重估后的第一刀，**2026-10-17 用户拍板：做**） | `readNV12()` 的 Y/UV 平面从「RGBA 回读 8.3MB 再 CPU 紧凑化」改成「R8/RG8 直接回读 2.5MB」，紧凑化循环删掉；预估 60–80 行、半天，预期 81→~77ms/帧。**唯一风险 = ANGLE 对 R8/RG8 readPixels 的支持度**，探针先行（半小时出答案），不支持就 feature 回退。完整交接（背景/改动面/探针/验收/硬约束）→ **[`HANDOFF-R8RG8.md`](HANDOFF-R8RG8.md)** | [`PERF.md`](PERF.md) §5.6 第 5 条 · `src/core/gl.js:644-679` |
 
 ---
 
@@ -146,8 +147,8 @@
 | ~~1-34~~ | **已完成（2026-10-17）**：`anim carry` 落地 —— 判据/块匹配/汇总在 `src/timeline.js`（`planCarryBoundaries` / `classifyCarry` / `summarizeCarry`），实测 demo 0.50（两个硬切 bare）/ beat 1.00（共享背景 carry），见 §4 | | |
 | ~~1-35 前半~~ | **已完成（2026-10-17）**：`check` 的「节奏（静态）」腿（CoV）落地 —— `rhythmStats()` 纯函数，默认只报读数、`--strict` 才进 errs；单段/`--only` 进 skipped。后半（静帧占比）记成 **1-38** | | |
 | ~~1-36~~ | **已完成（2026-10-17）**：`src/kit/carry.js` 落地（六个纯函数 + 三个判据常量）+ `tools/test-carry.mjs`（33 项）+ index.js 再导出 + regress-all 登记，见 §4 | | |
-| 1-37 | **动作图册**：每个 kit 动作一张「六帧 + 速度曲线」接片图（`anim gallery` 或 tools 脚本） | 照对方 `gallery/sheets/<move>.png` 的形状；同时把对方的速度谱（whip 540 / iris 206 / zoomThrough 72 px/frame）升级成【我方实测】，给「什么时候需要更多子帧」一个判据。**carry.js 的六个新动作（morphRect/iris/zoomThrough/hop/gather/operatorCam）排最前 —— 它们还没有一张图** | 同上 §5（速度谱出处表） |
-| 1-38 | **静帧占比测量**（1-35 的后半）：死静帧 ≥ 25%、最长静段 ≥ 1s | CoV 前半已落地（`check` 的「节奏（静态）」腿）；静帧需要渲帧 —— 降采样 2fps 渲染比对（复用 `hashes` 车道），接成 `check --rhythm` 可选段，默认只报读数。⚠ rest 必须真空静：1→1.05 的慢推在量具眼里永远不静（clearing 首渲假红的教训） | 同上 §3（「停顿才让动作落得下来」）与 §4 |
+| ~~1-37~~ | **夹具半完成（2026-10-17）**：`tasks/_carry-lab/` 落地（六个 carry 函数各一段真画 + rhythm 标定段，**看图验收 9/9 合格**，挂回归 `check:_carry-lab`）。**剩下**：把 stills 升级成「六帧 + 速度曲线」接片图（`anim gallery` / tools 脚本）+ 把速度谱升级成【我方实测】 | 夹具上直接加：每个动作出 6 个时刻（进场景中点前后各三）→ `writeContactSheet` 拼 + 速度曲线（数值微分 hop/morphRect 即可） | 同上 §5（速度谱出处表） |
+| ~~1-38~~ | **已完成（2026-10-17）**：`anim rhythm` 量具落地 —— `rhythmSegments()` 纯函数（`src/timeline.js`）+ CLI 子命令（降采样帧差 → 静段区间表）；标定样本 `tasks/_carry-lab` 的 rhythm 段量出 hold 16.50→17.50s。**关键发现**：hold 段必须 `return { grain: 0, dither: 'off' }`（默认 grain 与 dither 种子来自帧号、暗部 sRGB 放大 ~6.4/255，不关就永远量不出死静）——已写进 MOTION.md 与 DIAGNOSIS §1.9c | | 同上 §3 |
 
 ---
 
