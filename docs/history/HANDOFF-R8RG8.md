@@ -1,12 +1,12 @@
 # HANDOFF-R8RG8 —— R8/RG8 回读：把 NV12 出片路径的最后一刀做掉
 
 > **这份文档是自包含的一次性交接**：它假设你（下一个会话）看不到产生它的对话。
-> 背景、证据、复现命令、硬约束都在本文里；待办登记在 [`BACKLOG.md`](BACKLOG.md) **1-7**（已改写）。
+> 背景、证据、复现命令、硬约束都在本文里；待办登记在 [`BACKLOG.md`](../BACKLOG.md) **1-7**（已改写）。
 > 写于 2026-10-17，前两个提交：`a5c3e41`（carry 第一批）、`97e26c5`（图册 + rhythm 量具）。
 >
 > **✅ 已执行（2026-10-17 本会话）**：`tools/probe-r8.mjs` 全绿（ANGLE / AMD / D3D11，R8 + RG8，
 > 含非 4 对齐宽度）、两个平面都已换、`PACK_ALIGNMENT` 钉 1。验收与实测数字见
-> [`PERF.md`](PERF.md) §5.2 / §5.4a / §5.6。**本文保留为决策记录，不要再按它重做一遍。**
+> [`PERF.md`](../PERF.md) §5.2 / §5.4a / §5.6。**本文保留为决策记录，不要再按它重做一遍。**
 
 ---
 
@@ -20,7 +20,7 @@
 ## 1. 背景：为什么是这一刀（账的证据）
 
 出片链路 2026-10 起推 NV12（GPU 上转 BT.709 limited 4:2:0，每帧 3.11MB 走 ws 推给 ffmpeg），
-端到端 **12.3 fps ≈ 81ms/帧**（[`PERF.md`](PERF.md) §5.2/5.4 的实测）。
+端到端 **12.3 fps ≈ 81ms/帧**（[`PERF.md`](../PERF.md) §5.2/5.4 的实测）。
 每帧的大致分解（同上）：
 
 | 环节 | 耗时 | 说明 |
@@ -32,9 +32,9 @@
 
 当前实现的浪费（证据行号）：
 
-- [`src/core/gl.js:655`](../src/core/gl.js#L655)：`ybuf: new Uint8Array(w * h * 4)` —— 注释自己写着
+- [`src/core/gl.js:655`](../../src/core/gl.js#L655)：`ybuf: new Uint8Array(w * h * 4)` —— 注释自己写着
   「readPixels 总是按 RGBA 回读」：**Y 平面（w×h 的单字节内容）按 RGBA 回读了 4 倍体积（8.3MB）**；
-- [`src/core/gl.js:668-677`](../src/core/gl.js#L668-L677)：回读后 CPU 逐像素抽
+- [`src/core/gl.js:668-677`](../../src/core/gl.js#L668-L677)：回读后 CPU 逐像素抽
   `out[o++] = yb[i]`（Y）、`ub[i]/ub[i+1]`（UV）—— 1080p 每帧 ~260 万次循环拷贝；
 - UV 平面同理（`uvbuf` 是 `w/2 × h/2 × 4`，实际只用前 2 字节）。
 
@@ -47,7 +47,7 @@ NV12 之后传输降到 28ms，**回读+紧凑化成了「渲染之外」最大�
 
 ### 2.1 `src/core/gl.js` 的 `RT` 类（~8 行）
 
-现状（[gl.js:262-298](../src/core/gl.js#L262-L298)）：格式写死 `RGBA8/RGBA16F`。
+现状（[gl.js:262-298](../../src/core/gl.js#L262-L298)）：格式写死 `RGBA8/RGBA16F`。
 加一个 `opts.format: 'r8' | 'rg8'`（默认 undefined = 现状，零影响）：
 
 ```js
@@ -64,7 +64,7 @@ g.texImage2D(g.TEXTURE_2D, 0, internal, this.w, this.h, 0, layout, type, null);
 
 ### 2.2 `readNV12`（~15 行净变化）
 
-现状（[gl.js:644-679](../src/core/gl.js#L644-L679)）两个 RT 都是 `float: false`（RGBA8），
+现状（[gl.js:644-679](../../src/core/gl.js#L644-L679)）两个 RT 都是 `float: false`（RGBA8），
 回读后紧凑化。改成：
 
 - `st.y` 建 RT 时 `format: 'r8'`；`st.uv` 建 RT 时 `format: 'rg8'`；
@@ -127,7 +127,7 @@ node scripts/anim.mjs hashes beat --baseline    # 11/11
 node tools/regress-all.mjs --only unit          # 22/22
 ```
 
-实测数字记进 [`PERF.md`](PERF.md)：§5.6 第 5 条划掉、§5.2 加一行「R8/RG8 回读之后」的端到端帧率。
+实测数字记进 [`PERF.md`](../PERF.md)：§5.6 第 5 条划掉、§5.2 加一行「R8/RG8 回读之后」的端到端帧率。
 预期收益：回读+紧凑化的 ~6ms 砍到 ~2ms，端到端 81 → ~77ms（12.3 → ~13 fps）。
 **先 `video --dry-run` 拿预估**，出片前后各跑一次 `_calib` 对比，别拿 promo（太长）。
 
@@ -148,7 +148,7 @@ node tools/regress-all.mjs --only unit          # 22/22
 
 | 交付 | 位置 |
 |---|---|
-| onetake 拆解报告（判据出处） | [`REFERENCE-onetake.md`](REFERENCE-onetake.md) |
+| onetake 拆解报告（判据出处） | [`REFERENCE-onetake.md`](../REFERENCE-onetake.md) |
 | `anim carry`（连贯度 oracle）+ `cut(..., { carry })` 声明 | `scripts/anim.mjs` cmdCarry / `src/timeline.js` |
 | `check` 节奏腿（CoV）+ `anim rhythm`（静/动分段） | 同上 cmdRhythm / `rhythmSegments()` |
 | `src/kit/carry.js` 六个纯函数 + 33→37 项单测 | `tools/test-carry.mjs` |

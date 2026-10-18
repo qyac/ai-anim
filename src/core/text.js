@@ -612,7 +612,7 @@ export function karaokeLit(start, lead, t) {
  * 就整帧崩掉（所以 console.warn 而不是 throw）。
  *
  * 为什么不能只静默：这个仓库最贵的历史教训就是「看起来完全正常」的失败
- * （`docs/STATUS.md` §11.0）。而拼不上的后果恰恰是最难看出来的一种 ——
+ * （`docs/history/STATUS-rounds-1-6.md` §11.0）。而拼不上的后果恰恰是最难看出来的一种 ——
  * 后面每个词都整体错位，画面依然"有字、有颜色、在动"。
  * 每次调都报同样一个 key，所以按 key 去重（`warnedKaraoke`）。
  *

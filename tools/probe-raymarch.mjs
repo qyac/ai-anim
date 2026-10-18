@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * raymarch 通电探针 —— 定位 `docs/STATUS.md` §13.4 那条「真 raymarch 段落在引擎里整屏白」。
+ * raymarch 通电探针 —— 定位 `docs/history/STATUS-rounds-1-6.md` §13.4 那条「真 raymarch 段落在引擎里整屏白」。
  *
  * 为什么要有它：raymarch 出问题时**看不出是哪一层**——相机 uniform 没传进去、SDF 返回 NaN、
  * HDR 里溢出成 Inf、后处理把 NaN 压成黑 —— 四种原因的最终画面只差一点颜色，靠改场景文件

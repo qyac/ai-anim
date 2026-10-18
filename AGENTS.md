@@ -625,7 +625,7 @@ ffmpeg 用 `-pix_fmt nv12` 直接吃 —— 瓶颈与验收数字见 `docs/PERF.
 `FACTS.md`、`SCRIPT.md`、`timing.{json,mjs}`、`**/*.analysis.json`、`**/*.rgba`/`*.yuv`）
 **挡不住编辑器的原子写**：它们会留下 `.xxx.tmpdir/…tmp`（**不以 `.md` 结尾**），Vite 的文件监听
 照样去 watch，撞上 `EBUSY` **直接让 Vite 进程崩掉**，渲染报 `net::ERR_CONNECTION_REFUSED`
-（`docs/STATUS.md` §14.5 第三次复现：`hashes demo --baseline` 跑到第 8 帧就断在这里）。
+（`docs/history/STATUS-rounds-7-10.md` §14.5 第三次复现：`hashes demo --baseline` 跑到第 8 帧就断在这里）。
 唯一被实测挡住的是 **`out/**`** —— **并发子代理的产出先落 `out/_staging/`**，渲染结束再搬进仓库。
 （"`docs/**`、`**/*.md` 可以安全写"那条**已作废**。）
 `video` 现在会在收尾时用 **ffprobe 复核自己的产物**（帧数不符就报错并删掉废文件），

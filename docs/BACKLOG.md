@@ -91,7 +91,7 @@ D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loud
 |---|---|---|---|
 | 1-1 | **`check` 增加几何自检**：随机取几个"已知应该可见"的面，验证"被铺的面 = 朝镜头的面" | 这类"不报错但画面全错"的几何 bug 目前**只能靠眼睛**（`facesToward` 反向那次出图核对了 20+ 帧才定位到）。判据可以先做成纯 JS 的（`tools/test-blocks.mjs` 已有正反用例可复用）。<br>⚠ **2026-10-10 核正：先解决「假覆盖」再动手** —— 今天**没有任何 `tasks/` 引用 `src/kit/blocks.js`**（老任务各自带一份私有拷贝），所以直接把它接进 `check` 会做出一个**永远绿**的检查（在现有任务集上不可能被触发）。要么先迁一个任务过来用 kit，要么专门做一个夹具任务 —— 否则这条等于没做 | [`history/IMPROVEMENTS-4-5.md`](history/IMPROVEMENTS-4-5.md) 第四轮 §6 **F**（⬜ 未做） |
 | 1-7 | **渲染提速的下一刀（2026-10-17 重估；ⓐ 已落地，剩 ⓑ/ⓒ）** | **ⓐ R8/RG8 回读已做（2026-10-17，0-8）**：`readNV12()` 的 Y/UV 平面改成 R8/RG8 直接回读，总回读 **10.37 → 3.11MB/帧**、紧凑化循环删除；实测 `_calib` 720 帧 **47.8s → 44.5s（15.1 → 16.2 fps，1.07×；三次 44.3–44.6s）**，`probe-r8` / `probe-nv12` / `verify` / `hashes` 全绿（PERF.md §5.2/§5.4a/§5.6）。**剩下**：ⓑ **WebCodecs**（浏览器内编码 38.7ms/帧、传输 3.11MB→27KB（314×），粗算 81→47ms = 1.7×，PERF.md §5.4b 已实测可行未落地；代价：放弃 CRF、`--segments`/音轨/`verify` 全要适配编码分片 + `-c copy` 封装）；ⓒ 渲染侧本身（独显 `--gpu high` 对填充重段已实测 2.15×，这个已经能用）。旧②「GPU 编码 8bit 回读」与旧③「PBO」仍关（只值 1.5% / 6%） | [`PERF.md`](PERF.md) §5.2/§5.3/§5.4/§5.6 · `src/core/gl.js` 的 `RT.format` / `readNV12` |
-| 1-8 | **`dur: { vo }` 只能配内联旁白表** | 外部 `narration.json` 是页面启动后才 fetch 的，`build()` 时还没有表。想做"配置档 + 外挂旁白表"要先改这个时序 | [`STATUS.md` §15.5](STATUS.md) |
+| 1-8 | **`dur: { vo }` 只能配内联旁白表** | 外部 `narration.json` 是页面启动后才 fetch 的，`build()` 时还没有表。想做"配置档 + 外挂旁白表"要先改这个时序 | [`history/STATUS-rounds-7-10.md` §15.5](history/STATUS-rounds-7-10.md) |
 | 1-31 | **`lint-fabricated-numbers` 判据 ③ 的假阴性：`values: [0.3, 0.7, 0.95]` 这种纯数字数组元素两边都不认**（判据 ① 只认字面量数字、③ 只认算出来的） | 本仓库的图表任务**全是这个写法** ⇒ 那串数**实际上没人验**（子代理 2026-10-16 实测：6 个有事实表的任务 194 个显示位里，`values` 元素一个都没被两条判据覆盖）。要做就得把 `values` 的元素纳进判据 ①（代价：所有图表任务染红，得逐个登记进 FACTS.md）；**先想清楚要不要**，别顺手加。另两条同类假阴性：裸变量实参 `type.write(cnt, …)`、跨文件流向 | 子代理报告（2026-10-16）· `tools/lint-fabricated-numbers.mjs` 文件头的诚实清单 |
 | 1-32 | **`String(cnt).padStart(2, '0')` 里的补零字符 `'0'` 被当成显示位字面量**（判据 ① 的假阳性） | 它其实是**格式参数**，不是画面上的数字。消掉要改判据 ① 的"实参里任意字面量"口径，会动**所有任务**的条数（本轮没做：夹具里刻意留着并登记了一行 `0`）。⚠ 改之前先量一遍"会影响几个任务、几条" | 同上 |
 | 1-33 | **1-27 留下的一半：三个运动上限还没接进守门** | `src/kit/motion.js` 的三个函数目前只能**手动调** —— 错峰跨度（`items × stagger ≤ 0.5`）与辉光峰值（`≤ 0.45`）都还是"要自己想起去调"。`REFERENCE-hyperframes.md` §4.4 说这类上限**大多静态可查**（读场景源码里的 `stagger` / `alpha` / `bloom` 字面量），所以下一步是接进 `check` 的静态扫描（照 `tools/lint-fabricated-numbers.mjs` 的形状：纯函数判据 + 夹具 + 挂 `regress-all`）。**同源的另一条**：碰撞式转场"受害者时长 = 入侵者的 40–50%"现在只写在 `docs/MOTION.md`，要变成函数得先给 `enterOffset` / `transitionPass` 开入口 | 子代理报告（2026-10-16）· [`MOTION.md`](MOTION.md) §4 · [`REFERENCE-hyperframes.md`](REFERENCE-hyperframes.md) §4.4 |
@@ -220,7 +220,7 @@ D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loud
 
 | 事 | 哪一轮做的 |
 |---|---|
-| B 档「配置档」（时间线里直接写 `{ type: 'chart', … }`） | 第八轮，[`STATUS.md` §15](STATUS.md)（§14.6 里还写着"这是路线图的下一步"） |
+| B 档「配置档」（时间线里直接写 `{ type: 'chart', … }`） | 第八轮，[`history/STATUS-rounds-7-10.md` §15](history/STATUS-rounds-7-10.md)（§14.6 里还写着"这是路线图的下一步"） |
 | `src/kit/blocks.js`（3D 线段 + 深度排序 + `facesToward` + 盒子/排线 + 连续摄影机 + 世界切片） | 第四轮 §4 A，已落地 |
 | `src/kit/panel.js`（2D 面板层：`panel` / `tile` / `chips` / `arrowH` / `bufBox`） | 同上 §4 B，已落地 |
 | 摄影机关键帧支持**按段名 + 段内秒**（`{ id: 'ctm', at: 3.0, … }`） | 同上 §4 C，已落地（`src/kit/blocks.js`） |

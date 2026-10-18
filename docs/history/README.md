@@ -4,7 +4,7 @@
 > ⚠ **不要把这里的"没做的 / 留给下一轮"当成待办** —— 那是**当时**的状态。
 > 现在唯一有效的待办清单是 [`../BACKLOG.md`](../BACKLOG.md)（已经逐条核对过，把后来做掉的划掉了）。
 >
-> **要看当前状态**：`../STATUS.md`（最近几轮 §14–§19）、`../../AGENTS.md` §9（目录与文档导航）、
+> **要看当前状态**：`../STATUS.md`（最近几轮 §18–§19）、`../../AGENTS.md` §9（目录与文档导航）、
 > `../ENGINE.md`（规格）、`../COOKBOOK.md`（做法）。**本文档与代码不一致时，一律以代码为准。**
 >
 > 归档规则：内容**不删**（它记录了"问题是怎么被发现的"：证据链、复现命令、当时的读数），
@@ -18,9 +18,12 @@
 |---|---|---|---|
 | [`HANDOFF.md`](HANDOFF.md) | `docs/HANDOFF.md` | 引擎最早那一轮的交接单（出片管线暴露的问题） | `STATUS.md` §1–§9 → [`STATUS-rounds-1-6.md`](STATUS-rounds-1-6.md) |
 | [`HANDOFF-THREEJS.md`](HANDOFF-THREEJS.md) | `docs/HANDOFF-THREEJS.md` | 把 Three.js 接进引擎的**设计档 + 坑清单**（提案） | [`../THREE.md`](../THREE.md)（怎么写）· [`../ENGINE.md`](../ENGINE.md) §3.8（规格） |
+
+| [`HANDOFF-R8RG8.md`](HANDOFF-R8RG8.md) | `docs/HANDOFF-R8RG8.md` | NV12 出片路径的 R8/RG8 回读交接（决策记录；任务 2026-10-17 已完成） | [`../PERF.md`](../PERF.md) §5.2/§5.4a/§5.6（验收数字）· [`../BACKLOG.md`](../BACKLOG.md) 1-7 |
 | [`IMPROVEMENTS-1-3.md`](IMPROVEMENTS-1-3.md) | `docs/IMPROVEMENTS.md` · `IMPROVEMENTS-2.md` · `IMPROVEMENTS-3.md` | 第一～三轮的改进记录（fidus 那轮 17 条 / beast 那轮 14 条 / promo 那轮的 A–F）——**53 条全部落地** | 代码 · `STATUS.md` §10 / §11 / §16 |
 | [`IMPROVEMENTS-4-5.md`](IMPROVEMENTS-4-5.md) | `docs/IMPROVEMENTS-4.md` · `IMPROVEMENTS-5.md` | 第四轮（`tasks/optifine` 那轮）与第五轮（风格包 + 字幕层） | 代码 · 未落地项见 [`../BACKLOG.md`](../BACKLOG.md) |
 | [`STATUS-rounds-1-6.md`](STATUS-rounds-1-6.md) | `docs/STATUS.md` §1–§13 | `STATUS.md` 前六轮的详细记录（§1–§13） | `../STATUS.md`（§14 起）；**章节号原样保留** |
+| [`STATUS-rounds-7-10.md`](STATUS-rounds-7-10.md) | `docs/STATUS.md` §14–§17 | `STATUS.md` 第七～十轮的详细记录（A 档镜头库 / B 档配置档 / 渲染提速 / NV12） | `../STATUS.md`（§18 起）；**章节号原样保留** |
 
 > `tasks/sodium` / `tasks/optifine` / `tasks/fidus` / `tasks/beast` / `tasks/nekohome` 这几支片子
 > **不在公开仓库里**（作者本地的成片项目）。归档文档里出现的 `tasks/xxx/...` 路径是**证据出处**，
@@ -40,6 +43,9 @@
 | `docs/HANDOFF.md` | [`HANDOFF.md`](HANDOFF.md) |
 | `docs/HANDOFF-THREEJS.md` | [`HANDOFF-THREEJS.md`](HANDOFF-THREEJS.md) |
 | `docs/STATUS.md` §1…§13 | [`STATUS-rounds-1-6.md`](STATUS-rounds-1-6.md)（**§ 号不变**） |
+| `docs/STATUS.md` §14…§17 | [`STATUS-rounds-7-10.md`](STATUS-rounds-7-10.md)（**§ 号不变**） |
+| `docs/HANDOFF-R8RG8.md` | 本目录同名文件（bikeshed 两份 HANDOFF 随片子留在本地，不入库） |
+| `docs/ROADMAP.md` | **已删除**（2026-10-18；三档 A/B/C 全部落地）—— §5 立场并入 [`../CONFIG-ONLY.md`](../CONFIG-ONLY.md) §11，§2 术语在 [`../CONFIG-ONLY.md`](../CONFIG-ONLY.md) 头部 |
 | `docs/STATUS.md` §14…§19 | [`../STATUS.md`](../STATUS.md) |
 
 > 这些旧路径在正文里**已经全部改成新路径**（2026-10-07 整理时批量改过）。
@@ -74,5 +80,21 @@
 > 验证：整理后跑了「全部 md 的相对链接是否存在」与「每个源文件的标题是否都在归档里」两项检查 ——
 > 死链 **0**；标题命中：第一～三轮 **51/51**、第四～五轮 **56/56**、STATUS 原文件 **124/126**
 > （缺的 2 条正是上面故意改名的重复标题）。
+>
+> ---
+>
+> ### 整理记录（2026-10-18）
+>
+> 1. **归档**：`HANDOFF-R8RG8.md` 移入本目录（顶部加状态横幅）。bikeshed 的两份交接（选题方案/复盘）
+>    2026-10-18 起随片子**只留本地**（`.gitignore`），其活内容（P-1/P-2/P-3 与 7 条小改进）已收编进
+>    [`../BACKLOG.md`](../BACKLOG.md) §0。
+> 2. **删除** `docs/ROADMAP.md`：三档 A/B/C 全部落地、实施清单 4 条全勾 —— 典型"已完成的计划"。
+>    §5「为什么不做一句话生成视频」并入 [`../CONFIG-ONLY.md`](../CONFIG-ONLY.md) §11。
+> 3. **拆分** `STATUS.md`：§14–§17（第七～十轮）移入 [`STATUS-rounds-7-10.md`](STATUS-rounds-7-10.md)，
+>    章节号原样保留；STATUS.md 只留 §18–§19（第十一、十二轮）。
+> 4. **修引用**：全仓库 20+ 处指向旧路径的引用批量改到新位置
+>    （含上一轮整理遗漏的 8 处 `docs/STATUS.md` §1x 代码注释引用，这次一并指到 rounds-1-6）。
+> 5. `HANDOFF-sodium-feedback.md` 与其截图 2026-10-18 起随片子**只留本地**（`.gitignore`：评论反馈是
+>    对外片子的原始材料）。
 
 整理前的完整备份在 `out/_docbackup-20261007/`（25 个文件 / 1.5 MB，不进版本控制）。

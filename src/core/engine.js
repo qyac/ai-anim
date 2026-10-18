@@ -1007,7 +1007,7 @@ export class Engine {
   /**
    * 扫一张**浮点**渲染目标里的非有限值（NaN / ±Inf）与"量级爆掉"的像素。
    *
-   * 为什么需要它（`docs/STATUS.md` §13.4）：场景 shader 一旦写出 NaN 或 Inf，引擎里
+   * 为什么需要它（`docs/history/STATUS-rounds-1-6.md` §13.4）：场景 shader 一旦写出 NaN 或 Inf，引擎里
    * **没有任何一步会报错**，而两种非有限值在显示上**完全一样**——都是"整屏白 + 暗角"
    * （实测 `nan` 与 `inf` 两张 PNG 逐字节相同）。更绕的是它还会随采样数变脸：
    * `samples: 1` 直通后处理 → 整屏白；多子帧走 `_accumPass()`，那一层会把非有限值

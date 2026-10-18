@@ -2347,7 +2347,7 @@ async function cmdCheck() {
         if (multi) parts.push(`多子帧 ${multi.mean.toFixed(3)}（${used} 子帧）`);
         log(parts.join('  ') + multiNote);
 
-        // 非有限值扫描（`docs/STATUS.md` §13.4）：场景 shader 写出 NaN / ±Inf 时，
+        // 非有限值扫描（`docs/history/STATUS-rounds-1-6.md` §13.4）：场景 shader 写出 NaN / ±Inf 时，
         // 引擎**不会报任何错**：单帧直通后处理 → 整屏白；多子帧被累加 pass 丢掉 → 发黑。
         // 8bit 读回分不出这两者，`stats()` 也分不出，于是 check 只会说
         // 「单子帧与多子帧亮度差了 N×：这是运动模糊求平均/累加的问题」—— 方向完全错。
@@ -4444,7 +4444,7 @@ async function cmdVideo(short = false) {
         `渲染期间 src/ 或 tasks/ 下的源文件被改动了，${path.relative(ROOT, out)} 已删除（画面混合了两个版本）：\n` +
         r.changedSources.slice(0, 10).map((f) => `  · ${f}`).join('\n') + '\n' +
         `  渲染期间**一个文件都别写**（连 docs/*.md 也不行：编辑器的原子写会留下 .tmp 临时文件，\n` +
-        `  watch.ignored 挡不住，撞 EBUSY 会让 Vite 进程直接崩 —— docs/STATUS.md §14.5）。\n` +
+        `  watch.ignored 挡不住，撞 EBUSY 会让 Vite 进程直接崩 —— docs/history/STATUS-rounds-7-10.md §14.5）。\n` +
         `  长片子建议 --segments 分块渲染，改完只重渲受影响的那一块。`,
       );
     }
@@ -4617,7 +4617,7 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
    *
    * 所以这里在渲染开始时把**模块图内**文件的 mtime 记下来，收尾时再比一次：
    * 变了就**明说是哪个文件变了**。`docs/`、音频、`*.md` 不在模块图里，因此不会触发这条 ——
-   * ⚠ 但这**不等于**"渲染期间可以写它们"：它们照样可能让 Vite 崩（见 AGENTS.md §7 / STATUS §14.5）。
+   * ⚠ 但这**不等于**"渲染期间可以写它们"：它们照样可能让 Vite 崩（见 AGENTS.md §7 / docs/history/STATUS-rounds-7-10.md §14.5）。
    */
   const watchStart = flag('no-hmr-guard') ? null : sourceMtimes();
   const total = Math.max(1, Math.round((to - from) * fps));

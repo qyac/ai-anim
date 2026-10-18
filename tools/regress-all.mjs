@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * 一次跑完 `docs/STATUS.md` §11.15 的回归清单（第三轮那批 ⏸ 项 + 旧回归）。
+ * 一次跑完 `docs/history/STATUS-rounds-1-6.md` §11.15 的回归清单（第三轮那批 ⏸ 项 + 旧回归）。
  *
  *   node tools/regress-all.mjs                  # 全部
  *   node tools/regress-all.mjs --only smoke     # 只跑名字里含 "smoke" 的

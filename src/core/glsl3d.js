@@ -499,7 +499,7 @@ ${GLSL3D_KERNELS}
  *   · `basis()` 风格 → `{ camPos, camR, camU, camF, focal }`（shader 直接要的）
  * 把 `camera3()` 的结果喂给"只认 camPos"的旧版本，shader 里那四个 `vec3` 会**保持 0**
  * （`Pass` 对没给的 uniform 是静默跳过的），于是 `normalize(vec3(0.0))` → NaN → 整屏白
- * （`docs/STATUS.md` §13.4 那一版走廊就是这一类）。所以这里**认不出来就抛错**，
+ * （`docs/history/STATUS-rounds-1-6.md` §13.4 那一版走廊就是这一类）。所以这里**认不出来就抛错**，
  * 绝不返回一组 `undefined`。
  *
  * @param {{ camPos?: number[], camR?: number[], camU?: number[], camF?: number[], focal: number,
