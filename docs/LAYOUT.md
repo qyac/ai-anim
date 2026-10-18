@@ -158,5 +158,5 @@ node scripts/anim.mjs check sodium --strict
 | `docs/STYLE.md` | 版面栅格（`style.grid`）与字幕保留带来自风格包 |
 | `docs/NARRATION.md` | 段长由旁白决定 —— 信息密度与段长是一对 |
 | `docs/DIAGNOSIS.md` | 「版面守门」「主体之外还有 N 个看的地方」「没有主体声明」这些输出词的解释 |
-| `docs/HANDOFF-sodium-feedback.md` | 三条批评的原始记录与候选行动（方案 1 就是这一份） |
+| （本地）sodium 反馈分析 | 三条批评的原始记录与候选行动 —— 随片子留在本地，不入库（`.gitignore`） |
 | `src/kit/bands.js` | 六条版面带 + `assertInBand()`（"别压到字幕保留带"） |

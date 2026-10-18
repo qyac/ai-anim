@@ -40,5 +40,10 @@ export default {
     cut(card, { id: 'shoulder_lo', dur: 3, params: { label: '现状算子 shoulder 0.60（更早滚降）' }, post: { shoulder: 0.6 } }),
     cut(card, { id: 'agx_ev', dur: 3, params: { label: 'AgX + exposure 0.75' }, post: { tonemap: 'agx', exposure: 0.75 } }),
     cut(card, { id: 'aces_ev', dur: 3, params: { label: 'ACES + exposure 0.85' }, post: { tonemap: 'aces', exposure: 0.85 } }),
+
+    // ── 颗粒栅格：1080p 下两者一样，只有 --scale 2（4K）才有差别 ──
+    //     出图：node scripts/anim.mjs still _post-lab -t 30.5,33.5 --scale 2 -o out/_postlab/gs4k
+    cut(card, { id: 'grain_screen', dur: 3, params: { label: 'grainScale screen（现状：物理像素）' }, post: { grainScale: 'screen' } }),
+    cut(card, { id: 'grain_design', dur: 3, params: { label: 'grainScale design（4K 下颗粒不变细）' }, post: { grainScale: 'design' } }),
   ]),
 };

@@ -30,6 +30,13 @@ function segment(text) {
  */
 const warnedKaraoke = new Set();
 
+/**
+ * **避头标点**：不允许出现在一行开头的字符（中文/西文排版都适用）。
+ * `wrap()` 用它判断"这里不该断行"——断在标点前会把「，」甩到下一行开头，
+ * 字幕看起来就像打错了。宁可让那一行超出标点宽度，也不做这件事。
+ */
+const NO_LINE_START = /^[，。、；：？！）】》」』”’,.;:?!)\]}>…—～]+$/;
+
 /** 把字符下标映射成簇下标；纯查表，不碰 canvas。 */
 function charToClusterMap(clusters, charCount) {
   /** @type {number[]} */
@@ -451,7 +458,7 @@ export class TextKit {
     return this;
   }
 
-  /** 多行文本：返回按宽度折行后的行数组。中文按字折行，拉丁按词折行。 */
+  /** 多行文本：返回按宽度折行后的行数组。中文按字折行，拉丁按词折行（避头标点不会落到行首）。 */
   wrap(text, style = {}, maxWidth = 1200) {
     const lines = [];
     for (const para of String(text).split('\n')) {
@@ -460,7 +467,11 @@ export class TextKit {
       let cur = '';
       for (const tk of tokens) {
         const test = cur + tk;
-        if (cur && this.measure(test, style) > maxWidth) {
+        // **避头标点不能落在行首**（中文排版的基本规则）：断行点正好在一句的逗号/句号上时，
+        // 宁可让这一行超出一个标点的宽度，也不要把「，」甩到下一行开头 —— 那是"字幕打错了"的观感。
+        // 只影响"标点恰好落在断行处"的句子，其余逐字不变（老片子的 hashes 基线可验）。
+        const noStart = NO_LINE_START.test(tk);
+        if (cur && !noStart && this.measure(test, style) > maxWidth) {
           lines.push(cur.trimEnd());
           cur = tk.trimStart();
         } else {

@@ -70,6 +70,7 @@ const ITEMS = [
   { name: 'unit:layout', cmd: ['tools/test-layout.mjs'], note: '版面守门（纯函数，第十一轮）：块合并随字号缩放 / 主体图连通 / 母题保留区豁免 / 没声明 focus = 没判 / layoutReport 平铺一层（钉住那次 undefined）/ 接线自检（31 项）' },
   { name: 'unit:motion', cmd: ['tools/test-motion.mjs'], note: '运动规则（纯函数，BACKLOG 1-27）：nudgeCurve 的端点/单调/10-65-25 距离分配 + 两处接缝速度相等（这条是【我方推导】，数值本身是外部经验值）/ waterfallStagger 的四个边界（远小于、正好等于、超过、items=0）/ glowPeakCap 正反例 + NaN 不许静默通过 / motion.js 无 Math.random 也无 GPU import 的静态扫描 / kit 再导出与回归清单接线自检（42 项）' },
   { name: 'unit:carry', cmd: ['tools/test-carry.mjs'], note: 'carry 词表与连贯/节奏审计（纯函数，BACKLOG 1-34/1-35/1-36）：morphRect/iris/zoomThrough/hop/gather/operatorCam 的端点、单调、确定性、hold 归零（clearing 假红教训）/ carry 分类三档边界与 burst 豁免 / score=(carried+anchored/2)/judged 口径 / rhythmStats 的 CoV 验算与节拍器判据 / carry 字段三处接线 + CLI 子命令 + 回归清单自检' },
+  { name: 'unit:motion-assert', cmd: ['tools/test-motion-assert.mjs'], note: '画面语义断言（纯函数，BACKLOG 1-18）：before 正反 / 段名找不到单列 missing（--only 后段表会变，绝不当通过）/ 采样计划形状（appearsBy 两时刻、keepsMoving 每 0.5s 一对、noEdgeContent 三点）/ 持久性感知（单点瞬态降级 info 不 gate、跨采样点保持才 error）/ 空≠干净（无断言、uncovered、报错行都进 skipped）/ 阈值覆盖只认认识的键 / edgeSafeHits 的 bbox 压边四边+贴线+坏数据 / app.js 的 motionAudit 与 cmdCheck 接线自检（21 项）' },
   { name: 'unit:notes', cmd: ['tools/test-notes.mjs'], note: '1-29 后半：NOTES.json 的读写/校验纯函数 + clean 保护判据（57 项）' },
   // ⚠ **不是 gate**（与 lint-narration-dup 同一个前例，见上面那段注释）：现在 6 个有事实表的任务里
   //   3 个必然命中（nekohome 5 / promo 4 / fidus 1，全是没登记的镜号），当 gate 会让清单永久变红。

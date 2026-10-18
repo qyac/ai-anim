@@ -192,7 +192,90 @@ if (!g.ok) { ctx.warnings.push(g.warning); hero.alpha = g.suggested[0]; }
 
 ---
 
-## 5. 相关的其它文档
+## 5. motion.json：可 gate 的画面断言（BACKLOG 1-18，2026-10-17）
+
+> 出处：[REFERENCE-hyperframes.md](REFERENCE-hyperframes.md) §4.2 —— 对方的 `motion_out_of_order` /
+> `motion_appears_late` / `motion_frozen` / `canvas_content_at_edge` 四条规则 + 它的两条元设计
+> （**严重性持久性感知** 与 **空 ≠ 干净**）。对方原文："a frame that never changes while a GSAP
+> timeline is playing" 该被拦住 —— 我们此前只有亮度统计，"画了但整段没动" 与 "画了且在动" 区分不开。
+
+任务目录里放一个 `tasks/<任务>/motion.json`（**没有这个文件 = 没判**，`check` 会把它列进
+`skipped:`，绝不冒充通过）：
+
+```json
+{
+  "assert": [
+    { "before": ["段A", "段B"] },
+    { "appearsBy": ["段A", 2.0] },
+    { "keepsMoving": ["段B", 1.5] },
+    { "noEdgeContent": ["段A"] }
+  ],
+  "thresholds": { "changed": 0.0015, "edgeSafe": 0.03 }
+}
+```
+
+### 5.1 四种断言语义
+
+| 断言 | 判据 | 判什么（观众会遇到的事故） | 采样 |
+|---|---|---|---|
+| `before(A, B)` | B 的 `start` ≥ A 的 `end`（1e-9 容差） | **叙事顺序反了**：先出结论后出前提。**纯静态** —— 时间线（build 产物）里就有，一帧都不渲染 | 0 帧 |
+| `appearsBy(段, t)` | 段头 +0.05s 的帧 与 段头 +t 的帧 做像素差，changedRatio ≥ `thresholds.changed` | **该出现的没出现**：一帧白底到 t 秒还是白底 | 每条 2 帧 |
+| `keepsMoving(段, maxStaticSec)` | 段内每 `0.5s` 一对相邻帧（帧距 = 1/fps），changedRatio < `changed` 记"静"；**最长连续静 > maxStaticSec** 才命中 | **整段没动**：静止的段与"画了但冻住"的段从此分得开。rest 本来就合法 —— "有停顿"不是错，连续停过头才是 | 每段 2×N 帧（N = 每 0.5s 的时刻数） |
+| `noEdgeContent(段)` | 四边 `thresholds.edgeSafe`（默认 3%）带内，**文字块** bbox 压边（数据源 `gl.paint.blocks`，即版面守门那套记账 —— src/app.js 的 `layoutRows` / src/layout.js） | **元素出画 / 压到帧边**：文字排到 1900px 去，观众看到半截字 | 每段 3 帧（记账白拿，只花渲染的 1 帧/点） |
+
+⚠ **第一版只判文字块压边**（这是与对方 `canvas_content_at_edge` 的**刻意边界**：对方是像素级的
+"帧边缘出现锐利内容"，我们第一版只看 `layoutVerdict().groups` 的文字块 bbox）—— 矢量图形 /
+贴边面板压边这条**抓不到**，别把它当成"任何元素压边都能报"。贴线不算压边（`x0 == 带内沿` 合法）。
+
+### 5.2 阈值与口径
+
+| 参数 | 默认 | 证据强度 | 说明 |
+|---|---|---|---|
+| `thresholds.changed` | **0.0015** | 【我方推导】 | changedRatio = "发生可见变化的像素占比"（每 4 像素取 1、luma 权重、\|Δ亮度\| > 1/255）。下采样后 1080p 约 25 万个采样点，0.0015 ≈ 380 个点在变 —— 排掉 1 个 LSB 的 GPU 回读噪声，又抓得住真实入场变化 |
+| `thresholds.edgeSafe` | **0.03** | 【我方推导】 | 边缘带宽度占边长比例（左右 57.6px / 上下 32.4px @1080p） |
+| keepsMoving 步长 | **0.5s** | 【我方推导】 | `MOTION_STEP`：段内每 0.5s 排一对相邻帧；最长连续静 ≈ 静止对数 × 0.5s（帧距 1/fps 不计入，是步长近似） |
+
+采样计划与判读都在**纯函数**里（`src/timeline.js` 的 `planMotionAsserts` / `edgeSafeHits` /
+`motionVerdict`），离线单测 `node tools/test-motion-assert.mjs`（纯 JS，不需要 GPU）；
+页面侧 `__anim.motionAudit(plan)` 只负责按计划渲帧、算 changedRatio（写法对照 worldAudit）。
+
+### 5.3 持久性感知（两条元设计之一，必须和断言一起用）
+
+**严重性是持久性感知的**（REFERENCE-hyperframes §4.2 原文语义）：单点超限、下一采样点恢复的
+**瞬态降级为 info、永不 gate**；跨采样点保持才 gate。落在这里：
+
+- `noEdgeContent`：三点采样里**只有 1 点**压边 → info（入场/出场瞬时出画是常态）；3 点全压 → error。
+- `keepsMoving`：只有 1 对相邻帧静（≈0.5s）、下一对就恢复 → info；连续 ≥2 对 → error。
+  （代价：`maxStaticSec` 给到 0.5s 以下时真问题也会被降级 —— 这条断言本就该配 ≥1s 的阈值。）
+- `appearsBy` / `before` 是**单次测量**，没有降级一说：一个点没变化就是没出现。
+
+**没有豁免机制** —— 不用写"这段入场允许压边"之类的声明，瞬态与保持靠采样点自动分。这与
+`world: false` 那条受控豁免是两个东西：那类声明要写明"这还会关掉什么"，这里干脆不设。
+
+### 5.4 空 ≠ 干净（两条元设计之二）
+
+读 `check` 输出时，这些行都是"**没判**"，不是"通过"：
+
+- 没写 `motion.json` → `skipped: 画面语义断言（motion.json）—— 任务没有声明任何断言`；
+- 时间线里有段没被任何断言覆盖 → skipped 逐条点名（`uncovered`）；
+- 断言里的段名在时间线里找不到（**段名拼错，或 `--only` 之后段表变了**）→ **单列 missing，
+  每条报 error**，绝不当通过 —— `--only` 把选中的段平移到时间轴开头，用错段名的断言会在这里批量现形；
+- 断言形状不认识（`{"typo": [...]}` / 秒数给负数）→ 单列 `ignored` 进 skipped（写了但没生效 ≠ 通过）；
+- 页面侧某行渲染报错 → 那一行进 skipped（其余行照判），整个 check 不崩。
+
+### 5.5 成本与 --quick 省时档
+
+- 渲染帧数：`appearsBy` 每条 **2 帧**、`keepsMoving` 每段 **2×N**（N = 段长 ÷ 0.5s 向上取整，
+  8s 段 ≈ 30 帧）、`noEdgeContent` 每段 **3 帧**（版面记账白拿）。`check` 收尾会报
+  "画面语义断言用了 N s、多渲 N 帧" —— 先看这个数再决定要不要全量跑。
+- `check --quick`：渲染类**只跑 appearsBy**（每条 2 帧）；keepsMoving / noEdgeContent
+  **这次没跑**，进 skipped 并明说 —— 冒烟省时，不是通过。
+- 命中**默认只 warn**（同版面守门 / 节奏腿的"先只报不改退出码"—— 已交付的片子没写过
+  motion.json，一命中就 gate 会把回归清单永久染红）；`check --strict` 才进 errs。
+
+---
+
+## 6. 相关的其它文档
 
 | 想知道 | 读 |
 |---|---|

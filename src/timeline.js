@@ -812,6 +812,396 @@ export function rhythmSegments(steps, opts = {}) {
   };
 }
 
+
+/* ================================================================ 画面语义断言（motion.json，BACKLOG 1-18） */
+
+/**
+ * motion.json 的 `assert` 数组里认识的四种断言（每一项形如 `{ "before": ["段A", "段B"] }`，
+ * **一项只有一个键**）。出处：hyperframes 的 lint 规则集（`docs/REFERENCE-hyperframes.md` §4.2），
+ * 对应关系：`before`→`motion_out_of_order`、`appearsBy`→`motion_appears_late`、
+ * `keepsMoving`→`motion_frozen`、`noEdgeContent`→`canvas_content_at_edge`。
+ * @type {string[]}
+ */
+export const MOTION_ASSERT_KINDS = ['before', 'appearsBy', 'keepsMoving', 'noEdgeContent'];
+
+/**
+ * 画面语义断言的默认阈值（任务可以用 motion.json 的 `thresholds` 覆盖，只认认识的键 ——
+ * 与 `layoutLimits()` 同一条规矩：写错键名不许静默生效）。
+ *   · `changed`：changedRatio 判据 —— 「发生可见变化的像素占比」（|Δ亮度| > 1/255）。
+ *     appearsBy 要 ≥ 它才算「出现了」；keepsMoving 里 < 它的一对相邻帧记「静」。
+ *     0.0015 = 每 4 像素取 1 的下采样口径下，1080p 约 25 万个采样点里 ~380 个在变 ——
+ *     排掉 1 个 LSB 的 GPU 回读噪声，又抓得住真实的入场变化。
+ *   · `edgeSafe`：四边安全带的宽度（占边长比例，默认 3%）—— 文字块 bbox 压进这条带即压边。
+ */
+export const MOTION_ASSERT_DEFAULTS = Object.freeze({ changed: 0.0015, edgeSafe: 0.03 });
+
+/** keepsMoving 的采样步长（秒）：段内每 0.5s 取一对相邻帧（帧距 = 1/fps，页面侧定）。 */
+export const MOTION_STEP = 0.5;
+
+/**
+ * **画面语义断言的采样计划**（纯函数，BACKLOG 1-18，2026-10-17）。
+ *
+ * 任务在 `tasks/<任务>/motion.json` 里声明断言：
+ *
+ *     {
+ *       "assert": [
+ *         { "before": ["段A", "段B"] },
+ *         { "appearsBy": ["段A", 2.0] },
+ *         { "keepsMoving": ["段B", 1.5] },
+ *         { "noEdgeContent": ["段A"] }
+ *       ],
+ *       "thresholds": { "changed": 0.0015, "edgeSafe": 0.03 }
+ *     }
+ *
+ * 四种断言的判据（与 `motionVerdict()` / 页面侧 `__anim.motionAudit()` 共用同一份口径）：
+ *   · **before(A,B)**：B 的 `start` ≥ A 的 `end` —— **纯静态**，时间线（build() 的产物）里就有，
+ *     一帧都不渲染；
+ *   · **appearsBy(段, t)**：段头 +0.05s 的帧与段头 +t 的帧做像素差 —— changedRatio ≥
+ *     `thresholds.changed` 才算「出现了」（一点基线、一点判据，单次测量，没有降级一说）；
+ *   · **keepsMoving(段, maxStaticSec)**：段内每 `MOTION_STEP`（0.5s）一对相邻帧（帧距 = 1/fps，
+ *     页面侧定）—— changedRatio < `thresholds.changed` 记「静」，**最长连续静 > maxStaticSec**
+ *     才命中（rest 本来就是合法的，"有停顿"不是错）；
+ *   · **noEdgeContent(段)**：四边 `thresholds.edgeSafe`（默认 3%）带内**文字块** bbox 压边。
+ *     数据源 `gl.paint.blocks`（版面守门那套记账，见 src/app.js 的 layoutRows 与 src/layout.js）。
+ *     ⚠ 第一版**只判文字块** —— 对方原版是像素级的"帧边缘出现锐利内容"；这条边界写进了
+ *     docs/MOTION.md §6，别把它当成"任何元素压边都能抓"。
+ *
+ * 两条元设计（REFERENCE-hyperframes §4.2，必须一起抄，判读都在 `motionVerdict()`）：
+ *   ① **持久性感知**：单点超限、下一采样点恢复的瞬态 → info，**永不 gate**（入场/出场本来就是
+ *     瞬态的）；跨采样点保持才 gate。
+ *   ② **空 ≠ 干净**：没声明的段 = 「没判」不是「通过」（`uncovered` 单列）；断言里的段名
+ *     找不到（**--only 之后段表会变** / 段名拼错）→ **单列 `missing`，绝不当通过**；
+ *     不认识的断言形状单列 `ignored`（写了但没生效 ≠ 通过）。
+ *
+ * @param {any[]} timeline `build()` 的产物或引擎的 `engine.timeline`
+ * @param {{ assert?: any[], thresholds?: Record<string, number> }|null} [motion] motion.json 的内容
+ * @returns {{ thresholds: { changed: number, edgeSafe: number },
+ *   static: { key: string, kind: 'before', names: string[], index: number,
+ *             a: { id: string, start: number, end: number },
+ *             b: { id: string, start: number, end: number }, gap: number, ok: boolean }[],
+ *   render: { key: string, kind: string, names: any[], id: string, segIndex: number,
+ *             start: number, end: number, times: number[], param: number|null }[],
+ *   missing: { key: string, kind: string, names: any[], unknown: string[] }[],
+ *   ignored: { kind: string, reason: string }[],
+ *   covered: string[], uncovered: string[],
+ *   totals: { asserts: number, static: number, render: number, missing: number,
+ *             ignored: number, frames: number } }}
+ *   `totals.frames` = 渲染类断言预计要多渲的帧数（appearsBy 每条 2 帧 / keepsMoving 每对 2 帧 /
+ *   noEdgeContent 每点 1 帧 —— 报告「试渲染时间涨了多少」用的预估口径）。
+ */
+export function planMotionAsserts(timeline, motion = null) {
+  const list = Array.isArray(timeline) ? timeline : [];
+  const raw = Array.isArray(motion?.assert) ? motion.assert : [];
+  const thresholds = { ...MOTION_ASSERT_DEFAULTS };
+  const thr = motion?.thresholds;
+  if (thr && typeof thr === 'object') {
+    for (const k of Object.keys(MOTION_ASSERT_DEFAULTS)) {
+      const v = Number(thr[k]);
+      if (Number.isFinite(v) && v >= 0) thresholds[k] = v;
+    }
+  }
+  const segIndex = new Map();
+  list.forEach((it, i) => {
+    const id = String(it?.id ?? '').trim();
+    if (id && !segIndex.has(id)) segIndex.set(id, i);   // 同名段取第一个（build() 本身会去重段名）
+  });
+  const segAt = (name) => {
+    const i = segIndex.get(name);
+    return i === undefined ? null : {
+      id: name, index: i,
+      start: Number(list[i]?.start ?? 0), end: Number(list[i]?.end ?? 0),
+    };
+  };
+  /** @type {any[]} */ const staticRows = [];
+  /** @type {any[]} */ const renderRows = [];
+  /** @type {any[]} */ const missingRows = [];
+  /** @type {any[]} */ const ignoredRows = [];
+  const covered = new Set();
+
+  raw.forEach((a, index) => {
+    const kind = (a && typeof a === 'object' && !Array.isArray(a)) ? Object.keys(a)[0] : null;
+    const params = kind ? a[kind] : null;
+    if (!kind || !MOTION_ASSERT_KINDS.includes(kind) || !Array.isArray(params)) {
+      ignoredRows.push({
+        kind: String(kind ?? '(空)'),
+        reason: `第 ${index + 1} 条断言不认识（形状该是 { "断言": [...] }，断言取 ${MOTION_ASSERT_KINDS.join(' / ')}）`,
+      });
+      return;
+    }
+    // 段名解析：渲染类第一个名字才是段名（第二个是参数）；before 两个都是段名
+    const segNames = kind === 'before'
+      ? [String(params[0] ?? '').trim(), String(params[1] ?? '').trim()]
+      : [String(params[0] ?? '').trim()];
+    const unknown = segNames.filter((n) => !segIndex.has(n));
+    if (unknown.length) {
+      // 「绝不当通过」：段名找不到的断言**不进计划**，单列 missing，由 motionVerdict() 报成 error
+      missingRows.push({ key: `#${index}:${kind}`, kind, names: params.slice(), unknown });
+      return;
+    }
+    if (kind === 'before') {
+      if (params.length !== 2) {
+        ignoredRows.push({ kind, reason: `第 ${index + 1} 条 before 需要正好两个段名，收到 ${params.length} 个` });
+        return;
+      }
+      const A = segAt(segNames[0]), B = segAt(segNames[1]);
+      const gap = B.start - A.end;
+      staticRows.push({
+        key: `#${index}:before`, kind: 'before', names: segNames, index, a: A, b: B, gap,
+        // 1e-9 容差：build() 的硬切把 prev.end 原样赋给下一段 start，应当逐位相等
+        ok: gap >= -1e-9,
+      });
+      covered.add(segNames[0]); covered.add(segNames[1]);
+      return;
+    }
+    // ── 渲染类：三种各算各的采样时刻（页面侧照这份时刻渲帧）──
+    if (kind === 'appearsBy' && !(params.length === 2 && Number.isFinite(Number(params[1])) && Number(params[1]) >= 0)) {
+      ignoredRows.push({ kind, reason: `第 ${index + 1} 条 appearsBy 需要 [段名, 秒数]，秒数得是非负有限数` });
+      return;
+    }
+    if (kind === 'keepsMoving' && !(params.length === 2 && Number.isFinite(Number(params[1])) && Number(params[1]) > 0)) {
+      ignoredRows.push({ kind, reason: `第 ${index + 1} 条 keepsMoving 需要 [段名, maxStaticSec]，秒数得是正的有限数` });
+      return;
+    }
+    if (kind === 'noEdgeContent' && params.length !== 1) {
+      ignoredRows.push({ kind, reason: `第 ${index + 1} 条 noEdgeContent 只要一个段名` });
+      return;
+    }
+    const seg = segAt(segNames[0]);
+    covered.add(segNames[0]);
+    const start = seg.start, end = seg.end;
+    /** @type {number[]} */
+    const times = [];
+    let param = null;
+    if (kind === 'appearsBy') {
+      param = Number(params[1]);
+      times.push(start + 0.05, start + Math.max(0, param));   // 基线点 + 判据点
+    } else if (kind === 'keepsMoving') {
+      param = Number(params[1]);
+      for (let t = start + 0.05; t < end; t += MOTION_STEP) times.push(t);
+      // 段太短（< 0.05s）时一对帧对都排不出来 —— 判读那边会说「没判」，绝不说「通过」
+    } else {
+      // noEdgeContent：三点（15% / 50% / 85%）—— 入场头最易出问题，只看中点会漏；
+      // 持久性感知也需要 ≥ 2 个采样点才分得出"瞬态"与"保持"。
+      const dur = Math.max(0, end - start);
+      for (const k of [0.15, 0.5, 0.85]) {
+        const t = Math.round((start + dur * k) * 1000) / 1000;
+        if (!times.includes(t)) times.push(t);   // 段太短时三点会重合
+      }
+    }
+    renderRows.push({
+      key: `${kind}:${segNames[0]}`, kind, names: params.slice(),
+      id: segNames[0], segIndex: seg.index, start, end, times, param,
+    });
+  });
+
+  // 渲染成本预估（CLI 报告「试渲染时间涨了多少」的口径；noEdgeContent 的记账是白拿的，只算渲的 1 帧）
+  const frames = renderRows.reduce((n, r) =>
+    n + (r.kind === 'appearsBy' ? 2 : r.kind === 'keepsMoving' ? r.times.length * 2 : r.times.length), 0);
+  const uncovered = [...segIndex.keys()].filter((id) => !covered.has(id));
+  return {
+    thresholds, static: staticRows, render: renderRows, missing: missingRows, ignored: ignoredRows,
+    covered: [...covered], uncovered,
+    totals: {
+      asserts: raw.length, static: staticRows.length, render: renderRows.length,
+      missing: missingRows.length, ignored: ignoredRows.length, frames,
+    },
+  };
+}
+
+/**
+ * **noEdgeContent 的单帧判据**（纯函数）：四边 `edgeSafe` 比例带内，文字块 bbox 压边。
+ *
+ * 为什么是 bbox 而不是像素：数据源是 `gl.paint.blocks` 的绘制记账（版面守门同一套，
+ * src/app.js 的 `layoutRows()` 把它合成带 `x0/x1/y0/y1` 的"块"），量 bbox 一分钱渲染都不多花。
+ * 一块字同时压两个边（角落上）会出**两条**记录 —— 报告里看得见"压的是哪两个边"。
+ * 贴线不算（`x1 === 带内沿` 不算压边 —— 严格不等号），坏数据（缺坐标 / W/H 非正）返回空、不抛。
+ *
+ * @param {{ x0?: number, x1?: number, y0?: number, y1?: number, sample?: string }|any} groups
+ *     文字块列表（`layoutVerdict().groups` 的形状）
+ * @param {number} W 逻辑宽 @param {number} H 逻辑高 @param {number} [edgeSafe] 带宽比例（默认 3%）
+ * @returns {{ edge: 'left'|'right'|'top'|'bottom', sample: string,
+ *             block: { x0: number, x1: number, y0: number, y1: number } }[]}
+ */
+export function edgeSafeHits(groups, W, H, edgeSafe = MOTION_ASSERT_DEFAULTS.edgeSafe) {
+  const out = [];
+  const list = Array.isArray(groups) ? groups : [];
+  if (!(Number(W) > 0) || !(Number(H) > 0)) return out;
+  const bw = Math.max(0, Number(edgeSafe) || 0) * W;   // 左右带宽（逻辑像素）
+  const bh = Math.max(0, Number(edgeSafe) || 0) * H;   // 上下带宽
+  for (const g of list) {
+    if (!g) continue;
+    const x0 = Number(g.x0), x1 = Number(g.x1), y0 = Number(g.y0), y1 = Number(g.y1);
+    if (![x0, x1, y0, y1].every(Number.isFinite)) continue;
+    const sample = String(g.sample ?? '');
+    const box = { x0, x1, y0, y1 };
+    if (x0 < bw) out.push({ edge: 'left', sample, block: box });
+    if (x1 > W - bw) out.push({ edge: 'right', sample, block: box });
+    if (y0 < bh) out.push({ edge: 'top', sample, block: box });
+    if (y1 > H - bh) out.push({ edge: 'bottom', sample, block: box });
+  }
+  return out;
+}
+
+/**
+ * **画面语义断言的判定**（纯函数）：把 `planMotionAsserts()` 的计划 + 页面侧
+ * `__anim.motionAudit()` 回传的每行读数，判读成 `{ errors, infos, skipped, passed }`。
+ *
+ * 三种结局的分工（「空 ≠ 干净」，docs/BACKLOG.md 1-19 同一条哲学）：
+ *   · `errors` —— 真命中（before 顺序反 / appearsBy 没出现 / keepsMoving 连续静止超限 /
+ *     noEdgeContent 全程压边 / **段名找不到**）。CLI 默认 warn、`--strict` 才 gate；
+ *   · `infos` —— **持久性感知降级**（REFERENCE-hyperframes §4.2 ①）：单点超限、下一采样点
+ *     恢复的瞬态。永不 gate —— 入场/出场本来就是瞬态的，靠"跨采样点是否保持"自动分，
+ *     不靠作者写豁免；
+ *   · `skipped` —— **没判**（页面侧没回结果 / 采样点报错 / 段太短排不出帧对 / 断言形状
+ *     不认识 / 没有任何断言 / 有段没被覆盖）。不是通过，也不冒充失败。
+ *
+ * @param {ReturnType<typeof planMotionAsserts>|null} plan `planMotionAsserts()` 的产物
+ *     （阈值跟着 plan 走 —— 阈值是 motion.json 声明的，判读与计划必须用同一份，不许两处传参打架）
+ * @param {{ key?: string, error?: string, samples?: any[] }[]|null} [results] 页面侧回传的 rows
+ * @returns {{ errors: { kind: string, id: string, message: string }[],
+ *             infos: { kind: string, id: string, message: string }[],
+ *             skipped: { kind: string, id: string, why: string }[],
+ *             passed: number, uncovered: string[] }}
+ */
+export function motionVerdict(plan, results = null) {
+  const p = plan ?? {};
+  const thr = { ...MOTION_ASSERT_DEFAULTS, ...(p.thresholds ?? {}) };
+  const errors = [], infos = [], skipped = [];
+  let passed = 0;
+  const rows = Array.isArray(results) ? results : [];
+  const byKey = new Map();
+  for (const r of rows) if (r && typeof r.key === 'string') byKey.set(r.key, r);
+
+  // ① 静态 before：时间线上就有的事实，直接判（一帧都不渲染）
+  for (const st of p.static ?? []) {
+    if (st.ok) { passed++; continue; }
+    errors.push({
+      kind: 'before', id: st.names.join(' → '),
+      message: `before：「${st.names[1]}」(start ${st.b.start.toFixed(2)}s) 应排在「${st.names[0]}」(end ${st.a.end.toFixed(2)}s) 之后 —— 顺序反了或交叠了 ${Math.abs(st.gap).toFixed(2)}s`,
+    });
+  }
+
+  // ② 渲染类：每行按采样判读（页面侧没回的行 = 没判，进 skipped）
+  for (const rp of p.render ?? []) {
+    const row = byKey.get(rp.key);
+    if (!row) {
+      skipped.push({ kind: rp.kind, id: rp.id, why: `「${rp.id}」的 ${rp.kind} 没有采样结果 —— 没判（不是通过）` });
+      continue;
+    }
+    if (row.error) {
+      skipped.push({ kind: rp.kind, id: rp.id, why: `「${rp.id}」的 ${rp.kind} 页面侧报错：${row.error} —— 没判` });
+      continue;
+    }
+    const samples = Array.isArray(row.samples) ? row.samples : [];
+    if (rp.kind === 'appearsBy') {
+      const pair = samples.find((s) => s && Number.isFinite(s.changedRatio));
+      if (!pair) {
+        skipped.push({ kind: rp.kind, id: rp.id, why: '帧对的 changedRatio 没读到 —— 没判' });
+        continue;
+      }
+      if (pair.changedRatio >= thr.changed) { passed++; continue; }
+      errors.push({
+        kind: 'appearsBy', id: rp.id,
+        message: `appearsBy：「${rp.id}」到 ${Number(rp.param).toFixed(2)}s 仍没有可见变化（changedRatio ${pair.changedRatio.toFixed(5)} < ${thr.changed}）—— 该出现的没出现`,
+      });
+      continue;
+    }
+    if (rp.kind === 'keepsMoving') {
+      const maxStatic = Number(rp.param);
+      let run = 0, maxRun = 0, nJudge = 0, nErr = 0;
+      for (const s of samples) {
+        if (!s || !Number.isFinite(s.changedRatio)) { nErr++; continue; }
+        nJudge++;
+        if (s.changedRatio < thr.changed) { run++; if (run > maxRun) maxRun = run; }
+        else run = 0;
+      }
+      if (nErr) skipped.push({ kind: rp.kind, id: rp.id, why: `${nErr} 个采样点没跑成 —— 那些点没判（其余 ${nJudge} 点照判）` });
+      if (!nJudge) {
+        skipped.push({ kind: rp.kind, id: rp.id, why: '一个帧对都没读到（段太短或渲染失败）—— 没判' });
+        continue;
+      }
+      const longest = maxRun * MOTION_STEP;   // 步长近似：连续 n 对全静 ≈ n × 0.5s（帧距 1/fps 不计）
+      if (longest > maxStatic) {
+        if (maxRun === 1) {
+          // ① 持久性感知：单对帧静止（≈0.5s）、下一对就恢复 —— 瞬态，降级 info，永不 gate。
+          //    （代价：maxStaticSec < 0.5s 时真问题也会被降级 —— 这条断言本就该配 ≥1s 的阈值）
+          infos.push({
+            kind: rp.kind, id: rp.id,
+            message: `keepsMoving：「${rp.id}」只有 1 对相邻帧静止（≈${longest.toFixed(2)}s > maxStaticSec ${maxStatic}s），下一采样点恢复 —— 瞬态，不 gate`,
+          });
+        } else {
+          errors.push({
+            kind: rp.kind, id: rp.id,
+            message: `keepsMoving：「${rp.id}」连续静止 ${longest.toFixed(2)}s（${maxRun} 对相邻帧全静，> maxStaticSec ${maxStatic}s）—— 整段没动`,
+          });
+        }
+      } else passed++;
+      continue;
+    }
+    // noEdgeContent：每点用 edgeSafeHits() 判，再按"跨采样点是否保持"分 error / info
+    {
+      let nHit = 0, nJudge = 0, nErr = 0;
+      /** @type {string[]} */
+      const where = [];
+      for (const s of samples) {
+        if (!s || s.error) { nErr++; continue; }
+        nJudge++;
+        const hits = edgeSafeHits(s.groups, s.W, s.H, thr.edgeSafe);
+        if (hits.length) {
+          nHit++;
+          if (where.length < 3) where.push(...hits.slice(0, 2).map((h) => `${h.edge}边「${(h.sample || '…').slice(0, 8)}」`));
+        }
+      }
+      if (nErr) skipped.push({ kind: rp.kind, id: rp.id, why: `${nErr} 个采样点没跑成 —— 那些点没判` });
+      if (!nJudge) {
+        skipped.push({ kind: rp.kind, id: rp.id, why: '一个采样点都没读到（段太短或渲染失败）—— 没判' });
+        continue;
+      }
+      if (nHit === 0) { passed++; continue; }
+      if (nHit >= nJudge) {
+        errors.push({
+          kind: rp.kind, id: rp.id,
+          message: `noEdgeContent：「${rp.id}」${nHit}/${nJudge} 个采样点的文字块压进 ${(thr.edgeSafe * 100).toFixed(0)}% 边缘带（${where.join('、')}）—— 元素出画/压边`,
+        });
+      } else {
+        // ① 持久性感知：只有一个采样点压边（入场/出场瞬时）—— 降级 info
+        infos.push({
+          kind: rp.kind, id: rp.id,
+          message: `noEdgeContent：「${rp.id}」只在 ${nHit}/${nJudge} 个采样点压边（${where.join('、')}）—— 瞬态，不 gate`,
+        });
+      }
+    }
+  }
+
+  // ③ 段名找不到的断言：单列 missing → error。「绝不当通过」——
+  //    --only 之后段表会变，这时必然批量出现，正好提醒"这次体检对这些段是盲的"
+  for (const m of p.missing ?? []) {
+    errors.push({
+      kind: String(m.kind), id: String(m.names ?? []),
+      message: `${m.kind}(${(m.names ?? []).map((n) => JSON.stringify(n)).join(', ')}) 里的段名 ${(m.unknown ?? []).map((n) => JSON.stringify(n)).join('、')} 在时间线里找不到（段名拼错，或 --only 之后段表变了）—— 这条断言没判，绝不当通过`,
+    });
+  }
+
+  // ④ 不认识的断言形状：写了但没生效 ≠ 通过
+  for (const ig of p.ignored ?? []) {
+    skipped.push({ kind: String(ig.kind ?? ''), id: '', why: `${ig.reason} —— 这条没生效` });
+  }
+
+  // ⑤ 空 ≠ 干净：一条断言都没有 / 有段没被任何断言覆盖，都要说出来（没判 ≠ 通过）
+  if (p.totals && p.totals.asserts === 0) {
+    skipped.push({ kind: '(全部)', id: '', why: 'motion.json 里没有任何断言 —— 没判 ≠ 通过' });
+  }
+  const uncovered = Array.isArray(p.uncovered) ? p.uncovered : [];
+  if (uncovered.length) {
+    skipped.push({
+      kind: '(覆盖)', id: '',
+      why: `时间线里 ${uncovered.length} 段没被任何断言覆盖：${uncovered.join(', ')} —— 没判 ≠ 通过`,
+    });
+  }
+
+  return { errors, infos, skipped, passed, uncovered };
+}
+
 /** 打印时间线（CLI 的 tasks/check 用）。 */
 export function describe(timeline) {
   return timeline.map((i) =>

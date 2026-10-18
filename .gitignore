@@ -51,10 +51,18 @@ tasks/optifine/
 tasks/sodium-preview/
 # · 不是任务，只是一份分析笔记（`anim tasks` 不会列出它）
 tasks/nekoseek/
+# · 认知科学科普片（《车棚》；带旁白成片，只留本地）
+tasks/bikeshed/
 
 # 只服务上面那几支片子的配乐脚本，跟着片子一起留在本地。
 scripts/make-sodium-audio.mjs
 scripts/make-optifine-audio.mjs
+scripts/make-bikeshed-audio.mjs
+
+# ── 只留在本地的片子相关文档 ──────────────────────────
+# 对外片子的评论反馈与复盘草稿（B 站评论截图 + 候选行动），随片子留本地。
+docs/HANDOFF-sodium-feedback.md
+docs/images/sodium-feedback-2026-10.png
 
 # ── 调试残留 ─────────────────────────────────────────────────
 *.log

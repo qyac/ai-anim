@@ -878,6 +878,87 @@ const api = {
     return out;
   },
 
+
+  /**
+   * **画面语义断言的页面侧**（BACKLOG 1-18）：按 `planMotionAsserts()`（src/timeline.js 的
+   * 纯函数，采样计划与阈值都在那儿）给的行渲帧、算像素差、读版面记账。写法对照 worldAudit()。
+   *
+   * 每行的形状 `{ key, kind, id, times, param }`（plan.render 的字段），我们只做三件事：
+   *   · **appearsBy**：times[0]（基线）→ times[1]（判据点）渲一帧对，算 changedRatio；
+   *   · **keepsMoving**：times 相邻两两渲帧对（前一对的第二帧就是后一对的第一帧，不重复渲）；
+   *   · **noEdgeContent**：times 各渲一帧，读 layoutRows() 的记账（白拿，不额外花渲染）。
+   *
+   * changedRatio 口径：**每 4 个像素取 1 个**（与 worldAudit 的 meanOf 同一下采样量级）、
+   * 每像素用 luma 权重（stats() 同一套）算亮度，`|Δ亮度| > 1/255` 记"发生了可见变化"，
+   * 占比即 changedRatio。判定阈值是 motion.json 的 `thresholds.changed`（判读在纯函数
+   * `motionVerdict()` 里，这里只出**读数**）。
+   *
+   * 渲染异常照 worldAudit 的 try/catch 模式：把 `error` 记进 samples，**不中断**整次审计 ——
+   * 某一段渲不出来是那一行"没判"（motionVerdict 进 skipped），不是整个 check 崩掉。
+   */
+  async motionAudit(rows) {
+    if (!engine) throw new Error('引擎未就绪');
+    const list = Array.isArray(rows) ? rows : [];
+    const out = [];
+    /** 与 worldAudit 的 meanOf 同一个下采样思路，但这里要的是**差分**而不是均值 */
+    const changedRatioOf = (a, b) => {
+      let changed = 0, n = 0;
+      for (let i = 0; i < a.length; i += 16) {
+        const la = (a[i] * 0.2126 + a[i + 1] * 0.7152 + a[i + 2] * 0.0722) / 255;
+        const lb = (b[i] * 0.2126 + b[i + 1] * 0.7152 + b[i + 2] * 0.0722) / 255;
+        if (Math.abs(la - lb) > 1 / 255) changed++;
+        n++;
+      }
+      return n ? changed / n : 0;
+    };
+    for (const row of list) {
+      if (!row || typeof row.key !== 'string') continue;
+      const samples = [];
+      let prev = null;          // 上一帧的像素副本（keepsMoving 相邻对共用，不重复渲）
+      const nTimes = Array.isArray(row.times) ? row.times.length : 0;
+      for (let i = 0; i < nTimes; i++) {
+        const t = Number(row.times[i]);
+        try {
+          await api.frame(t, { samples: 1 });
+          // ⚠ readPixels() 返回复用缓冲：只要下面还有一次渲染，就必须先存副本（diff() 踩过的坑）
+          const px = new Uint8Array(engine.readPixels());
+          if (row.kind === 'keepsMoving') {
+            // 相邻时刻各成一对（时刻间距 = MOTION_STEP，帧本身渲 samples:1）：
+            // 变化的是"这一对之间动没动"，与子帧数无关。
+            if (prev) samples.push({ t, changedRatio: changedRatioOf(prev, px) });
+            if (i === nTimes - 1 && samples.length === 0) {
+              // 只排出一个时刻 = 段太短：给个"在动"的读数占位，判读那边按"零对帧"说没判
+              samples.push({ t, changedRatio: 1, placeholder: true });
+            }
+            prev = px;
+          } else if (row.kind === 'appearsBy') {
+            if (i === 0) { prev = px; continue; }     // times[0] = 基线帧
+            if (prev) samples.push({ t, changedRatio: changedRatioOf(prev, px) });
+            prev = px;
+          } else {
+            // noEdgeContent：读这一帧的版面记账（layoutRows 不渲染，白拿）
+            let groups = [], W = engine.gl.w, H = engine.gl.h;
+            try {
+              const lr = await api.layoutRows({ id: row.id });
+              if (lr?.length && lr[0]?.verdict) {
+                groups = lr[0].verdict.groups ?? [];
+                W = lr[0].verdict.W ?? W;
+                H = lr[0].verdict.H ?? H;
+              }
+            } catch (e2) { samples.push({ t, error: String(e2 && e2.message ? e2.message : e2) }); prev = px; continue; }
+            samples.push({ t, groups, W, H });
+            prev = px;
+          }
+        } catch (err) {
+          samples.push({ t, error: String(err && err.message ? err.message : err) });
+          prev = null;
+        }
+      }
+      out.push({ key: row.key, kind: row.kind, id: row.id, samples });
+    }
+    return { rows: out };
+  },
+
   status() { return { ...status }; },
 
   /**

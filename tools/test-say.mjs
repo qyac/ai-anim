@@ -20,6 +20,12 @@
  *   ⑩ **批量容错**（`docs/BACKLOG.md` 1-6）：中间某句反复失败 ⇒ 其余句子照样合成完、
  *      收尾统一报告"哪几句失败"、退出码非 0、**不写表**；整批跑完后的统一补跑能把句子救回来；
  *      而且"0 字节 / 0 时长"绝不许当成"成功合成了一句空话"混进时长表
+ *   ⑪ **词锚定时间线**（`docs/BACKLOG.md` 1-17，`scripts/lib/narration-anchors.mjs`）：
+ *      ① 正常锚定解出的 cue 与手算一致（stub 时长可算，词表是逐字符的确定值）；
+ *      ② 词名写错 → 抛错且错误信息**列出该句所有可用词**；③ 被锚句是 approx → 降级 + degraded 有记录；
+ *      ④ 每段 >3 锚 → 抛错；⑤ 左右亲和三种取向（'left' / 'right' / 对半）的边界值；⑥ on 锚第 i-2 句（跨句锚）。
+ *      另有两条硬边界：脚本里**一个锚点都没写**时不写 anchors.json、也**不多打任何一行日志**
+ *      （§8.7 的逐行一致判据同时守着它）；anchors.json 的形状（anchors[]/degraded[]）由端到端断言钉死
  *
  * ⚠ 这个脚本的夹具任务建在**系统临时目录**里（不是 `tasks/`）：这样它跟正在跑的渲染
  *   完全互不干扰 —— 往仓库里写文件会让私有 Vite 的文件监听撞上 EBUSY 而崩掉（已实测）。
@@ -32,6 +38,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decodeChannels, encodeMp3, writeWav16 } from '../scripts/lib/media.mjs';
 import { alignWords, buildLineResult, runSay, solveTiming } from '../scripts/lib/say.mjs';
+import { resolveNarration } from '../scripts/lib/narration-anchors.mjs';
 import { runMix } from '../scripts/lib/mix.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -639,6 +646,254 @@ check('那两遍里也没有"补跑 / 失败"这类词',
 check('缓存全命中：0 句新合成，而且说得和从前一样',
   /（0 句新合成，4 句真词级时间戳 \/ 0 句按字数近似）/.test(quiet2.log),
   quiet2.log.split('\n').find((l) => /句新合成/.test(l))?.trim() ?? '');
+
+/* ── 9) 词锚定时间线（BACKLOG 1-17） ── */
+console.log('\n⑨ 词锚定时间线：on / reveal / 亲和 / 降级 / 上限 / 跨句锚');
+
+/**
+ * 锚定夹具：两段。
+ *
+ * stub 的词级时间戳是**逐字符、无间隙**的确定值（汉字 0.18s、标点 0.18×0.45=0.081s），
+ * 所以 §9.1 的期望 cue 全部可以手算。§⑤（左右亲和）需要**有停顿**的词表 ——
+ * 间隙在 stub 里不存在，所以那一小节直接改**缓存词表**（§7.2 的先例：缓存判据只看
+ * sha1，文本/音色/驱动没变就不会重合成，改词表不联网）。
+ */
+const NARRATION_ANCHORS = `// 回归夹具（tools/test-say.mjs §9 生成）：词锚定时间线（BACKLOG 1-17）。
+export const VOICE = 'stub';
+export const RATE = '+0%';
+export const TAIL = 1.0;
+export const MAX_STRETCH = 3.0;
+export const BPM = 120;
+export const SCENES = [
+  {
+    id: 'anchor', internal: 6.0,
+    lines: [
+      { cue: 0.5, text: '这串嗷呜啊，叫兽语。' },
+      { cue: 9.9, text: '说到兽语就切镜头。', on: { word: '语', edge: 'end' } },
+      { cue: 9.9, text: '跨句锚也解得出来。', on: { line: 0, word: '嗷', edge: 'start' } },
+    ],
+  },
+  {
+    id: 'reveal', internal: 6.0, reveal: { at: { line: 0, word: '句', edge: 'end' } },
+    lines: [
+      { cue: 0.5, text: '第一句。' },
+      { cue: 2.0, text: '第二句。' },
+    ],
+  },
+];
+`;
+const ANCHOR_DIR = mkBatchTask(path.join(os.tmpdir(), 'anim-saytest-anchors'), NARRATION_ANCHORS);
+
+/* 9.1 端到端：正常锚定解出的 cue / internal 与手算一致 */
+const anchorLogs = [];
+const anchorRes = await runSay('_anchorfix', {
+  taskDir: ANCHOR_DIR, tts: STUB, noVo: true,
+  log: (...a) => anchorLogs.push(a.join(' ')),
+});
+const anchorLog = anchorLogs.join('\n');
+check('锚定夹具跑通、表写出来了', anchorRes.ok === true && !!anchorRes.timing,
+  `ok=${anchorRes.ok}`);
+// 手算（stub 词表逐字符无间隙，见 tools/stub-tts.mjs 的权重）:
+//   '这串嗷呜啊，叫兽语。' → 语.end = 1.521；嗷.start = 0.36
+//   anchor 第 2 句 on{语,end}   → cue = 0.5 + 1.521        = 2.021
+//   anchor 第 3 句 on{嗷,start} → cue = 0.5 + 0.36          = 0.86   （跨句锚：锚第 1 句 = i-2）
+//   reveal 段 reveal{句,end}    → internal = 0.5 + 0.54    = 1.04
+const aT = anchorRes.timing;
+const [anchorSc, revealSc] = aT.scenes;
+check('① 正常锚定：on 解出的 cue 与手算一致（说到「语」的 end 就切）',
+  close(anchorSc.lines[1].cue, 2.021, 1e-3), `cue=${anchorSc.lines[1].cue} vs 2.021`);
+check('⑥ 跨句锚：on 锚第 i-2 句（line:0 的「嗷」start）解出的 cue 与手算一致',
+  close(anchorSc.lines[2].cue, 0.86, 1e-3), `cue=${anchorSc.lines[2].cue} vs 0.86`);
+check('reveal：internal 锚在词边界上（第 1 句的「句」end）',
+  close(revealSc.internal, 1.04, 1e-3), `internal=${revealSc.internal} vs 1.04`);
+check('没有被锚的句子照旧用显式 cue',
+  anchorSc.lines[0].cue === 0.5 && revealSc.lines[0].cue === 0.5 && revealSc.lines[1].cue === 2,
+  `cues=${anchorSc.lines[0].cue}/${revealSc.lines[0].cue}/${revealSc.lines[1].cue}`);
+// 锚点本身也写进了返回值与 anchors.json，而且带上了亲和选择（不许静默）
+check('解出的锚点带 affinity / edge / 词内时刻（选择可见）',
+  anchorRes.anchors.length === 3
+  && anchorRes.anchors.every((a) => a.affinity === 0.5 && typeof a.at === 'number' && a.resolved > 0)
+  && anchorRes.anchors.some((a) => a.kind === 'reveal'),
+  JSON.stringify(anchorRes.anchors.map((a) => [a.id, a.kind, a.word, a.edge, a.at, a.resolved])));
+check('锚点解算打印了「哪个词哪条边→段内几秒」',
+  /锚点 \[anchor-2\]/.test(anchorLog) && /「语」end 边/.test(anchorLog),
+  anchorLog.split('\n').find((l) => /锚点 \[/.test(l))?.trim() ?? '');
+const anchorsJson = JSON.parse(readFileSync(path.join(ANCHOR_DIR, 'audio', 'anchors.json'), 'utf8'));
+check('anchors.json 写出来了，形状 = { generatedBy, degraded[], anchors[] }',
+  anchorsJson.generatedBy === 'anim say' && Array.isArray(anchorsJson.anchors)
+  && Array.isArray(anchorsJson.degraded) && anchorsJson.anchors.length === 3,
+  `anchors=${anchorsJson.anchors?.length} degraded=${anchorsJson.degraded?.length}`);
+check('anchors.json 与返回值逐字段一致',
+  JSON.stringify(anchorsJson.anchors) === JSON.stringify(anchorRes.anchors), '');
+
+// 叠句：锚定的 cue 可能解到上一句说完之前 —— solveTiming 的叠句警告照常工作（锚不豁免）
+const dupA = (aT.scenes[0].lines);
+const dupWarned = anchorLog.split('\n').some((l) => /叠句/.test(l));
+const dupReal = dupA[2].cue < dupA[1].cue + dupA[1].dur - 1e-6;
+check('锚出来的 cue 也吃叠句判据（锚不豁免节奏检查）',
+  dupWarned === dupReal || !dupReal, `warned=${dupWarned} real=${dupReal}`);
+
+/* 9.2 静默边界：脚本里没有锚点 ⇒ 不写 anchors.json、也不打任何锚点行 */
+// （§8.7 的"两遍日志逐行一致"同时守着这条 —— 这里再点名一次文件存在性。）
+check('没有锚点的任务不会写 anchors.json（§8.7 的 QUIET_DIR）',
+  !existsSync(path.join(QUIET_DIR, 'audio', 'anchors.json')),
+  existsSync(path.join(QUIET_DIR, 'audio', 'anchors.json')) ? '（写出来了 —— 回归！）' : '（没写 ✓）');
+check('有锚点的任务写 anchors.json、没锚点的连"锚点"两个字都不出现',
+  !/锚点/.test(quiet2.log) && /锚点 \[/.test(anchorLog), '');
+
+/* 9.3 词名写错 → 抛错且错误信息列出该句所有可用词（报错哲学） */
+const mkScene = (lines, extra = {}) => ({ id: 'probe', internal: 4, lines, ...extra });
+const wline = (text, words, o = {}) => ({ cue: 0.5, text, dur: 0.6, words, approx: false, ...o });
+const W = (ws) => ws.map((x) => ({ w: x[0], start: x[1], end: x[2] }));
+let threwWord = null;
+try {
+  resolveNarration({
+    scenes: [mkScene([
+      wline('这串嗷呜啊，叫兽语。', W([['这', 0, 0.18], ['串', 0.18, 0.36], ['语', 0.36, 0.54]])),
+      wline('锚不到。', null, { on: { word: '兽屿' } }),
+    ])],
+  });
+} catch (e) { threwWord = e; }
+check('② 词名写错 → 抛错', !!threwWord, threwWord?.message.slice(0, 60) ?? '（没抛）');
+check('② 错误信息列出该句所有可用词（点名到段/句）',
+  !!threwWord && /第 2 句/.test(threwWord.message) && /被锚的第 1 句/.test(threwWord.message)
+  && /"这" \/ "串" \/ "语"/.test(threwWord.message),
+  threwWord?.message.split('\n')[0].slice(0, 90) ?? '');
+
+/* 9.4 approx 句 → 降级：不抛、cue 回显式值、degraded 有记录、原因写明白 */
+const approxScenes = [mkScene([
+  wline('近似句。', W([['近', 0, 0.18], ['似', 0.18, 0.36], ['句', 0.36, 0.54], ['。', 0.54, 0.62]]), { approx: true }),
+  wline('要锚它。', null, { cue: 3.3, on: { word: '句' } }),
+])];
+const rApprox = resolveNarration({ scenes: approxScenes });
+check('③ approx 被锚 → 不抛、这句退回显式 cue',
+  rApprox.scenes[0].lines[1].cue === 3.3 && rApprox.anchors.length === 0,
+  `cue=${rApprox.scenes[0].lines[1].cue}`);
+check('③ degraded 有记录且原因点名 approx（绝不静默）',
+  rApprox.degraded.length === 1 && rApprox.degraded[0].id === 'probe-2'
+  && /approx/.test(rApprox.degraded[0].why), rApprox.degraded[0]?.why ?? '');
+// words 为 null（驱动没写词表）同样降级
+const rNull = resolveNarration({ scenes: [mkScene([
+  wline('没词表。', null),
+  wline('要锚它。', null, { cue: 2.1, on: { word: '没' } }),
+])] });
+check('③ words 为空被锚 → 同样降级（原因点名"没有词级时间戳"）',
+  rNull.scenes[0].lines[1].cue === 2.1 && rNull.degraded.length === 1
+  && /没有词级时间戳/.test(rNull.degraded[0].why), rNull.degraded[0]?.why ?? '');
+// 端到端：`--no-words` 驱动跑锚定夹具 → 降级 + 日志含"改词不会自动重排"
+const noWordsDir = mkBatchTask(path.join(os.tmpdir(), 'anim-saytest-anchors-nowords'), NARRATION_ANCHORS);
+const nwLogs = [];
+const nwRes = await runSay('_anchorfix', {
+  taskDir: noWordsDir, tts: STUB_NO_WORDS, noVo: true,
+  log: (...a) => nwLogs.push(a.join(' ')),
+});
+const nwLog = nwLogs.join('\n');
+check('③ 端到端：驱动不给词表 → 每个锚都降级、日志含"改词不会自动重排"',
+  nwRes.ok === true && nwRes.degraded.length === 3 && /改词不会自动重排/.test(nwLog),
+  `degraded=${nwRes.degraded?.length} `
+  + (nwLog.split('\n').find((l) => /改词不会自动重排/.test(l))?.trim() ?? '（没打降级警告！）'));
+check('③ 降级后 cue/internal 全部回到手写值（9.9 / 6.0）',
+  nwRes.timing.scenes[0].lines[1].cue === 9.9 && nwRes.timing.scenes[0].lines[2].cue === 9.9
+  && nwRes.timing.scenes[1].internal === 6, '');
+
+/* 9.5 每段 >3 锚 → 抛错（锚点太多就变成另一种秒数） */
+let threwCap = null;
+try {
+  resolveNarration({
+    scenes: [mkScene([
+      wline('一。', W([['一', 0, 0.1]])),
+      wline('二。', null, { on: { word: '一' } }),
+      wline('三。', null, { on: { word: '一' } }),
+      wline('四。', null, { on: { word: '一' } }),
+    ], { reveal: { at: { line: 0, word: '一' } } })],
+  });
+} catch (e) { threwCap = e; }
+check('④ 每段 >3 锚（on 3 + reveal 1）→ 抛错，文案点名上限',
+  !!threwCap && /4 个锚点/.test(threwCap.message) && /上限 3 个/.test(threwCap.message),
+  threwCap?.message.split('\n')[0].slice(0, 80) ?? '（没抛）');
+let threwCapOn = null;
+try {
+  resolveNarration({
+    scenes: [mkScene([
+      wline('一。', W([['一', 0, 0.1]])),
+      wline('二。', null, { on: { word: '一' } }),
+      wline('三。', null, { on: { word: '一' } }),
+      wline('四。', null, { on: { word: '一' } }),
+      wline('五。', null, { on: { word: '一' } }),
+    ])],
+  });
+} catch (e) { threwCapOn = e; }
+check('④ 单是 on 4 个（没有 reveal）也抛', !!threwCapOn && /4 个锚点/.test(threwCapOn.message),
+  threwCapOn?.message.split('\n')[0].slice(0, 60) ?? '');
+// 恰好 3 个（on 2 + reveal 1）不抛 —— 上限是"≤3"，不是"<3"。
+// 两个 on 都显式锚第 1 句（不写 line 会默认锚"上一句"= 第 2 句，而它没有词表 → 降级，那就是 §9.4 的事了）。
+const capOk = resolveNarration({
+  scenes: [mkScene([
+    wline('一。', W([['一', 0, 0.1]])),
+    wline('二。', null, { on: { line: 0, word: '一' } }),
+    wline('三。', null, { on: { line: 0, word: '一' } }),
+  ], { reveal: { at: { line: 0, word: '一' } } })],
+});
+check('④ 恰好 3 个锚（on 2 + reveal 1）不抛', capOk.anchors.length === 3 && capOk.degraded.length === 0,
+  `anchors=${capOk.anchors.length}`);
+
+/* 9.6 左右亲和三种取向的边界值（需要有停顿的词表 → 直接喂纯函数） */
+//   词表：甲[0,0.4] 乙[0.9,1.0]（前停顿 0.5、后停顿 0 —— 乙后面没词了）
+//   end 边：left(0)→1.0 原生终点；right(1)→1.0（后停顿 0，借不到）；half(0.5)→1.0
+//   start 边：left(0)→0.4（前停顿全借进来，贴到甲的终点）；right(1)→0.9（原生起点）；half→0.65
+const affScenes = (aff, edge) => [mkScene([
+  wline('甲乙。', W([['甲', 0, 0.4], ['乙', 0.9, 1.0]])),
+  wline('锚。', null, { cue: 1, on: { word: '乙', edge, affinity: aff } }),
+])];
+const affAt = (aff, edge) => resolveNarration({ scenes: affScenes(aff, edge) }).anchors[0].at;
+check('⑤ 亲和 end 边：left = 原生终点 1.0（词间停顿一点不借）',
+  close(affAt('left', 'end'), 1.0, 1e-9), `at=${affAt('left', 'end')}`);
+check('⑤ 亲和 start 边：left = 把前停顿全借进来 → 0.4（贴到前词终点）',
+  close(affAt('left', 'start'), 0.4, 1e-9), `at=${affAt('left', 'start')}`);
+check('⑤ 亲和 start 边：right = 原生起点 0.9（不向左借）',
+  close(affAt('right', 'start'), 0.9, 1e-9), `at=${affAt('right', 'start')}`);
+check('⑤ 亲和对半（默认）：start 边落在停顿中间 0.65',
+  close(affAt(undefined, 'start'), 0.65, 1e-9), `at=${affAt(undefined, 'start')}`);
+check('⑤ 数字亲和也行（0.25 → 0.9 − 0.5×0.75 = 0.525）',
+  close(affAt(0.25, 'start'), 0.525, 1e-9), `at=${affAt(0.25, 'start')}`);
+// 有后停顿时 end 边的三种取向：甲[0,0.3] 乙[0.3,0.4] 丙[0.9,1.0]（乙后停顿 0.5）
+const affEndScenes = (aff) => [mkScene([
+  wline('甲乙丙。', W([['甲', 0, 0.3], ['乙', 0.3, 0.4], ['丙', 0.9, 1.0]])),
+  wline('锚。', null, { cue: 1, on: { word: '乙', edge: 'end', affinity: aff } }),
+])];
+const affEndAt = (aff) => resolveNarration({ scenes: affEndScenes(aff) }).anchors[0].at;
+check('⑤ 亲和 end 边三取向：left 0.4 / half 0.65 / right 0.9',
+  close(affEndAt('left'), 0.4, 1e-9) && close(affEndAt(0.5), 0.65, 1e-9) && close(affEndAt('right'), 0.9, 1e-9),
+  `left=${affEndAt('left')} half=${affEndAt(0.5)} right=${affEndAt('right')}`);
+check('⑤ anchors 里记录的是**实际采用**的取向（0.5 / left / right），不许静默',
+  resolveNarration({ scenes: affScenes('right', 'end') }).anchors[0].affinity === 'right'
+  && resolveNarration({ scenes: affScenes(undefined, 'end') }).anchors[0].affinity === 0.5, '');
+let threwAff = null;
+try {
+  resolveNarration({ scenes: affScenes('middel', 'end') });
+} catch (e) { threwAff = e; }
+check(`⑤ affinity 拼错（'middel'）→ 抛错（绝不静默取默认）`,
+  !!threwAff && /affinity/.test(threwAff.message) && /middel/.test(threwAff.message),
+  threwAff?.message.split('\n')[0].slice(0, 70) ?? '（没抛）');
+
+/* 9.7 其余写错路径：第一句 on / line 越界 / 往回锚（环） / reveal 缺 line */
+const tryThrow = (name, scenes, re) => {
+  let e = null;
+  try { resolveNarration({ scenes }); } catch (err) { e = err; }
+  check(name, !!e && re.test(e.message), e?.message.split('\n')[0].slice(0, 70) ?? '（没抛）');
+};
+tryThrow('第一句写了 on → 抛（没有上一句可锚）',
+  [mkScene([wline('一。', W([['一', 0, 0.1]]), { on: { word: '一' } }), wline('二。', null)])],
+  /第 1 句写了 on/);
+tryThrow('line 写错（越界）→ 抛并点出这段有几句',
+  [mkScene([wline('一。', W([['一', 0, 0.1]])), wline('二。', null, { on: { word: '一', line: 5 } })])],
+  /第 6 句不存在/);
+tryThrow('on 锚到后面的句子（往回绕的环）→ 抛',
+  [mkScene([wline('一。', W([['一', 0, 0.1]])), wline('二。', null, { on: { word: '一', line: 2 } }), wline('三。', W([['一', 0, 0.1]]))])],
+  /排在它后面/);
+tryThrow('reveal 没写 line → 抛（它没有默认句）',
+  [mkScene([wline('一。', W([['一', 0, 0.1]]))], { reveal: { at: { word: '一' } } })],
+  /reveal 没写 line/);
 
 /* ── 收尾 ── */
 console.log(`\n${'─'.repeat(60)}\n通过 ${pass}/${pass + fail}${fail ? `　❌ 失败 ${fail}` : '　✅ 全部通过'}`);

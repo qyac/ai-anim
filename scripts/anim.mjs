@@ -1992,6 +1992,64 @@ async function cmdCheck() {
     pushSkipped(skipped, SHOT_DEP_WHAT, `静态扫描起不来：${firstLine(err)}`);
   }
 
+
+  /**
+   * 1.7) **画面语义断言的声明文件**（BACKLOG 1-18）：`tasks/<任务>/motion.json`。
+   *
+   * 放在开浏览器**之前**做两件事（与 1.5 / 1.6 同一条"静态阶段能报的不等渲染"的道理）：
+   *   · 文件不存在 → `pushSkipped`：任务没有声明任何断言，这一项**没判**（绝不当通过）；
+   *   · JSON 解析失败 → **静态错误**（进 `staticErrs`，最后并进 `errs` gate 退出码）——
+   *     声明文件本身坏了，后面的断言一条都验不了，这是硬问题。
+   * 采样计划与判读（`planMotionAsserts` / `motionVerdict`）在下面的试渲染段里跑 ——
+   * 它们需要 build() 之后的段表（`info.timeline`），而段表只有页面装完才有。
+   */
+  let motionSpec = null;
+  {
+    const motionPath = path.join(ROOT, 'tasks', task, 'motion.json');
+    if (!existsSync(motionPath)) {
+      pushSkipped(skipped, '画面语义断言（motion.json）', '任务没有声明任何断言——没判 ≠ 通过');
+    } else {
+      try {
+        const parsed = JSON.parse(readFileSync(motionPath, 'utf8'));
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          staticErrs.push('[画面语义断言] ' + path.relative(ROOT, motionPath)
+            + ' 的内容该是对象（{ "assert": [...], "thresholds": {...} }），收到 ' + (Array.isArray(parsed) ? '数组' : typeof parsed));
+        } else {
+          motionSpec = parsed;
+        }
+      } catch (err) {
+        staticErrs.push('[画面语义断言] motion.json 解析失败：' + firstLine(err));
+      }
+    }
+  }
+
+  /**
+   * 1.8) **词锚点的降级记录**（BACKLOG 1-17，2026-10-17）：`tasks/<任务>/audio/anchors.json`。
+   *
+   * `anim say` 解锚时，被锚句拿不到真词级时间戳（words 为空 / approx）会**退回手写秒数**，
+   * 并把原因写进这个文件的 `degraded`—— 改词后那些段**不会自动重排**（时间表落在手写 cue 上）。
+   * `say` 自己已经打过一遍；check 再报一遍是因为两件事看的时机不同：
+   * say 看「合成这一刻」，check 看「交付这一刻」—— 改词重跑之间夹一次 check 是常态。
+   * 文件不存在 = 脚本里没写锚点（或还没跑过 say）= 没有可报的降级，不打扰。
+   */
+  {
+    const anchorsPath = path.join(ROOT, 'tasks', task, 'audio', 'anchors.json');
+    if (existsSync(anchorsPath)) {
+      try {
+        const a = JSON.parse(readFileSync(anchorsPath, 'utf8'));
+        const deg = Array.isArray(a?.degraded) ? a.degraded : [];
+        if (deg.length) {
+          warn('⚠ ' + deg.length + ' 个词锚点降级成了手写秒数（改词不会自动重排）：');
+          for (const d of deg.slice(0, 12)) warn('  [' + d.id + '] ' + d.kind + ' 锚点：' + d.why);
+          if (deg.length > 12) warn('  …以及另外 ' + (deg.length - 12) + ' 个');
+          warn('  → 拿到真词级时间戳（重跑 say 且驱动支持）后锚点会自动接管；降级期间时间表落在手写 cue/internal 上。');
+        }
+      } catch (err) {
+        warn('(词锚点降级记录读不了：' + firstLine(err) + ')');
+      }
+    }
+  }
+
   // 2) 试渲染每一段的三个采样点（有 GPU 就能立刻抓到 shader 编译错误和 NaN）
   await openSession({ task, only: opt('only', undefined) });
   try {
@@ -2456,6 +2514,84 @@ async function cmdCheck() {
         }
       }
     }
+
+    /**
+     * **画面语义断言**（BACKLOG 1-18，2026-10-17）：`tasks/<任务>/motion.json` 里的四种断言 ——
+     * before（纯静态，不渲染）/ appearsBy / keepsMoving / noEdgeContent。
+     *
+     * 采样计划与判读都是纯函数（`src/timeline.js` 的 `planMotionAsserts` / `motionVerdict`，
+     * 离线单测 `tools/test-motion-assert.mjs`）；页面侧只负责按计划渲帧算 changedRatio
+     * （`__anim.motionAudit`，写法对照 worldAudit）。两条元设计（REFERENCE-hyperframes §4.2）：
+     *   ① **持久性感知** —— 单点超限、下一采样点恢复的瞬态降级 info，永不 gate；
+     *   ② **空 ≠ 干净** —— 没声明的段 / 没跑成的行都进 skipped，绝不当通过。
+     *
+     * 退出码：命中**默认只 warn**（同版面守门的"先只报不改退出码"——已交付的片子没写过
+     * motion.json，一命中就 gate 会把回归清单永久染红）；`--strict` 才进 errs。
+     * `--quick`：渲染类只跑 appearsBy，keepsMoving / noEdgeContent 这次没跑（明说）。
+     */
+    if (motionSpec) {
+      const m0 = Date.now();
+      const { planMotionAsserts, motionVerdict } = await import('../src/timeline.js');
+      const plan = planMotionAsserts(info.timeline ?? [], motionSpec);
+      const tot = plan.totals;
+      log('\n画面语义断言（motion.json）：' + tot.asserts + ' 条断言 —— 静态 before ' + tot.static
+        + ' 条 · 渲染类 ' + tot.render + ' 条（阈值 changed ' + plan.thresholds.changed + ' / edgeSafe ' + plan.thresholds.edgeSafe + '）');
+      if (tot.missing) warn('其中 ' + tot.missing + ' 条断言的段名在时间线里找不到（段名拼错，或 --only 之后段表变了）—— 单列，绝不当通过');
+      if (tot.ignored) warn('其中 ' + tot.ignored + ' 条断言形状不认识、没生效（断言名该是 before / appearsBy / keepsMoving / noEdgeContent）');
+      // --quick 省时档：渲染类只跑 appearsBy（2 帧/条）；keepsMoving 全段逐 0.5s 扫太贵、这次没跑
+      const quickRows = quick ? plan.render.filter((r) => r.kind === 'appearsBy') : plan.render;
+      const planRun = quick ? { ...plan, render: quickRows } : plan;
+      if (quick) {
+        const skipKeeps = plan.render.filter((r) => r.kind === 'keepsMoving');
+        const skipEdge = plan.render.filter((r) => r.kind === 'noEdgeContent');
+        if (skipKeeps.length) {
+          pushSkipped(skipped, '画面语义断言（keepsMoving）',
+            '--quick 省时档：' + skipKeeps.length + ' 条 keepsMoving 这次没跑（全段逐 0.5s 扫帧太贵）—— 没判 ≠ 通过');
+        }
+        if (skipEdge.length) {
+          pushSkipped(skipped, '画面语义断言（noEdgeContent）',
+            '--quick 省时档：' + skipEdge.length + ' 条 noEdgeContent 这次没跑（只跑 appearsBy）—— 没判 ≠ 通过');
+        }
+      }
+      /** 实际要渲的帧数（报告「试渲染时间涨了多少」的口径；noEdgeContent 的记账白拿，只算渲的 1 帧） */
+      const framesRun = quickRows.reduce((n, r) =>
+        n + (r.kind === 'appearsBy' ? 2 : r.kind === 'keepsMoving' ? r.times.length * 2 : r.times.length), 0);
+      let rows = null;
+      if (quickRows.length) {
+        try {
+          const audit = await evaluateSafe(
+            (rs) => /** @type {any} */ (window).__anim.motionAudit(rs), quickRows, 'motionAudit()',
+          );
+          rows = audit?.rows ?? null;
+        } catch (err) {
+          if (err && err.readable) throw err;      // 页面失联：照实抛出
+          log('（画面语义断言不可用：' + firstLine(err) + '）');
+          pushSkipped(skipped, '画面语义断言（motionAudit）', firstLine(err));
+        }
+      }
+      const v = motionVerdict(planRun, rows);
+      if (v.errors.length) {
+        warn('\n画面语义断言：' + v.errors.length + ' 条命中');
+        for (const e of v.errors.slice(0, 12)) warn('  · [' + e.kind + '] ' + e.id + ' —— ' + e.message);
+        if (v.errors.length > 12) warn('  · …另有 ' + (v.errors.length - 12) + ' 条');
+        warn('  → 改时间线 / 改场景让断言成立，或删掉 motion.json 里对应的断言（断言是验收口径，不是装饰）。');
+        if (strict) {
+          for (const e of v.errors) errs.push('[画面语义断言·' + e.kind + '] ' + e.id + '：' + e.message);
+        }
+      }
+      for (const inf of v.infos) {
+        // 持久性感知的降级（单点瞬态）：打出来给人看，**永不 gate**
+        log('  ℹ [' + inf.kind + '] ' + inf.id + ' —— ' + inf.message);
+      }
+      for (const s of v.skipped) {
+        pushSkipped(skipped, '画面语义断言（' + (s.kind || '其他') + '）', s.id ? '[' + s.id + '] ' + s.why : s.why);
+      }
+      log('  判定：' + v.passed + ' 条通过 · ' + v.errors.length + ' 条命中（' + (strict ? '--strict：已进 errs' : '默认只 warn，--strict 才 gate')
+        + '） · ' + v.infos.length + ' 条瞬态（info，不 gate） · ' + v.skipped.length + ' 条没判');
+      log('  （画面语义断言用了 ' + ((Date.now() - m0) / 1000).toFixed(1) + 's、多渲 ' + framesRun + ' 帧'
+        + (quick ? '；--quick 下 keepsMoving / noEdgeContent 这次没跑' : '') + '）');
+    }
+
 
 
     /**

@@ -18,6 +18,7 @@
  *        ├──▶ audio/vo/<段>-<n>.words.json  词级时间戳（驱动支持时；C 档用）
  *        ├──▶ audio/timing.json / .mjs   每段的起点/时长/放慢系数 —— task.config.mjs import 它
  *        ├──▶ audio/narration.json       句子表（**整片时间**）—— task.config.mjs 的 narration 指它
+ *        ├──▶ audio/anchors.json         词锚点的解算记录（脚本里写了 on/reveal 才有；BACKLOG 1-17）
  *        └──▶ audio/<任务>-vo.mp3        只有旁白的一条轨（没有音乐也能先听）
  * ```
  *
@@ -45,6 +46,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseCmdline, probeDuration, probeSpeechEnd, readTaskAudioSpec, run, tryRun, taskRel } from './media.mjs';
 import { renderVo } from './mix.mjs';
+import { resolveNarration } from './narration-anchors.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -904,9 +906,57 @@ export async function runSay(task, opts) {
       + `（文件里还在，只是不算进这句的时长 —— 否则 slot 会被静音撑大）`);
   }
 
+  // 1.5) 词锚点（BACKLOG 1-17）—— 在"合成完"与"解时长"之间。
+  //
+  // 为什么卡在这个位置：锚点解的是**段内** cue / internal（"说到『兽语』时切到我这句"），
+  // 它要吃合成产物里的词级时间戳（句内相对秒），所以必须在合成之后；而解出的又只是段内
+  // 时刻，stretch / slot（"段内偏移乘 stretch"）是 `solveTiming()` 自己的事 ——
+  // 求解顺序铁律：锚点 → 段内时刻 → 然后才轮到 stretch / slot，这里绝不自己乘。
+  //
+  // ⚠ 脚本里**一个锚点都没写**时这段必须是全哑的：不调 resolveNarration、不打任何一行 ——
+  //   `tools/test-say.mjs` §8.7 钉死了"全成功时两遍日志逐行一致"，多打一行就回归。
+  const hasAnchors = script.scenes.some((sc) =>
+    (sc?.reveal != null) || (sc?.lines ?? []).some((l) => l?.on != null));
+  /** @type {{ anchors: any[], degraded: any[] } | null} */
+  let anchored = null;
+  let scenesForTiming = scenes;
+  if (hasAnchors) {
+    // resolveNarration 只认 `approx`（buildLineResult 写的是 wordsApprox），对齐成它要的键。
+    // 这里**只读不改**合成结果 —— scenes 里的 lines 是要进 timing/narration 表的原件。
+    const withOn = script.scenes.map((sc, si) => ({
+      ...scenes[si],
+      reveal: sc.reveal ?? undefined,
+      lines: (scenes[si].lines ?? []).map((l, li) => ({
+        ...l,
+        approx: l?.wordsApprox ?? false,
+        on: sc.lines?.[li]?.on ?? undefined,
+      })),
+    }));
+    const r = resolveNarration({ scenes: withOn });
+    anchored = { anchors: r.anchors, degraded: r.degraded };
+    scenesForTiming = r.scenes.map((sc) => ({
+      ...sc,
+      lines: sc.lines.map((l) => {
+        const { on: _drop, approx: _drop2, ...rest } = l;
+        return rest;
+      }),
+    }));
+    for (const a of anchored.anchors) {
+      log(`· 锚点 [${a.id}] ${a.kind === 'reveal' ? 'reveal' : 'on'}：第 ${a.lineNo} 句的「${a.word}」${a.edge} 边`
+        + `（affinity ${typeof a.affinity === 'number' ? a.affinity : `'${a.affinity}'`}，词内 ${a.at.toFixed(3)}s）`
+        + ` → 段内 ${a.resolved.toFixed(3)}s`);
+    }
+    // 降级绝不静默：文案必须说清后果 —— 这一锚**没有**生效，改词不会自动重排，
+    // 画面此刻用的是手写秒数（`check` 读 anchors.json 时还会再报一遍，见该文件的 degraded 段）。
+    for (const d of anchored.degraded) {
+      log(`⚠ [${d.id}] ${d.kind} 锚点降级：${d.why}`);
+      log(`  ↳ 这一段回到了手写秒数 —— 改词不会自动重排；要锚点生效，先让这句拿到真词级时间戳`);
+    }
+  }
+
   // 2) 解时长（纯函数）
   const solved = solveTiming({
-    scenes,
+    scenes: scenesForTiming,
     beat,
     overlap: opts.overlap ?? script.overlap,
     tail,
@@ -962,7 +1012,7 @@ export async function runSay(task, opts) {
   if (opts.dryRun) {
     log('（--dry-run：会合成/复用音频来量时长，但**不写** timing/narration、也不出旁白轨）');
     printTable(log, timing);
-    return { ok: true, dryRun: true, timing, narration };
+    return { ok: true, dryRun: true, timing, narration, anchors: anchored?.anchors ?? [], degraded: anchored?.degraded ?? [] };
   }
 
   mkdirSync(path.join(taskDir, 'audio'), { recursive: true });
@@ -973,6 +1023,20 @@ export async function runSay(task, opts) {
     + `export default ${JSON.stringify(timing, null, 2)};\n`,
   );
   writeFileSync(path.join(taskDir, 'audio', 'narration.json'), JSON.stringify(narration, null, 2) + '\n');
+  // 词锚点（BACKLOG 1-17）：只在**解出过锚点**时写 anchors.json —— 它是给 `check`（降级警告）
+  // 和人看的解算记录，不是 timing 表的一部分。脚本里一个锚点都没有就不写这个文件；
+  // 而且**先删旧的**：把锚点删掉之后旧记录留在盘上，`check` 会拿上一轮的降级继续报警。
+  const anchorsFile = path.join(taskDir, 'audio', 'anchors.json');
+  if (anchored) {
+    writeFileSync(anchorsFile, JSON.stringify({
+      generatedBy: 'anim say',
+      // degraded 给 `check` 读："这一段改词不会自动重排"的降级警告由那一边接线（父代理负责）
+      degraded: anchored.degraded,
+      anchors: anchored.anchors,
+    }, null, 2) + '\n');
+  } else {
+    try { rmSync(anchorsFile, { force: true }); } catch { /* 删不掉不影响主流程 */ }
+  }
 
   if (!opts.noVo) {
     const voOut = path.join(taskDir, 'audio', `${task}-vo.mp3`);
@@ -998,7 +1062,8 @@ export async function runSay(task, opts) {
   }
   log(`  ]),`);
   // `retryPasses` 只在**真的走过补跑**时非 0（全成功时是 0）—— 给调用方一个"这一批救过句子"的信号
-  return { ok: true, timing, narration, script, voice, rate, retryPasses: repairedTotal ? rounds : 0, repaired: repairedTotal };
+  return { ok: true, timing, narration, script, voice, rate, retryPasses: repairedTotal ? rounds : 0, repaired: repairedTotal,
+           anchors: anchored?.anchors ?? [], degraded: anchored?.degraded ?? [] };
 }
 
 function printTable(log, timing) {

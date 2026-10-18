@@ -871,11 +871,14 @@ export class Engine {
   _drawCaptions(t) {
     const layer = this.cap2d;
     if (!layer || !this.captions) return null;
-    const { W, H } = this.gl;
+    // ⚠ 必须走 layer.clear()，不能只 clearRect：upload() 有一条"同一帧内只传一次"的
+    // 短路（`if (this._uploaded) return this`），而 `_uploaded` **只有 clear() / fill() 会重置**。
+    // 直接画在 ctx 上而不重置它 ⇒ 第一帧上传之后再也不会更新，整片字幕永远是第一句
+    // （2026-10-18 一支开 captions 的成片实测：多帧连渲时 t=130 / t=175 都显示 t=6 的那句）。
+    layer.clear();
     const c = layer.ctx;
     c.save();
     c.setTransform(layer.scale, 0, 0, layer.scale, 0, 0);
-    c.clearRect(0, 0, W, H);
     let line = null;
     try {
       line = this.captions.draw(layer, t);

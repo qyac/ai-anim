@@ -56,13 +56,32 @@
 > 挤成静默截断，已把新增压到最小并合并几处重复表述（现在 64829 + 本轮新增，余量不足 600 B）。**下次再往里加
 > 契约之前先瘦身**（把"想做真 3D""旁白/口播"这类已有专题文档的整节改成指针）。
 
+> **2026-10-18 · 一支真成片（本地任务，名称略）首次同时踩爆两个引擎 bug，都已修** ——
+> 拍板的选题开工。**顺带修掉两个引擎 bug，都是这一支片子第一次同时触发的**：
+> ① **字幕层从第二帧起不再更新** —— `_drawCaptions` 直接画在 `cap2d.ctx` 上、没走 `layer.clear()`，
+>    而 `Layer2D.upload()` 有一条 `if (this._uploaded) return this` 的短路（`_uploaded` **只有 `clear()` / `fill()` 会重置**）
+>    ⇒ 纹理只上传一次，整片字幕永远停在第一句（实测：多帧连渲时 t=130 / t=175 都显示 t=6 的那句）。
+>    修法：`_drawCaptions` 开头先 `layer.clear()`（`src/core/engine.js`）。**以前没有任何任务开过 `captions: true`，所以这条一直没被发现。**
+> ② **中文折行把标点甩到行首**（"…四块七毛五的咖啡 / ，吵了一小时…"）—— `TextKit.wrap()` 新增**避头标点**
+>    （`src/core/text.js` 的 `NO_LINE_START`）：断行点正好落在标点上时不断行，宁可让那一行超出一个标点的宽度。
+> **验收**：`hashes demo` / `hashes beat --baseline` 各 **11/11 max 0**（老片子逐像素没变）；
+> `tools/regress-all.mjs --only unit` **23/23**；成片 `check` **skipped 无 / 版面守门无 ⚠ / motion.json 11 条断言全过**。
+
 ---
 
-## 0. 拍板区（2026-10-17 复核后只剩下面**一条**"已定要做"；其余已关闭或已做 —— 见 §4）
+## 0. 拍板区（2026-10-17 0-6 落地后**已空**，2026-10-18 重新开了三条 —— 其余待办仍进 §1 / §2 / §3）
 
-| # | 事 | 状态 / 代价 | 出处 |
+> 来源：（2026-10-18 那支成片的复盘，文档只留本地；活条目已全部收编如下）：
+> 12 个真实撞到的坑 + 引擎改进建议）。三条都是**引擎能力**，不是这一支片子的返工。
+
+| # | 拍什么 | 代价 | 详见 |
 |---|---|---|---|
-| 0-6 | **后处理新参数真的用起来**（`tonemap` / `dither` / `bloomKaris` / `grainScale`） | **已定：做**（2026-10-16 用户拍板）。四个参数已进引擎，**默认值全部等于现状**（`hashes demo` / `beat` 各 11/11 `max 0` 验过）。实测：现状的软肩在输入 1.0 就输出 254、2.0 并到纯白（高光**没有层次**）；`tonemap: 'agx'` 配 `exposure: 0.75` 能把高光拉回来（1.0→200、2.0→238、4.0→247）且暗部反而更沉（均值 75.1→73.5），**代价是霓虹去饱和**（橙 253,253,120 → 237,218,151）；`'aces'` 是折中（1.0→232，霓虹 248,241,131）。**做法**：下一支片子的高光多镜头先用它出 A/B 图再定（`tasks/_post-lab/` 是现成的标定夹具） | [`ENGINE.md` §5](ENGINE.md)（参数表）· `tasks/_post-lab/`（标定夹具）· `out/_postlab/`（本轮实测数据与对比图） |
+| P-1 | **字幕层要不要做厚** —— 离线回归（连渲 3 帧字幕应不同）+ 完整 CJK 断行（避尾 / 悬挂 / 中西间距）+ 字幕与画面标注的冲突检测 | 约 2–3 天 | 复盘 §3.A-1 / A-3 / A-4 |
+| P-2 | **3D 舞台要不要进 src/kit/** —— 房间 / 长桌 / 座位参数化，seats[].facing 由参数给（堵住「靠背朝错」这类 bug） | 约 2–3 天 | 复盘 §3.B-1 |
+| P-3 | **--segments 块级失效值不值得做** —— 改一段只重渲一块；这轮那种返工从 81 分钟降到 ~15 分钟 | 约 2–3 天 | 复盘 §3.C-2 |
+
+另有 7 条半天以内、**不需要拍板**的改进列在复盘 §3（A-2 旁白表加载失败要可见 / C-1 dry-run 按档预估 /
+D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loudnorm / E-1 out/.render-lock）。
 
 ---
 
@@ -110,8 +129,6 @@
 
 | # | 事 | 从哪接着做 | 出处 |
 |---|---|---|---|
-| 1-17 | ★ **词锚定时间线**：让作者写"说到『兽语』时切镜头"，而不是 `cue: 0.6` / `internal: 4.2` 这类猜出来的秒数 | 四步：① `narration.mjs` 的 `SCENES[].lines[]` 加 `on: { word, edge: 'start'\|'end' }` 与 `reveal: { at: { line, word, edge } }`（**抄语义不抄 XML 标记** —— 我们的输入已经是结构化 JSON）；② 新纯函数 `resolveNarration()`：输入脚本 + `narration.json` 的 `words` → 输出**现有的 `timing.mjs`**（`slot`/`stretch`/`overlap`）+ 一份 `anchors.json`，**场景侧一行都不用改**；③ **必须实现左右亲和**（词间那段停顿归前一句还是后一句 —— 不实现就被静默归错且不报错）；④ 求解顺序 = 锚点 → 段内时刻 → 再算 `stretch`/`slot`，**段内偏移要跟着乘 `stretch`**。边界与风险：每段限 2–3 个锚点（锚点太多就变成另一种秒数）；**锚点只表达"在哪个词上做什么"，永远不能表达"持续 3 秒"**（否则 `stretch` 失去唯一解）；中文分词对不上时**抛错并列出该句所有可用词**（与现有报错哲学一致）；无词级时间戳时降级回秒，并**在 `check` 里警告"这一段改词不会自动重排"**。验收：扩展 `node tools/test-say.mjs`（纯 JS、不联网、不需要 GPU） | [`REFERENCE-hypit.md`](REFERENCE-hypit.md) §2 与 §5.1（对方 `packages/script`、`narrative-temporal`、`timeline-author`）；⚠ 它"等长、不许拉伸"**不要抄**（我们靠 `stretch`） |
-| 1-18 | ★ **`check` 加画面语义断言**：`tasks/<任务>/motion.json` 声明 `appearsBy(段, 秒)` / `before(段A, 段B)` / `keepsMoving(段, maxStaticSec)` / 帧边缘不许有硬内容 —— 让"该出现的没出现 / 顺序反了 / 整段没动"变成可 gate 的错误 | 落在 `check` 已有的逐段试渲染 + 三点采样里；段级统计量复用 `scripts/lib/shake.mjs`（**把"只看 post.shake"扩成"看整帧"** 就得到帧间变化量）。⚠ 需要**相邻帧**而不只是孤立采样点，所以试渲染时间会涨（先实测）。对方两条元设计必须一起抄：**"严重性持久性感知"**（只在单点出现的入场瞬态降级为 info、永不 gate；跨采样点保持才 gate）与 **"空 ≠ 干净"**（见 1-19） | [`REFERENCE-hyperframes.md`](REFERENCE-hyperframes.md) §4.2（对方 `sweep_static` / `motion_frozen` / `motion_appears_late` / `motion_out_of_order` / `canvas_content_at_edge`） |
 | 1-23 | **`variants` 覆写 + `narration.json` 可显式指定**：同一支片子出多个版本（换风格 / 换配色 / 换语言 / 剪短版） | ① `task.config.mjs` 加 `export const variants = {…}`，CLI 加 `--variant`：深合并覆盖 + **产物与块缓存按 variant 分目录**（`narration.json` / `timing.mjs` / `video --segments` 的块，**不分目录就会串味**，这是最容易出 bug 的地方）；② 更值钱的是后半：让 `narration.json` 成为**可显式指定的输入**（"这一段用上次那份词级时间戳，不要重新合成"）—— 改一句词现在会导致**整片重渲**，有了它，换风格/换顺序的变体可以**零 TTS 成本**重出 | [`REFERENCE-hypit.md`](REFERENCE-hypit.md) §5.4（Source/Run 分离 + 显式复用 Output） |
 | 1-24 | **`--parallel` 先说清事实、再决定动不动**：现有两个已知毛病 + 并发度上限 + 收益要重测 | ① 它**静默忽略 `--segments`**（CLI 里 `--parallel` 分支在 `--segments` 之前 return）、只转发 10 个参数（`--idle` / `--force` / `--keep-raw` / `--only` 不生效）—— 这是 1-19 同类的"静默降级"；② 并发度现在硬编码 `2..8`，应按 `min(cpu-2, 内存/3GiB, 段数)` 起算并**默认不开**（对方经验值：**一个 Chrome 按 1.5GiB 预留、只准用一半内存**）；③ **收益必须先量**：NV12 之后实测 4 进程 720 帧 **6.1 fps < 单进程 7.5 fps**（瓶颈在传输与核显争用），所以"多进程"不是免费加速。**可抄的只有它的 `distributeFrameRange`（十行：连续块、可从任意帧开工），不要抄它的调度器** | [`REFERENCE-hypit.md`](REFERENCE-hypit.md) §4.1/§5.3（`ordered-frame-sink.ts` / `concurrency.ts`）· 本地实测见 [`PERF.md`](PERF.md):67–74（"并行渲不同区间：⚠ 历史结论，已不是首选"） |
 
@@ -155,7 +172,7 @@
 
 | # | 事 | 说明 | 出处 |
 |---|---|---|---|
-| 2-1 | **用第 ③ 种（Three.js 真网格）做一支真片子** | 方向是"需要大量可视化的科普/介绍视频"。开拍时建议先照 `tasks/_three-lab/scenes/_stage.js` 把"舞台"（世界原点 / 摄影机 / 包围盒）钉死，再往里填内容 | [`STATUS.md` §19.7](STATUS.md) · [`THREE.md`](THREE.md) |
+| ~~2-1~~ | **已完成（2026-10-18）**：一支真成片（本地任务，名称略）—— 8 段 / 193.5 秒 / Three.js 真网格会议室（4 段共用一台 `camAt(t)`）+ 四个 2D 镜头；它同时就是 2-1 的 Three.js 落地点。**（原始条目留档）** 开拍时先照 `tasks/_three-lab/scenes/_stage.js` 把"舞台"钉死再填内容 | [`STATUS.md` §19.7](STATUS.md) · [`THREE.md`](THREE.md) |
 
 ---
 
@@ -208,7 +225,7 @@
 | `src/kit/panel.js`（2D 面板层：`panel` / `tile` / `chips` / `arrowH` / `bufBox`） | 同上 §4 B，已落地 |
 | 摄影机关键帧支持**按段名 + 段内秒**（`{ id: 'ctm', at: 3.0, … }`） | 同上 §4 C，已落地（`src/kit/blocks.js`） |
 | "**alpha 管在不在，tone 管亮不亮**"写进 COOKBOOK | 同上 §4 E → [`COOKBOOK.md` §2.5](COOKBOOK.md) |
-| `docs/SCENE-BRIEF-TEMPLATE.md` 成文 | 同上 §6 → 已成文（并补了"本片必须与上一支不同的三项"） |
+| `docs/SCENE-BRIEF-TEMPLATE.md` 成文 | 同上 §6 → 已成文（其 §5 原为"本片必须与上一支不同的三项"；2026-10-17 用户拍板降为"风格对照表，同味风险是提示不是门"） |
 | "用 `anim say` 真做一支带旁白的片子" | `beast` / `sodium` / `optifine` 三支都用了 `anim say`（§13.4.8 写这条时还没有样本） |
 | 整份 `regress-all` 没跑 | 已跑：**32/32 通过**（`node tools/regress-all.mjs`，约 12 分钟） |
 | `--segments` 收尾截掉视频尾巴（`-shortest`） | 第四轮 §1 已修并验证，同源两处（`renderParallel` / `renderToFile`）也补了 `-af apad` |
@@ -258,11 +275,11 @@
 | **1.B-27 运动规则表 + 3 个 kit 函数** | **2026-10-16**：`docs/MOTION.md`（12 条规则 + 四级证据分级）、`src/kit/motion.js`（`nudgeCurve` / `waterfallStagger` / `waterfallOver` / `glowPeakCap`）、`tools/test-motion.mjs`（42 项，已挂 `unit:motion`）。⚠ 数值是外部项目 hyperframes 的**经验值、我方未实测**；**留下的一半**（三个上限未接进守门）记成 §1.B-33 |
 | **第二轮清磁盘** | **2026-10-16**：`out/` 27.6 → 25.9 GB（释放 1.77 GB）；`_postlab` 的两个读数脚本搬进 `tools/` |
 | **1.D-34 / 1.D-35 前半 / 1.D-36（onetake 拆解的第一批落地）** | **2026-10-17**：`docs/REFERENCE-onetake.md`（拆解报告）+ 三件落地 —— ① `anim carry` 连贯度 oracle（判据纯函数 `planCarryBoundaries` / `classifyCarry` / `summarizeCarry` 在 `src/timeline.js`，块匹配在 CLI 页面侧，**默认只报读数、--strict 才 gate**；`cut(..., { carry })` 声明接线进 TIMELINE_KEYS/cut/build 三处）；② `check` 的「节奏（静态）」腿（`rhythmStats()` CoV，零渲染；单段进 skipped）；③ `src/kit/carry.js`（`morphRect/iris/zoomThrough/hop/gather/operatorCam` 六个纯函数 + 三个判据常量，只 import `core/util.js`，NaN 当场抛）。**验收**：`tools/test-carry.mjs` **33 项**（挂 `unit:carry`）；`regress-all --only unit` **22/22**；`hashes demo` / `beat` 基线各 **11/11 逐像素不变**；`anim carry` 实测 demo **0.50**（title→chart、chart→kinetic 两个硬切 bare —— 真实诊断：这三段各画各的世界）/ beat **1.00**（共享背景让硬切两侧 74–97% 配对）。**过程中抓到的**：lint-doc-facts 把注释里的 `'morph'/'anchor'/'any'` 字符串当 TIMELINE_KEYS 数了（守门按口径工作，改注释措辞）；`gather` 第一版端点不精确（行程抖动在 k=1 不归零，收拢收不齐 —— 抖动乘 `sin(πk)` 窗修掉）；`operatorCam` 的 rest 归零漏出 `-0`（显式 `env > 0` 分支修掉）。**留下**：1-37（动作图册）、1-38（静帧占比） |
+| **两个引擎 bug（字幕纹理只上传一次 + 折行避头标点）** | **2026-10-18**：见本文件头部那段。① 字幕纹理只上传一次（`_drawCaptions` 走 `layer.clear()`）；② `TextKit.wrap()` 避头标点。验收：`hashes demo/beat` 各 11/11 max 0、`regress-all --only unit` 23/23、成片 `check` 全绿（版面守门无 ⚠、motion.json 11/11） |
 | **0-8 R8/RG8 回读（1-7 ⓐ）** | **2026-10-17**：`src/core/gl.js` 的 `RT` 新增 `format: 'r8' / 'rg8'`（不传 = 与之前逐字节相同的 RGBA8）；`readNV12()` 的两个平面改成 R8/RG8，按 `RED`/`RG` 回读（`PACK_ALIGNMENT` 钉 1），**紧凑化循环与两个中转缓冲删除**。验收：`tools/probe-r8.mjs` 新增并全绿（32×8 与 13×5 两种宽度、R8+RG8 逐字节 max 0；ANGLE / AMD / D3D11）；`probe-nv12` 全绿（max 1、>1 占 0.00%）；`_calib` 720 帧背靠背 **47.8s（15.1 fps）→ 44.5s（16.2 fps）= 1.07×**（三次 44.3–44.6s）；`verify _calib` **8/8**（mean 0.00–3.19）；`hashes demo` / `hashes beat --baseline` 各 **11/11 max 0**；`regress-all --only unit` 通过。数据在 `PERF.md` §5.2/§5.4a/§5.6 |
-
----
-
-### 第十一轮的验收证据（都能重跑）
+| **1-17 词锚定时间线** | **2026-10-17**：`scripts/lib/narration-anchors.mjs` 新增（纯函数 `resolveNarration`）——`narration.mjs` 句上写 `on: { line?, word, edge?, affinity? }`、段上写 `reveal: { at: { line, word, edge } }`，解出段内 cue/internal 直接喂 `solveTiming`（它零改动、段内偏移照旧跟 stretch 乘）。**左右亲和显式化**（'left'→停顿全归前词 / 'right'→全归后 / 默认对半 / 数字按比例，取向写进 anchors.json 不许静默）；词名写错**抛错并列出该句全部可用词**；每段锚点（on+reveal）≤3、第一句带 on、往回锚（环）、affinity 写错全抛；**降级**：被锚句 approx/无 words → 退回显式秒并进 `anchors.json.degraded`（check 1.8 再报一遍"改词不会自动重排"）。`say` 接线在合成完之后、solveTiming 之前；无锚点全哑（§8.7 两遍日志一致判据钉住）；有锚点写 `audio/anchors.json`、无锚点主动删旧文件。验收：`tools/test-say.mjs` 新增 §9 共 34 项 → **112/112**（原 78 零回归）；`docs/NARRATION.md` 新增 §6（写法/亲和表/降级/≤3 锚/诚实边界）。**边界**：第一次 TTS 不出词级时间戳 ⇒ 锚点全部降级回秒（say 与 check 都会明说） |
+| **1-18 check 加画面语义断言** | **2026-10-17**：`tasks/<任务>/motion.json` 声明四种断言——`before(A,B)`（纯静态：B.start ≥ A.end）、`appearsBy(段,t)`（段头+0.05 与段头+t 两帧差分 changedRatio ≥ 0.0015）、`keepsMoving(段,maxStaticSec)`（段内每 0.5s 相邻帧对、最长连续静超标命中）、`noEdgeContent(段)`（15%/50%/85% 三点、四边 3% 带内**文字块** bbox 压边；第一版不判矢量——边界已写进 MOTION.md §5）。判据纯函数在 `src/timeline.js`（`planMotionAsserts`/`edgeSafeHits`/`motionVerdict`，既有导出零改动），页面侧 `__anim.motionAudit`（相邻对复用帧省一半渲染、异常记 error 不中断），cmdCheck 接线（文件缺 → skipped"没判 ≠ 通过"、解析坏 → 静态 errs；命中默认 warn、--strict 才 gate；--quick 只跑 appearsBy 并明说其余没跑）。**两条元设计照抄 hyperframes**：持久性感知（单点超限下一采样恢复 → info 不 gate）与空≠干净（未声明/missing/页面行缺失全进 skipped）。**真渲染验收**：demo 写契约示例断言组 → 完整档 3 过 1 命中（`noEdgeContent chart` 3/3 点压右边——footer 贴边，断言不是永远绿的证明）、quick 档 2 帧 / 完整档 21 帧 0.8s。测试 `tools/test-motion-assert.mjs` **21/21**（挂 `unit:motion-assert`）；`regress-all --only unit` **23/23**；`docs/MOTION.md` 新增 §5 |
+| **0-6 后处理新参数用起来（A/B 标定落地）** | **2026-10-17**：`_post-lab` 夹具补 grainScale 两段（10 → 12 段），重建 `out/_postlab/` 实测（上轮清盘被删）：三批 `still` 12 帧 + 两个量具重跑 + grain 4K 栅格量化（`out/_postlab/grain-probe.mjs`，一次性脚本）+ 视觉子代理并排目检 ×2。**结论写进 `docs/ENGINE.md` §8 四个参数行**：① `shoulder 0.60` 实测**只压暗、不增加高光层次**（1.0→245、2.0 仍并白，目检并白起点反而早一级）—— 要层次必须换算子；② AgX+exp0.75 层次最好（目检并白起点第 9 级 vs 现状第 6 级、多约 3 级）但**去饱和最狠**（保饱和排序 现状 > ACES > AgX；橙 253,253,120 → AgX 237,218,151 / ACES 248,241,131），ACES+exp0.85 是折中；③ bloomKaris **单点读数几乎无差**（极差 ≤2/255）但**并排目检有轻微可见差别**（ON 白芯略小略暗、光晕收窄、晕带暖粉偏移；均无方块伪影；帧间跳动需连续帧验）—— 推翻旧记录「没测出可见差别」；④ grainScale 4K 实测：`design` lag1=+0.51（2×2 物理像素、与 1080p 同大小）、`screen` lag1≈-0.05（单物理像素、细一半），两者 std 一致（0.0593/0.0594，强度相同只有栅格不同）；**4K 成片或可能下变换回 1080p 观看时用 `design`**；⑤ dither rpdf/tpdf 单帧确无差别（级数 17→18、各级差 ≤2）—— 确认旧结论。视觉报告顺带纠正 briefing 笔误（ab-visual 实为 7 行）。产物：`out/_postlab/`（ab-visual / ab2-visual / grain-ab 三张对比图 + 12 帧） |
 
 ```sh
 node tools/test-layout.mjs                     # 31 项通过（纯函数，不需要 GPU）
