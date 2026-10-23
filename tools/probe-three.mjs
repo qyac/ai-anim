@@ -17,14 +17,9 @@
  *
  * 退出码：0 = 全部通过；1 = 有判据没过（会打印每一项实测值）。
  */
-import { spawn } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { openProbePage } from './lib/probe-page.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TASK = '_three-calib';
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const argOf = (name) => {
   const i = process.argv.indexOf(name);
   return i >= 0 ? process.argv[i + 1] : null;
@@ -32,44 +27,16 @@ const argOf = (name) => {
 /** 每个通道允许的误差（sRGB 8bit，抖动与舍入） */
 const TOL = 2;
 
-async function portReady(url, timeoutMs = 40000) {
-  const t0 = Date.now();
-  while (Date.now() - t0 < timeoutMs) {
-    try { const res = await fetch(url, { signal: AbortSignal.timeout(1200) }); if (res.ok) return true; } catch { /* retry */ }
-    await sleep(180);
-  }
-  return false;
-}
-
-let vite = null;
-let url = argOf('--url') ?? '';
-if (!url) {
-  const port = 5401;
-  const viteEntry = path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
-  vite = spawn(process.execPath, [viteEntry, '--port', String(port), '--strictPort', '--host', '127.0.0.1'], {
-    cwd: ROOT, stdio: ['ignore', 'ignore', 'ignore'], env: { ...process.env, ANIM_NO_HMR: '1' },
-  });
-  url = `http://127.0.0.1:${port}`;
-  if (!(await portReady(url))) { vite.kill(); console.error('✗ 私有 Vite 起不来'); process.exit(1); }
-}
-
-const browser = await chromium.launch({
-  channel: 'chrome', headless: true,
-  args: ['--use-angle=default', '--enable-gpu-rasterization', '--ignore-gpu-blocklist',
-    '--enable-unsafe-swiftshader', '--disable-background-timer-throttling'],
-});
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
 const pageErrors = [];
-page.on('pageerror', (e) => pageErrors.push(String(e.message)));
-
 let failed = 0;
+let closeProbe = async () => {};
 try {
-  await page.goto(`${url}/?task=${TASK}&offline=1&hud=0`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  const st = await page.waitForFunction(
-    () => { const a = window.__anim; return a && a.status && a.status().state !== 'booting' ? a.status() : null; },
-    null, { timeout: 180000 },
-  ).then((h) => h.jsonValue());
-  if (st.state !== 'ready') throw new Error(`页面没就绪：${JSON.stringify(st).slice(0, 400)}`);
+  const probe = await openProbePage({
+    task: TASK, url: argOf('--url') ?? '', port: 5401, timeout: 180000,
+    onPageError: (e) => pageErrors.push(String(e.message)),
+  });
+  closeProbe = probe.close;
+  const page = probe.page;
 
   const info = await page.evaluate(() => window.__anim.info());
   const mid = (id) => {
@@ -148,7 +115,6 @@ if (pageErrors.length) {
   failed++;
 }
 
-await browser.close();
-vite?.kill();
+await closeProbe();
 console.log(failed ? `\n✗ probe-three：${failed} 项不通过` : '\n✓ probe-three：全部通过');
 process.exit(failed ? 1 : 0);

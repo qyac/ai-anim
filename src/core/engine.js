@@ -318,17 +318,7 @@ export class Engine {
 
   /** 风格栅格按实际分辨率缩放后的版本（风格里的数字都是 1920×1080 基准）。 */
   _scaledGrid() {
-    const g = this.style?.grid;
-    if (!g) return null;
-    const k = this.gl.h / 1080;
-    if (Math.abs(k - 1) < 1e-6) return g;
-    const s = (v) => Math.round(v * k);
-    return {
-      ...g,
-      pad: s(g.pad), top: s(g.top), footerLineY: s(g.footerLineY), footerY: s(g.footerY),
-      captionLineY: s(g.captionLineY), captionY: s(g.captionY), contentBottom: s(g.contentBottom),
-      captionBand: [s(g.captionBand[0]), s(g.captionBand[1])],
-    };
+    return U.scaleGrid(this.style?.grid, this.gl.h / 1080);
   }
 
   /** 检查时间线本身的问题（重叠顺序、空档、越界）。 */

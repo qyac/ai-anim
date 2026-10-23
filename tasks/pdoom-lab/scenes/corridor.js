@@ -18,9 +18,9 @@
 //
 // 世界本身在 `_corridor.js`（第 5 段 `loop.js` 引同一份，所以"回到第一帧"是字面上的同一个 SDF）。
 import { css, sat, clamp, prog } from '../../../src/core/util.js';
-import { camera3, project3, clipSegment, depthScale } from '../../../src/core/cam.js';
+import { camera3, project3, depthScale } from '../../../src/core/cam.js';
 import { makeCorridorPass, corridorUniforms } from './_corridor.js';
-import { CORRIDOR, SEG, camPost } from './_world.js';
+import { CORRIDOR, SEG, camPost, corridorSegments, drawCorridorSegments } from './_world.js';
 
 export default {
   id: 'corridor',
@@ -43,41 +43,8 @@ export default {
 
   /** 第 ① 种 3D（原来的实现，保留下来做对照）：世界线段 + 逐条投影。 */
   buildSegments() {
-    /** @type {any[]} */
-    const segs = [];
-    const S = (a, b, w, c, al) => segs.push([a[0], a[1], a[2], b[0], b[1], b[2], w, c, al]);
-    const HW = 2.2, HH = 1.6, ZF = -4, NZ = 16;
-    for (const y of [-HH, HH]) for (const x of [-HW, HW]) S([x, y, 6], [x, y, ZF - NZ * 4 - 8], 0.9, 'graphite', 0.5);
-    for (let i = 0; i <= NZ + 2; i++) {
-      const z = ZF - i * 4;
-      S([-HW, -HH, z], [HW, -HH, z], 1.5, i % 2 === 0 ? 'ash' : 'graphite', i % 2 === 0 ? 0.5 : 0.32);
-      S([-HW, HH, z], [HW, HH, z], 1.2, 'graphite', 0.3);
-    }
-    for (let i = 0; i <= NZ; i++) {
-      const z = ZF - i * 4;
-      const ax = 1.75, ay = 1.15;
-      const corners = [[-ax, -ay], [ax, -ay], [ax, ay], [-ax, ay]];
-      for (let k = 0; k < 4; k++) {
-        const a = corners[k], b = corners[(k + 1) % 4];
-        S([a[0], a[1], z], [b[0], b[1], z], 2.0, 'bone', 0.72);
-      }
-      for (const [cx, cy] of corners) {
-        S([cx - 0.16, cy, z], [cx + 0.16, cy, z], 3.0, 'bone', 0.85);
-        S([cx, cy - 0.16, z], [cx, cy + 0.16, z], 3.0, 'bone', 0.85);
-      }
-      for (const sx of [-HW, HW]) {
-        for (let t = -3; t <= 3; t++) S([sx, t * 0.42 - 0.08, z], [sx, t * 0.42 + 0.08, z], 1.2, 'ash', 0.4);
-      }
-    }
-    for (let i = 0; i <= NZ; i++) {
-      const z = ZF - i * 4 + 2;
-      const r = 0.34, N = 16;
-      for (let k = 0; k < N; k++) {
-        const a0 = (k / N) * Math.PI * 2, a1 = ((k + 1) / N) * Math.PI * 2;
-        S([Math.cos(a0) * r, 0.2 + Math.sin(a0) * r, z], [Math.cos(a1) * r, 0.2 + Math.sin(a1) * r, z], 1.4, 'signal', 0.55);
-      }
-    }
-    this.segs = segs;
+    // 几何只有一份：收尾段引的就是这个函数（"回到第一帧"靠它成立）。
+    this.segs = corridorSegments();
   },
 
   render(ctx) {
@@ -105,20 +72,7 @@ export default {
     } else {
       // 第 ① 种 3D：逐条投影 + 近平面裁剪 + 深度衰减（原先的实现）
       lines.begin();
-      for (const s of this.segs) {
-        const a = project3(cam, W, H, s[0], s[1], s[2]);
-        const b = project3(cam, W, H, s[3], s[4], s[5]);
-        if (!clipSegment(a, b, 0.15)) continue;
-        if ((a.x < -200 && b.x < -200) || (a.x > W + 200 && b.x > W + 200)) continue;
-        if ((a.y < -200 && b.y < -200) || (a.y > H + 200 && b.y > H + 200)) continue;
-        const w = (a.w + b.w) * 0.5;
-        const fogK = Math.exp(-Math.max(0, w - 6) * 0.10);
-        if (fogK < 0.04) continue;
-        const col = P[s[7]] ?? P.bone;
-        const lw = clamp(s[6] * depthScale(cam, w, H) * 3.2, 0.9, 9);
-        const al = s[8] * fogK;
-        lines.seg(a.x, a.y, b.x, b.y, lw, [col[0] * al, col[1] * al, col[2] * al]);
-      }
+      drawCorridorSegments(cam, lines, W, H, this.segs, P);
       const s3 = project3(cam, W, H, sp[0], sp[1], sp[2]);
       if (s3.w > 0.2) {
         const lit = sp[3] * (0.86 + 0.14 * Math.sin(t * 91.7) * Math.sin(t * 57.3));

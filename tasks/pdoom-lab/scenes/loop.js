@@ -11,9 +11,9 @@
 // 真正把"首末逐像素相同"钉住的办法在 CLI 上：
 //   node scripts/anim.mjs hashes <pdoom-lab> --baseline
 import { css, sat, prog } from '../../../src/core/util.js';
-import { camera3, project3, clipSegment, depthScale } from '../../../src/core/cam.js';
+import { camera3, project3, depthScale } from '../../../src/core/cam.js';
 import { makeCorridorPass, corridorUniforms } from './_corridor.js';
-import { corridorSegments, corridorCam3, camPost, sparkAt, WORLD, DUR } from './_world.js';
+import { corridorSegments, corridorCam3, camPost, sparkAt, drawCorridorSegments, WORLD, DUR } from './_world.js';
 
 export default {
   id: 'loop',
@@ -63,20 +63,7 @@ export default {
       })).render(gl, ctx.out, t, f.dt);
     } else {
       lines.begin();
-      for (const s of this.segs) {
-        const a = project3(cam, W, H, s[0], s[1], s[2]);
-        const b = project3(cam, W, H, s[3], s[4], s[5]);
-        if (!clipSegment(a, b, 0.15)) continue;
-        if ((a.x < -200 && b.x < -200) || (a.x > W + 200 && b.x > W + 200)) continue;
-        if ((a.y < -200 && b.y < -200) || (a.y > H + 200 && b.y > H + 200)) continue;
-        const w = (a.w + b.w) * 0.5;
-        const fog = Math.exp(-Math.max(0, w - 6) * 0.10);
-        if (fog < 0.04) continue;
-        const col = P[s[7]] ?? P.bone;
-        const lw = Math.max(0.9, Math.min(9, s[6] * depthScale(cam, w, H) * 3.2));
-        const al = s[8] * fog * (0.55 + 0.45 * back);
-        lines.seg(a.x, a.y, b.x, b.y, lw, [col[0] * al, col[1] * al, col[2] * al]);
-      }
+      drawCorridorSegments(cam, lines, W, H, this.segs, P, { alpha: 0.55 + 0.45 * back });
 
       const s3 = project3(cam, W, H, sp[0], sp[1], sp[2]);
       if (s3.w > 0.2 && sp[3] > 0.01) {

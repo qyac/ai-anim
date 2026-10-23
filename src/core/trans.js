@@ -85,58 +85,120 @@ export function transitionPass(gl, opts = {}) {
 }
 
 /**
- * 全片一台摄影机：**只用整片时间 `t`**，所以切镜头时它不会断。
+ * 摄影机曲线的**参数化实现**。
  *
- * 返回 post 参数，直接塞进 `render()` 的返回值（和 `cameraPost` 二选一）。
- * 两个不同频率的正弦叠加，避免看出周期。
- */
-export function cameraAt(t, opts = {}) {
-  const zAmp = opts.zoomAmp ?? 0.05;
-  const sAmp = opts.shakeAmp ?? 1;
-  return {
-    zoom: 1 + zAmp * Math.sin(t * 0.105) + zAmp * 0.4 * Math.sin(t * 0.31 + 2.0),
-    shake: [
-      sAmp * (38 * Math.sin(t * 0.19) + 13 * Math.sin(t * 0.47 + 0.7)),
-      sAmp * (22 * Math.sin(t * 0.16 + 1.3) + 8 * Math.sin(t * 0.41)),
-    ],
-  };
-}
-
-/**
- * 摄影机当前的运动方向（单位向量，屏幕坐标系 y 向下）。
- * 用有限差分从 `cameraAt` 推出来 —— 转场拖尾与前景入场都沿它，动感才接得上。
- */
-export function cameraDir(t, dt = 0.05, opts = {}) {
-  const a = cameraAt(t - dt, opts), b = cameraAt(t + dt, opts);
-  const dx = b.shake[0] - a.shake[0];
-  const dy = b.shake[1] - a.shake[1];
-  const n = Math.hypot(dx, dy) || 1;
-  return [dx / n, dy / n];
-}
-
-/**
- * 段落收尾用的 post：摄影机 + 这一段的固定观感，合成一个对象直接 return。
- * @param {number} t 整片时间（`f.t`，不是 `f.lt`）
- * @param {Record<string, any>} [extra] 这一段自己的调色/泛光等
- */
-export function cameraPost(t, extra = {}) {
-  const c = cameraAt(t);
-  return { ...c, ...extra };
-}
-
-/**
- * 前景的入场位移：方向与摄影机**相反**（上一镜往这边被甩走，新内容就从反方向落位）。
- * 直接加在文字的 x/y 或矢量的坐标上即可。
+ * `src/core/trans.js`（老配方）与 `src/kit/world.js`（`makeShot` 用的那套）是
+ * **同一个纯函数的两组参数**，不是两份实现 —— 以前两处各抄一份，改一处就会漏另一处。
+ * 默认值 = `trans.js` 从前的常量（逐像素不变）；`kit/world.js` 传另一组。
  *
- * @param {number} t 整片时间
- * @param {number} k 入场进度（0 = 刚进来，1 = 站稳）
- * @param {number} [amount] 最大位移（逻辑像素）
- * @returns {[number, number]} `[dx, dy]`
+ * 返回 `{ cameraAt, cameraDir, cameraPost, enterOffset }`，全部只吃 `t`。
+ *
+ * @param {{
+ *   zoomBase?: number, zoomAmp?: number,
+ *   zoomW?: [number, number], zoomPhase?: [number, number],
+ *   shake?: [number, number, number][],   // [幅度, 频率, 相位] × 4：x 两路、y 两路
+ *   enterAmount?: number, enterY?: number,
+ * }} [p]
  */
-export function enterOffset(t, k, amount = 150) {
-  const d = cameraDir(t);
-  const rem = (1 - sat(k)) ** 2;
-  return [-d[0] * amount * rem, -d[1] * amount * 0.55 * rem];
+export function makeCameraProfile(p = {}) {
+  const zoomBase = p.zoomBase ?? 1;
+  const zoomAmp = p.zoomAmp ?? 0.05;
+  const zoomW = p.zoomW ?? [0.105, 0.31];
+  const zoomPhase = p.zoomPhase ?? [0, 2.0];
+  const shake = p.shake ?? [[38, 0.19, 0], [13, 0.47, 0.7], [22, 0.16, 1.3], [8, 0.41, 0]];
+  const enterAmount = p.enterAmount ?? 150;
+  const enterY = p.enterY ?? 0.55;
+
+  /**
+   * 全片一台摄影机：**只用整片时间 `t`**，所以切镜头时它不会断。
+   * 两个不同频率的正弦叠加，避免看出周期。
+   */
+  function cameraAt(t, opts = {}) {
+    const zAmp = opts.zoomAmp ?? zoomAmp;
+    const sAmp = opts.shakeAmp ?? 1;
+    const zBase = opts.zoomBase ?? zoomBase;
+    return {
+      zoom: zBase + zAmp * Math.sin(t * zoomW[0] + zoomPhase[0])
+        + zAmp * 0.4 * Math.sin(t * zoomW[1] + zoomPhase[1]),
+      shake: [
+        sAmp * (shake[0][0] * Math.sin(t * shake[0][1] + shake[0][2])
+          + shake[1][0] * Math.sin(t * shake[1][1] + shake[1][2])),
+        sAmp * (shake[2][0] * Math.sin(t * shake[2][1] + shake[2][2])
+          + shake[3][0] * Math.sin(t * shake[3][1] + shake[3][2])),
+      ],
+    };
+  }
+
+  /**
+   * 摄影机当前的运动方向（单位向量，屏幕坐标系 y 向下）。
+   * 用有限差分从 `cameraAt` 推出来 —— 转场拖尾与前景入场都沿它，动感才接得上。
+   */
+  function cameraDir(t, dt = 0.05, opts = {}) {
+    const a = cameraAt(t - dt, opts), b = cameraAt(t + dt, opts);
+    const dx = b.shake[0] - a.shake[0];
+    const dy = b.shake[1] - a.shake[1];
+    const n = Math.hypot(dx, dy) || 1;
+    return [dx / n, dy / n];
+  }
+
+  /**
+   * 段落收尾用的 post：摄影机 + 这一段的固定观感，合成一个对象直接 return。
+   * @param {number} t 整片时间（`f.t`，不是 `f.lt`）
+   * @param {Record<string, any>} [extra] 这一段自己的调色/泛光等
+   */
+  function cameraPost(t, extra = {}) {
+    return { ...cameraAt(t), ...extra };
+  }
+
+  /**
+   * 前景的入场位移：方向与摄影机**相反**（上一镜往这边被甩走，新内容就从反方向落位）。
+   * 直接加在文字的 x/y 或矢量的坐标上即可。
+   *
+   * @param {number} t 整片时间
+   * @param {number} k 入场进度（0 = 刚进来，1 = 站稳）
+   * @param {number} [amount] 最大位移（逻辑像素）
+   * @returns {[number, number]} `[dx, dy]`
+   */
+  function enterOffset(t, k, amount = enterAmount) {
+    const d = cameraDir(t);
+    const rem = (1 - sat(k)) ** 2;
+    return [-d[0] * amount * rem, -d[1] * amount * enterY * rem];
+  }
+
+  return { cameraAt, cameraDir, cameraPost, enterOffset };
+}
+
+/** `trans.js` 这一套（老配方）的默认参数 —— 就是从前写死在这里的那组数。 */
+const CAM = makeCameraProfile();
+
+export const cameraAt = CAM.cameraAt;
+export const cameraDir = CAM.cameraDir;
+export const cameraPost = CAM.cameraPost;
+export const enterOffset = CAM.enterOffset;
+
+/**
+ * 交叠期那一帧：先铺共享背景（如果要），再把上一段沿**这一套摄影机**的方向甩走。
+ * `makeTransitionKit` 与 `kit/world.js` 的 `makeWorldKit` 共用这一份。
+ *
+ * @param {any} c SceneCtx
+ * @param {{ pass: any, background?: any, opts?: any,
+ *           dir: (t: number, dt?: number, opts?: any) => number[] }} o
+ * @returns {number} 入场进度 k
+ */
+export function openTransitionFrame(c, o) {
+  const { f, gl } = c;
+  const { pass, background, dir } = o;
+  if (background) background.render(gl, c.out, f.t, f.dt);
+  // ctx.under 只有「自己声明了 handlesTransition 且真的在交叠」时才非空
+  const k = c.under ? sat(f.tin) : 1;
+  if (c.under && k < 1) {
+    const u = pass.u;
+    u.under.value = { tex: /** @type {any} */ (c.under).tex ?? c.under, __tex: true };
+    u.k.value = k;
+    u.dir.value = dir(f.t, 0.05, o.opts);
+    pass.render(gl, c.out, f.t, f.dt);
+  }
+  return k;
 }
 
 /**
@@ -155,18 +217,7 @@ export function makeTransitionKit(ctx, opts = {}) {
      * @returns {number} 入场进度 k（1 = 已经站稳，可以按平常那样画）
      */
     openFrame(c, background = null) {
-      const { f, gl } = c;
-      if (background) background.render(gl, c.out, f.t, f.dt);
-      // ctx.under 只有「自己声明了 handlesTransition 且真的在交叠」时才非空
-      const k = c.under ? sat(f.tin) : 1;
-      if (c.under && k < 1) {
-        const u = pass.u;
-        u.under.value = { tex: /** @type {any} */ (c.under).tex ?? c.under, __tex: true };
-        u.k.value = k;
-        u.dir.value = cameraDir(f.t, 0.05, opts);
-        pass.render(gl, c.out, f.t, f.dt);
-      }
-      return k;
+      return openTransitionFrame(c, { pass, background, dir: cameraDir, opts });
     },
   };
 }

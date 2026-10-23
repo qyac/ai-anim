@@ -41,8 +41,9 @@
  */
 
 import { Pass } from '../core/gl.js';
-import { clamp, sat } from '../core/util.js';
-import { transitionPass as coreTransitionPass } from '../core/trans.js';
+import {
+  transitionPass as coreTransitionPass, makeCameraProfile, openTransitionFrame,
+} from '../core/trans.js';
 
 /**
  * 把「上一段那一帧」沿摄影机方向甩出去，并加方向拖尾。
@@ -184,56 +185,38 @@ export function worldPass(ctx, opts = {}) {
 }
 
 /**
- * 全片一台摄影机：**只用整片时间 `t`**，所以切镜头时它不会断。
- * 两个不同频率的正弦叠加，避免看出周期。
- *
- * @param {number} t 整片时间（`f.t`，**不是** `f.lt`）
+ * 这一套摄影机的参数（`makeShot` / `makeThreeShot` 默认就是它）：
+ * 比 `trans.js` 那套更"稳"一点 —— 幅度小、频率慢、基准略微推近（1.035）。
+ * 实现与 `trans.js` 共用 `makeCameraProfile()`，这里只给参数。
  */
-export function cameraAt(t, opts = {}) {
-  const zAmp = opts.zoomAmp ?? 0.03;
-  const sAmp = opts.shakeAmp ?? 1;
-  const zBase = opts.zoomBase ?? 1.035;
-  return {
-    zoom: zBase + zAmp * Math.sin(t * 0.085 - 1.1) + zAmp * 0.4 * Math.sin(t * 0.27 + 2.0),
-    shake: [
-      sAmp * (22 * Math.sin(t * 0.17) + 9 * Math.sin(t * 0.43 + 0.7)),
-      sAmp * (14 * Math.sin(t * 0.14 + 1.3) + 6 * Math.sin(t * 0.37)),
-    ],
-  };
-}
+const CAM = makeCameraProfile({
+  zoomBase: 1.035,
+  zoomAmp: 0.03,
+  zoomW: [0.085, 0.27],
+  zoomPhase: [-1.1, 2.0],
+  shake: [[22, 0.17, 0], [9, 0.43, 0.7], [14, 0.14, 1.3], [6, 0.37, 0]],
+  enterAmount: 130,
+  enterY: 0.5,
+});
+
+/** 全片一台摄影机：**只用整片时间 `t`**，所以切镜头时它不会断。 */
+export const cameraAt = CAM.cameraAt;
 
 /** 摄影机当前的运动方向（单位向量，屏幕坐标系 y 向下）—— 转场拖尾与前景入场都沿它。 */
-export function cameraDir(t, dt = 0.05, opts = {}) {
-  const a = cameraAt(t - dt, opts), b = cameraAt(t + dt, opts);
-  const dx = b.shake[0] - a.shake[0];
-  const dy = b.shake[1] - a.shake[1];
-  const n = Math.hypot(dx, dy) || 1;
-  return [dx / n, dy / n];
-}
+export const cameraDir = CAM.cameraDir;
 
 /**
  * 段落收尾用的 post：摄影机 + 这一段的固定观感，合成一个对象直接 return。
  * @param {number} t 整片时间（`f.t`）
  * @param {Record<string, any>} [extra] 这一段自己的调色/泛光等
  */
-export function cameraPost(t, extra = {}) {
-  return { ...cameraAt(t), ...extra };
-}
+export const cameraPost = CAM.cameraPost;
 
 /**
  * 前景的入场位移：方向与摄影机**相反**（上一镜往这边被甩走，新内容就从反方向落位）。
  * 直接加在文字的 x/y 或矢量的坐标上即可。
- *
- * @param {number} t 整片时间
- * @param {number} k 入场进度（0 = 刚进来，1 = 站稳）
- * @param {number} [amount] 最大位移（逻辑像素）
- * @returns {[number, number]} `[dx, dy]`
  */
-export function enterOffset(t, k, amount = 130) {
-  const d = cameraDir(t);
-  const rem = (1 - sat(k)) ** 2;
-  return [-d[0] * amount * rem, -d[1] * amount * 0.5 * rem];
-}
+export const enterOffset = CAM.enterOffset;
 
 /**
  * 场景侧的转场套件。一句 `this.wk = makeWorldKit(ctx)` 装好，
@@ -257,18 +240,8 @@ export function makeWorldKit(ctx, opts = {}) {
      * @returns {number} 入场进度 k
      */
     openFrame(c, bg = undefined) {
-      const { f, gl } = c;
       const world = bg === undefined ? (background ?? c.world) : bg;
-      if (world) world.render(gl, c.out, f.t, f.dt);
-      const k = c.under ? sat(f.tin) : 1;
-      if (c.under && k < 1) {
-        const u = pass.u;
-        u.under.value = { tex: /** @type {any} */ (c.under).tex ?? c.under, __tex: true };
-        u.k.value = k;
-        u.dir.value = cameraDir(f.t, 0.05, opts);
-        pass.render(gl, c.out, f.t, f.dt);
-      }
-      return k;
+      return openTransitionFrame(c, { pass, background: world, dir: cameraDir, opts });
     },
     /** 换一层背景（例如片头/片尾要换世界）。 */
     setBackground(p) { background = p; return this; },

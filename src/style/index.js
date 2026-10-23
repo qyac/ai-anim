@@ -50,6 +50,7 @@
 // 依赖方向：`core` 不知道 `style` 的存在，反过来可以 —— 这里只需要引擎那份字幕默认值，
 // 免得同一个默认值在两处各写一份（见 CAPTIONS_BASE 的注释）。
 import { DEFAULT_CAPTION_STYLE } from '../core/captions.js';
+import { scaleGrid } from '../core/util.js';
 
 /** 默认字体栈（与 `src/core/text.js` 的 `FAMILIES` 一致；风格包只写要覆盖的那几个）。 */
 const SANS = "'Archivo', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif";
@@ -308,16 +309,7 @@ export function resolveStyle(spec = {}) {
  * @param {number} W @param {number} H 逻辑分辨率
  */
 export function gridFor(style, W, H) {
-  const g = style?.grid ?? GRID_BASE;
-  const k = H / 1080;
-  if (Math.abs(k - 1) < 1e-6) return g;
-  const s = (v) => Math.round(v * k);
-  return {
-    ...g,
-    pad: s(g.pad), top: s(g.top), footerLineY: s(g.footerLineY), footerY: s(g.footerY),
-    captionLineY: s(g.captionLineY), captionY: s(g.captionY), contentBottom: s(g.contentBottom),
-    captionBand: [s(g.captionBand[0]), s(g.captionBand[1])],
-  };
+  return scaleGrid(style?.grid ?? GRID_BASE, H / 1080);
 }
 
 export { GRID_BASE, CAPTIONS_BASE, SANS, MONO, SERIF };

@@ -26,53 +26,11 @@
  * ⚠ 必须在无头 Chrome 里跑（和 probe-nv12 一样走 Vite + __anim），要测的正是 ANGLE 的
  *   行为；Node 里的软件 GL 不算数。
  */
-import { spawn } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { openProbePage } from './lib/probe-page.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TASK = process.argv[2] ?? '_calib';
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function portReady(url, timeoutMs = 40000) {
-  const t0 = Date.now();
-  while (Date.now() - t0 < timeoutMs) {
-    try { const res = await fetch(url, { signal: AbortSignal.timeout(1200) }); if (res.ok) return true; } catch { /* retry */ }
-    await sleep(180);
-  }
-  return false;
-}
-
-let vite = null;
-let url = process.argv[3] ?? '';
-if (!url) {
-  const port = 5403;
-  const viteEntry = path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
-  vite = spawn(process.execPath, [viteEntry, '--port', String(port), '--strictPort', '--host', '127.0.0.1'], {
-    cwd: ROOT, stdio: ['ignore', 'ignore', 'ignore'], env: { ...process.env, ANIM_NO_HMR: '1' },
-  });
-  url = 'http://127.0.0.1:' + port;
-  if (!(await portReady(url))) { vite.kill(); console.error('vite 起不来'); process.exit(1); }
-}
-
-const browser = await chromium.launch({
-  channel: 'chrome', headless: true,
-  args: ['--use-angle=default', '--enable-gpu-rasterization', '--ignore-gpu-blocklist',
-    '--enable-unsafe-swiftshader', '--disable-background-timer-throttling'],
-});
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
-page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
-
-await page.goto(url + '/?task=' + TASK + '&offline=1&hud=0', { waitUntil: 'domcontentloaded', timeout: 60000 });
-const st = await page.waitForFunction(
-  () => { const a = window.__anim; return a && a.status && a.status().state !== 'booting' ? a.status() : null; },
-  null, { timeout: 120000 },
-).then((h) => h.jsonValue());
-if (st.state !== 'ready') {
-  console.error('页面没就绪:', JSON.stringify(st));
-  await browser.close(); vite?.kill(); process.exit(1);
-}
+const { page, close } = await openProbePage({ task: TASK, url: process.argv[3] ?? '', port: 5403 });
 
 const r = await page.evaluate(async () => {
   const api = /** @type {any} */ (window).__anim;
@@ -286,6 +244,5 @@ if (r8ok && rg8ok) {
   console.log('✗ R8/RG8 回读不可用 —— readNV12 保留 RGBA 路径，改为在门口做一次性能力检测');
 }
 
-await browser.close();
-vite?.kill();
+await close();
 process.exit(r8ok && rg8ok ? 0 : r8ok ? 2 : 1);

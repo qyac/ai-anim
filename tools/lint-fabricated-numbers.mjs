@@ -174,6 +174,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { scanSource, lineAt, lineTextAt, literalInner } from '../scripts/lib/js-source.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TASKS_DIR = path.join(ROOT, 'tasks');
@@ -285,48 +286,9 @@ const OK_MARK = /numbers-ok\s*[:：]\s*(\S[^\n]*)/;
 /* ══════════════════════════════════════ 源码扫描（注释 → 等长空白） */
 
 /**
- * 逐字符扫一遍源码，得到：
- *   · `code`     —— 注释被替换成**等长空白**（换行原样保留）之后的文本：匹配只用它；
- *   · `strings`  —— 每个字符串字面量的 `[start, end)`（含两头的引号）；
- *   · `comments` —— 每个注释的 `[start, end)`。
- * 长度不变 ⇒ 下标 → 行号不需要映射表，报出来的行号必然与编辑器一致。
+ * 扫描器在 `scripts/lib/js-source.mjs`（与 `lint-narration-dup`、`anim.mjs` 共用一份）：
+ * 注释被替换成**等长空白**、字符串原样保留 —— 长度不变 ⇒ 下标即行号。
  */
-function scanSource(raw) {
-  let code = '';
-  const strings = [];
-  const comments = [];
-  let state = /** @type {'code'|'line'|'block'|"'"|'"'|'`'} */ ('code');
-  let start = 0;
-  const n = raw.length;
-  for (let i = 0; i < n;) {
-    const c = raw[i];
-    const c2 = raw[i + 1];
-    if (state === 'code') {
-      if (c === '/' && c2 === '/') { state = 'line'; start = i; code += '  '; i += 2; continue; }
-      if (c === '/' && c2 === '*') { state = 'block'; start = i; code += '  '; i += 2; continue; }
-      if (c === "'" || c === '"' || c === '`') { state = c; start = i; code += c; i++; continue; }
-      code += c; i++; continue;
-    }
-    if (state === 'line') {
-      if (c === '\n') { comments.push({ start, end: i, kind: 'line' }); state = 'code'; code += c; i++; continue; }
-      code += ' '; i++; continue;
-    }
-    if (state === 'block') {
-      if (c === '*' && c2 === '/') {
-        comments.push({ start, end: i + 2, kind: 'block' });
-        state = 'code'; code += '  '; i += 2; continue;
-      }
-      code += c === '\n' ? '\n' : ' '; i++; continue;
-    }
-    if (c === '\\') { code += c + (c2 ?? ''); i += 2; continue; }
-    if (c === state) { strings.push({ start, end: i + 1 }); state = 'code'; code += c; i++; continue; }
-    code += c; i++; continue;
-  }
-  if (state === 'line' || state === 'block') comments.push({ start, end: n, kind: state });
-  return { code, strings, comments, unterminated: state !== 'code' && state !== 'line' };
-}
-
-const literalInner = (raw, span) => raw.slice(span.start + 1, span.end - 1);
 
 /** 把字符串字面量拆成"字面文本片段"，跳过 `${…}` 插值（判据：算出来的数字判不出来） */
 function literalParts(inner) {
@@ -350,19 +312,6 @@ function literalParts(inner) {
   }
   parts.push(cur);
   return parts.filter((p) => p.length);
-}
-
-function lineAt(raw, offset) {
-  let line = 1;
-  for (let i = 0; i < offset && i < raw.length; i++) if (raw[i] === '\n') line++;
-  return line;
-}
-
-function lineTextAt(raw, offset) {
-  const a = raw.lastIndexOf('\n', Math.max(0, offset - 1)) + 1;
-  let b = raw.indexOf('\n', offset);
-  if (b < 0) b = raw.length;
-  return raw.slice(a, b).trim();
 }
 
 /** 下标所在语句的范围（往回 / 往前找 `;` `{` `}` 或空行）—— 只用来做豁免 */

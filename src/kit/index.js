@@ -99,7 +99,7 @@ export { makeThreeShot } from './three.js';
  * （老场景照旧；`docs/history/IMPROVEMENTS-4-5.md` §4.4 B）。
  *
  * 另外：这里的 `col` 与 `./layout.js` 的 `mul/withAlpha` 是同一族，为避免两个 `col` 打架，
- * 本层那个出成 `panelCol`；`jitter/win/step` 与 `./blocks.js` 的同名函数**实现相同**，不重复出。
+ * 本层那个出成 `panelCol`；`jitter/win/step` 与 `./blocks.js` 的同名函数**实现相同**（共用 `./micro.js`），不重复出。
  */
 export {
   panelBox, tile, tileRow, chips, arrowH, bufBox, hatchBox, meter, tag2,

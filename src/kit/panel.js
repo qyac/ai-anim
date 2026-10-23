@@ -45,7 +45,7 @@
  * 第 4 个会被静默丢掉，`docs/history/IMPROVEMENTS-4-5.md` §2）。
  */
 
-import { clamp, sat, lerp, smoothstep, css as cssOf, hash1 } from '../core/util.js';
+import { clamp, sat, lerp, smoothstep, css as cssOf } from '../core/util.js';
 
 /* ═══════════════════════════════════════════════ 纯函数内核（不碰 GPU，可以离线测） */
 
@@ -448,20 +448,8 @@ export function tag2(ctx, x, y, str, t, opts = {}) {
 
 /* ═══════════════════════════════════════════════ 排版小工具（确定性，别用 Math.random） */
 
-/** 一个确定性的抖动（`hash1` 播种，避免 `Math.random` —— 一帧会被拆成多个子帧乱序渲染）。 */
-export function jitter(i, k = 0, amp = 1) {
-  return (hash1(i * 131.7 + k * 17.3) - 0.5) * 2 * amp;
-}
-
-/** 这一帧要不要画某样东西（按时间的窗口函数，两端各用 `fade` 秒平滑进出）。 */
-export function win(t, a, b, fade = 0.4) {
-  return sat((t - a) / fade) * sat((b - t) / fade);
-}
-
-/** 阶梯式出现：第 n 个元素在 `t0 + n*step` 之后用 `dur` 秒淡入（0..1）。 */
-export function step(t, t0, n, stepS = 0.18, dur = 0.45) {
-  return sat((t - t0 - n * stepS) / dur);
-}
+/** 抖动 / 时间窗 / 阶梯出现 —— 与 `blocks.js` 共用 `micro.js` 里的同一份实现。 */
+export { jitter, win, step } from './micro.js';
 
 /** 换气用的转发：`clamp / sat / lerp / smoothstep / css` 一次性拿到（面板元件到处要用）。 */
 export { clamp, sat, lerp, smoothstep };

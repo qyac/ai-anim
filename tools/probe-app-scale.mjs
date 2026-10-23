@@ -1,32 +1,11 @@
 // 终极验收：直接看**应用自己渲染出来的一帧**在 SCALE=2 下有没有矢量线条。
 // 不再手工搭 GL 环境（那套探针自己引入了一堆干扰），只看 png()/readPixels 的真实结果。
-import { spawn } from 'node:child_process';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { ROOT, startVite, launchBrowser, gotoProbe } from './lib/probe-page.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function portReady(url, timeoutMs = 40000) {
-  const t0 = Date.now();
-  while (Date.now() - t0 < timeoutMs) {
-    try { const res = await fetch(url, { signal: AbortSignal.timeout(1200) }); if (res.ok) return true; } catch { /* retry */ }
-    await sleep(180);
-  }
-  return false;
-}
-const port = 5414;
-const vite = spawn(process.execPath, [path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), '--port', String(port), '--strictPort', '--host', '127.0.0.1'], {
-  cwd: ROOT, stdio: ['ignore', 'ignore', 'ignore'], env: { ...process.env, ANIM_NO_HMR: '1' },
-});
-const url = `http://127.0.0.1:${port}`;
-if (!(await portReady(url))) { vite.kill(); console.error('vite 起不来'); process.exit(1); }
-
-const browser = await chromium.launch({
-  channel: 'chrome', headless: true,
-  args: ['--use-angle=default', '--enable-gpu-rasterization', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'],
-});
+const vite = await startVite(5414);
+const browser = await launchBrowser();
 mkdirSync(path.join(ROOT, 'out', '_calib', 'scale'), { recursive: true });
 
 for (const scale of [1, 2]) {
@@ -34,8 +13,7 @@ for (const scale of [1, 2]) {
   const errs = [];
   page.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
-  await page.goto(`${url}/?task=_calib&offline=1&hud=0&scale=${scale}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.waitForFunction(() => { const a = window.__anim; return a && a.status && a.status().state !== 'booting'; }, null, { timeout: 120000 });
+  await gotoProbe(page, { url: vite.url, task: '_calib', scale });
   // xf 场景 t=12.0 是 xa 段（有网格线 + 白色边框 + 方块）：矢量最密集的一帧
   const r = await page.evaluate(async () => {
     const api = window.__anim;
@@ -69,4 +47,4 @@ for (const scale of [1, 2]) {
   await page.close();
 }
 await browser.close();
-vite.kill();
+vite.stop();

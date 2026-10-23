@@ -97,7 +97,7 @@
  */
 
 import { camera3, project3, clipSegment, depthScale } from '../core/cam.js';
-import { clamp, sat, lerp, smoothstep, hash1 } from '../core/util.js';
+import { clamp, sat, lerp, smoothstep } from '../core/util.js';
 
 /* ═══════════════════════════════════════════════ 几何常量（都是模块级只读表） */
 
@@ -1197,20 +1197,8 @@ export function makeBlocksKit(opts = {}) {
 
 /* ═══════════════════════════════════════════════ 小工具（确定性；别用 Math.random） */
 
-/** 一个确定性的抖动（`hash1` 播种）—— 给"很多个一样的东西"加个体差异。 */
-export function jitter(i, k = 0, amp = 1) {
-  return (hash1(i * 131.7 + k * 17.3) - 0.5) * 2 * amp;
-}
-
-/** 这一帧要不要画某样东西（按整片时间的窗口函数，两端各用 `fade` 秒平滑进出）。 */
-export function win(t, a, b, fade = 0.4) {
-  return sat((t - a) / fade) * sat((b - t) / fade);
-}
-
-/** 阶梯式出现：第 n 个元素在 `t0 + n*step` 之后用 `dur` 秒出现（0..1）。 */
-export function step(t, t0, n, stepS = 0.18, dur = 0.45) {
-  return sat((t - t0 - n * stepS) / dur);
-}
+/** 抖动 / 时间窗 / 阶梯出现 —— 与 `panel.js` 共用 `micro.js` 里的同一份实现。 */
+export { jitter, win, step } from './micro.js';
 
 /** 常用数学的转发：写场景时少 import 一行（`clamp / sat / lerp / smoothstep`）。 */
 export { clamp, sat, lerp, smoothstep };

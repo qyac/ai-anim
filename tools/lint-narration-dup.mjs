@@ -78,6 +78,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { scanSource, lineAt, lineTextAt, literalInner } from '../scripts/lib/js-source.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TASKS_DIR = path.join(ROOT, 'tasks');
@@ -124,70 +125,9 @@ function condense(text) {
 /* ══════════════════════════════════════ 源码扫描（判据 ②③） */
 
 /**
- * 逐字符扫一遍源码，得到：
- *   · `code`     —— 注释被替换成**等长空白**（换行原样保留）之后的文本：匹配只用它；
- *   · `strings`  —— 每个字符串字面量的 `[start, end)`（含两头的引号）；
- *   · `comments` —— 每个注释的 `[start, end)` 与 `kind`（'line' / 'block'）；
- *   · `unterminated` —— 扫到文件尾还没闭合（多半是含引号的正则把状态带歪了）→ 要提示。
- *
- * 为什么自己扫而不用正则删注释：见文件头 ③。关键点是**长度不变**，
- * 于是"下标 → 行号"这一步不需要任何映射表，报出来的行号必然与编辑器一致。
+ * 扫描器在 `scripts/lib/js-source.mjs`（与 `lint-fabricated-numbers`、`anim.mjs` 共用）：
+ * 注释 → 等长空白、字符串原样保留、下标即行号。判据 ③ 的来由见文件头。
  */
-function scanSource(raw) {
-  let code = '';
-  const strings = [];
-  const comments = [];
-  let state = /** @type {'code'|'line'|'block'|"'"|'"'|'`'} */ ('code');
-  let start = 0;
-  const n = raw.length;
-  for (let i = 0; i < n;) {
-    const c = raw[i];
-    const c2 = raw[i + 1];
-    if (state === 'code') {
-      if (c === '/' && c2 === '/') { state = 'line'; start = i; code += '  '; i += 2; continue; }
-      if (c === '/' && c2 === '*') { state = 'block'; start = i; code += '  '; i += 2; continue; }
-      if (c === "'" || c === '"' || c === '`') { state = c; start = i; code += c; i++; continue; }
-      code += c; i++; continue;
-    }
-    if (state === 'line') {
-      if (c === '\n') { comments.push({ start, end: i, kind: 'line' }); state = 'code'; code += c; i++; continue; }
-      code += ' '; i++; continue;                       // 行注释内容 → 空白
-    }
-    if (state === 'block') {
-      if (c === '*' && c2 === '/') {
-        comments.push({ start, end: i + 2, kind: 'block' });
-        state = 'code'; code += '  '; i += 2; continue;
-      }
-      // 换行保留（行号靠它），其余（含行内 `*`）→ 空白
-      code += c === '\n' ? '\n' : ' '; i++; continue;
-    }
-    // 字符串内部：内容**原样保留**（那才是画面文字），只是要找对收尾的引号
-    if (c === '\\') { code += c + (c2 ?? ''); i += 2; continue; }
-    if (c === state) { strings.push({ start, end: i + 1 }); state = 'code'; code += c; i++; continue; }
-    code += c; i++; continue;
-  }
-  if (state === 'line') comments.push({ start, end: n, kind: 'line' });
-  if (state === 'block') comments.push({ start, end: n, kind: 'block' });
-  return { code, strings, comments, unterminated: state !== 'code' && state !== 'line' };
-}
-
-/** 字面量的内容（去掉两头的引号）。反引号里的 `${…}` 原样留着 —— 它里面的字面量本来也算画面文字 */
-const literalInner = (raw, span) => raw.slice(span.start + 1, span.end - 1);
-
-/** 某个下标在第几行（1 起） */
-function lineAt(raw, offset) {
-  let line = 1;
-  for (let i = 0; i < offset && i < raw.length; i++) if (raw[i] === '\n') line++;
-  return line;
-}
-
-/** 某个下标所在行的原文（trim 过，给报告里当证据看） */
-function lineTextAt(raw, offset) {
-  let a = raw.lastIndexOf('\n', Math.max(0, offset - 1)) + 1;
-  let b = raw.indexOf('\n', offset);
-  if (b < 0) b = raw.length;
-  return raw.slice(a, b).trim();
-}
 
 /* ══════════════════════════════════════ 数据源 */
 

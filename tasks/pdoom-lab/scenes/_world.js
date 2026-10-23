@@ -333,6 +333,42 @@ export function draw3D(cam3, lines, W, H, segs, opts = {}) {
 }
 
 /**
+ * 走廊世界（`corridorSegments()`）的线段批画法：近平面裁剪 + 视口剔除 + 雾 + 深度线宽。
+ *
+ * 走廊段与收尾段共用这一份 —— 以前两段各抄一遍，只差一个 `alpha` 乘数。
+ * 与上面的 `draw3D()` 的区别：这里的 `s[7]` 是**调色板名**（`'bone'` / `'signal'`），
+ * 颜色从 `P` 里取；雾与 alpha 也在这里统一。
+ *
+ * @param {any} cam3 `cam.js` 的 `camera3()` 结果
+ * @param {any} lines LineBatch
+ * @param {number} W @param {number} H
+ * @param {any[][]} segs
+ * @param {Record<string, number[]>} P
+ * @param {{ alpha?: number }} [opts] 整段的额外乘数（收尾段用 `0.55 + 0.45*back`）
+ * @returns {number} 画出来的条数
+ */
+export function drawCorridorSegments(cam3, lines, W, H, segs, P, opts = {}) {
+  const alpha = opts.alpha ?? 1;
+  let n = 0;
+  for (const s of segs) {
+    const a = project3(cam3, W, H, s[0], s[1], s[2]);
+    const b = project3(cam3, W, H, s[3], s[4], s[5]);
+    if (!clipSegment(a, b, 0.15)) continue;
+    if ((a.x < -200 && b.x < -200) || (a.x > W + 200 && b.x > W + 200)) continue;
+    if ((a.y < -200 && b.y < -200) || (a.y > H + 200 && b.y > H + 200)) continue;
+    const w = (a.w + b.w) * 0.5;
+    const fog = Math.exp(-Math.max(0, w - 6) * 0.10);
+    if (fog < 0.04) continue;
+    const col = P[s[7]] ?? P.bone;
+    const lw = clamp(s[6] * depthScale(cam3, w, H) * 3.2, 0.9, 9);
+    const al = s[8] * fog * alpha;
+    lines.seg(a.x, a.y, b.x, b.y, lw, [col[0] * al, col[1] * al, col[2] * al]);
+    n++;
+  }
+  return n;
+}
+
+/**
  * 3D 空间里的一行字：**近大远小**。
  *
  * 文字没有真 3D（它是 Canvas2D 图层），所以"远处的字小一点"只能靠缩放。

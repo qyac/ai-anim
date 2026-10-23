@@ -140,6 +140,7 @@ import { WebSocketServer } from 'ws';
 import { chromium } from 'playwright-core';
 // 抖动统计（纯函数，无依赖）：`anim shake` 与 `video` 收尾的守门共用同一套判据
 import { analyzeShake, shakeSummary } from './lib/shake.mjs';
+import { blankJsComments as sharedBlankJsComments } from './lib/js-source.mjs';
 import { layoutReport, layoutSummary } from '../src/layout.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -1155,6 +1156,37 @@ function renderFingerprint(task, { fps, samples, shutter }) {
   return { params, scene: sceneSignature(task), text };
 }
 
+/** 这些目录改了**不会**影响画面（音频/字体是运行时素材，out 是产物） */
+const SKIP_DIRS = new Set(['node_modules', 'out', '.git', 'audio', 'fonts']);
+/** mtime 快照关心的源文件（只看会进模块图的那几类） */
+const MTIME_EXT = /\.(js|mjs|css|html|json)$/i;
+/** 场景签名关心的文件（多算了字体：字体换了画面就变） */
+const SOURCE_EXT = /\.(js|mjs|json|css|woff2?|ttf|otf)$/i;
+
+/**
+ * 递归收集目录下匹配 `accept` 的文件，跳过产物/素材目录。
+ * `sourceMtimes()` 与 `sourceFiles()` 共用这一份 —— 以前两处各写一个 walk，
+ * 排除表已经差点漂移（一个排 audio，另一个也排，但扩展名表不同步）。
+ *
+ * @param {string} dir
+ * @param {RegExp} accept
+ * @param {string[]} [out]
+ * @returns {string[]}
+ */
+function walkSourceTree(dir, accept, out = []) {
+  let ents = [];
+  try { ents = readdirSync(dir, { withFileTypes: true }); } catch { return out; }
+  for (const e of ents) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      if (!SKIP_DIRS.has(e.name)) walkSourceTree(p, accept, out);
+    } else if (accept.test(e.name)) {
+      out.push(p);
+    }
+  }
+  return out;
+}
+
 /**
  * 模块图内文件的 mtime 快照（`路径 -> mtimeMs`）。渲染前后各取一次，
  * 用来把"渲染期间改了文件"从"静默断流"变成一句点名的话（P2-2）。
@@ -1162,23 +1194,13 @@ function renderFingerprint(task, { fps, samples, shutter }) {
  */
 function sourceMtimes() {
   const map = new Map();
-  const walk = (dir) => {
-    let ents = [];
-    try { ents = readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of ents) {
-      const p = path.join(dir, e.name);
-      if (e.isDirectory()) {
-        // 这些目录改了**不会**影响画面（音频/字体是运行时素材，out 是产物）
-        if (['node_modules', 'out', '.git', 'audio', 'fonts'].includes(e.name)) continue;
-        walk(p);
-      } else if (/\.(js|mjs|css|html|json)$/i.test(e.name)) {
-        try { map.set(p, statSync(p).mtimeMs); } catch { /* ignore */ }
-      }
+  for (const dir of [path.join(ROOT, 'tasks'), path.join(ROOT, 'src')]) {
+    for (const p of walkSourceTree(dir, MTIME_EXT)) {
+      try { map.set(p, statSync(p).mtimeMs); } catch { /* ignore */ }
     }
-  };
-  walk(path.join(ROOT, 'tasks'));
-  walk(path.join(ROOT, 'src'));
-  try { map.set(path.join(ROOT, 'vite.config.mjs'), statSync(path.join(ROOT, 'vite.config.mjs')).mtimeMs); } catch { /* ignore */ }
+  }
+  const vite = path.join(ROOT, 'vite.config.mjs');
+  try { map.set(vite, statSync(vite).mtimeMs); } catch { /* ignore */ }
   return map;
 }
 
@@ -1241,23 +1263,10 @@ async function evaluateSafe(fn, arg, what = 'page.evaluate') {
  * 列出会影响画面的源文件：任务目录 + 引擎 src/（排除 out/ 之类）。
  */
 function sourceFiles(task) {
-  const out = [];
-  const walk = (dir) => {
-    let ents = [];
-    try { ents = readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of ents) {
-      const p = path.join(dir, e.name);
-      if (e.isDirectory()) {
-        if (['node_modules', 'out', '.git', 'audio', 'fonts'].includes(e.name)) continue;
-        walk(p);
-      } else if (/\.(js|mjs|json|css|woff2?|ttf|otf)$/i.test(e.name)) {
-        out.push(p);
-      }
-    }
-  };
-  walk(path.join(ROOT, 'tasks', task));
-  walk(path.join(ROOT, 'src'));
-  return out;
+  return [
+    ...walkSourceTree(path.join(ROOT, 'tasks', task), SOURCE_EXT),
+    ...walkSourceTree(path.join(ROOT, 'src'), SOURCE_EXT),
+  ];
 }
 
 /**
@@ -1519,34 +1528,7 @@ async function cmdGpu() {
  * 模板字符串（GLSL）按普通字符串处理：里面的 `//` 是 shader 注释，不是 JS 注释。
  */
 function blankJsComments(src) {
-  const s = String(src ?? '');
-  const out = s.split('');
-  let i = 0;
-  let state = 'code';   // code | line | block | ' | " | `
-  while (i < s.length) {
-    const c = s[i];
-    const d = i + 1 < s.length ? s[i + 1] : '';
-    if (state === 'code') {
-      if (c === '/' && d === '/') { out[i] = ' '; out[i + 1] = ' '; i += 2; state = 'line'; continue; }
-      if (c === '/' && d === '*') { out[i] = ' '; out[i + 1] = ' '; i += 2; state = 'block'; continue; }
-      if (c === "'" || c === '"' || c === '`') { state = c; i++; continue; }
-      i++; continue;
-    }
-    if (state === 'line') {
-      if (c === '\n') { state = 'code'; i++; continue; }
-      out[i] = ' '; i++; continue;
-    }
-    if (state === 'block') {
-      if (c === '*' && d === '/') { out[i] = ' '; out[i + 1] = ' '; i += 2; state = 'code'; continue; }
-      if (c !== '\n') out[i] = ' ';
-      i++; continue;
-    }
-    // 字符串：内容保留（我们找的就是字符串里的模板名），只处理转义与结尾引号
-    if (c === '\\') { i += 2; continue; }
-    if (c === state) { state = 'code'; i++; continue; }
-    i++;
-  }
-  return out.join('');
+  return sharedBlankJsComments(src);
 }
 
 /**
@@ -2802,36 +2784,11 @@ async function cmdSheet() {
 
   await openSession({ task, only: opt('only', undefined) });
   try {
-    log(`接触表 ${from}→${to}s，${n} 帧…`);
     const times = Array.from({ length: n }, (_, i) => from + ((to - from) * i) / (n - 1));
-    const samplesOpt = opt('samples', '1');
-    log(`接触表 ${from}→${to}s，${n} 帧，samples=${samplesOpt}`);
-    const dataUrl = await session.page.evaluate(async ({ times, cols, cell, samples, shutter }) => {
-      const api = /** @type {any} */ (window).__anim;
-      const w = cell, h = Math.round((cell * 9) / 16);
-      const pad = 6, lab = 20;
-      const rows = Math.ceil(times.length / cols);
-      const cv = document.createElement('canvas');
-      cv.width = cols * (w + pad) + pad;
-      cv.height = rows * (h + lab + pad) + pad;
-      const c = cv.getContext('2d');
-      c.fillStyle = '#1a1a1c'; c.fillRect(0, 0, cv.width, cv.height);
-      const img = new Image();
-      for (let i = 0; i < times.length; i++) {
-        await api.frame(times[i], { samples: Number(samples), shutter });
-        const url = api.png();
-        img.src = url;
-        await img.decode();
-        const x = pad + (i % cols) * (w + pad);
-        const y = pad + Math.floor(i / cols) * (h + lab + pad);
-        c.drawImage(img, x, y + lab, w, h);
-        c.fillStyle = '#ddd'; c.font = '14px monospace';
-        c.fillText(`${times[i].toFixed(2)}s`, x + 2, y + 15);
-      }
-      return cv.toDataURL('image/png');
-    }, { times, cols, cell, samples: samplesOpt, shutter: Number(opt('shutter', '0.5')) });
-    mkdirSync(path.dirname(out), { recursive: true });
-    writeFileSync(out, Buffer.from(String(dataUrl).split(',')[1], 'base64'));
+    const samples = Number(opt('samples', '1'));
+    log(`接触表 ${from}→${to}s，${n} 帧，samples=${samples}`);
+    // 拼图逻辑只有 writeContactSheet 一份 —— 这里以前整段抄了一遍，两处只差 marks。
+    await writeContactSheet(times, out, { cols, cell, samples, shutter: Number(opt('shutter', '0.5')) });
     log(`✓ ${path.relative(ROOT, out)}`);
     reportErrors(session.info);
   } finally { await closeSession(); }
@@ -4173,14 +4130,7 @@ async function renderSegments({ task, info, out, from, to, fps, samples, shutter
     //   只有声音没有画面的尾巴。正确做法是让**视频当唯一的长短基准**：
     //   `apad` 把音轨补成无限长（补的是静音），于是 `-shortest` 必然停在视频的最后一帧上。
     //   两个方向都对：音轨短了会被补齐，音轨长了会被切掉，而**视频一帧都不会丢**。
-    await runFfmpeg([
-      '-y', '-loglevel', 'error',
-      '-i', stitched, '-ss', String(from), '-i', audioFile,
-      '-map', '0:v:0', '-map', '1:a:0',
-      '-c:v', 'copy', '-c:a', 'aac', '-b:a', '320k',
-      '-af', 'apad', '-shortest',
-      '-movflags', '+faststart', out,
-    ]);
+    await runFfmpeg(audioMuxArgs(stitched, audioFile, from, out));
   } else {
     await runFfmpeg(['-y', '-loglevel', 'error', '-i', stitched, '-c', 'copy', '-movflags', '+faststart', out]);
   }
@@ -4285,6 +4235,25 @@ function planSegmentCuts(timeline, from, to, target) {
   fill(to);
   cuts.push(to);
   return [...new Set(cuts)].sort((a, b) => a - b);
+}
+
+
+/**
+ * 「拼好的视频 + 一条音轨」封装的**唯一参数表**（顺序路径与并行路径共用）。
+ *
+ * ⚠ `-af apad` 与 `-shortest` 必须成对：只有 `-shortest` 时它按容器记账时长取短的那一路，
+ * AAC 的 priming/padding 会让音频记账时长比视频短几十毫秒 → **视频尾巴被切掉**
+ * （详见 `renderSegments()` 里那段实测注释）。
+ */
+function audioMuxArgs(stitched, audioFile, from, out) {
+  return [
+    '-y', '-loglevel', 'error',
+    '-i', stitched, '-ss', String(from), '-i', audioFile,
+    '-map', '0:v:0', '-map', '1:a:0',
+    '-c:v', 'copy', '-c:a', 'aac', '-b:a', '320k',
+    '-af', 'apad', '-shortest',
+    '-movflags', '+faststart', out,
+  ];
 }
 
 /** 跑一个 ffmpeg 子进程并等它结束；非零退出码直接报错。 */function runFfmpeg(args) {
@@ -6052,14 +6021,8 @@ async function renderParallel({ task, info, out, from, to, fps, samples, shutter
   }
 
   if (withAudio && audioFile) {
-    await runFfmpeg([
-      '-y', '-loglevel', 'error',
-      '-i', stitched, '-ss', String(from), '-i', audioFile,
-      '-map', '0:v:0', '-map', '1:a:0',
-      '-c:v', 'copy', '-c:a', 'aac', '-b:a', '320k',
-      '-af', 'apad', '-shortest',        // ← 与 renderSegments 同一处坑，必须成对（docs/history/IMPROVEMENTS-4-5.md §1）
-      '-movflags', '+faststart', out,
-    ]);
+    // 与 renderSegments 同一处坑：参数表只有 audioMuxArgs() 一份
+    await runFfmpeg(audioMuxArgs(stitched, audioFile, from, out));
   } else {
     await runFfmpeg(['-y', '-loglevel', 'error', '-i', stitched, '-c', 'copy', '-movflags', '+faststart', out]);
   }

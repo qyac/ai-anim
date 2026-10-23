@@ -324,6 +324,28 @@ export function hsv(h, s, v) {
 
 /* ------------------------------------------------------------------ 杂项 */
 
+/**
+ * 按 `k` 缩放版面栅格（风格包的 `grid` 数字都是 1920×1080 基准）。
+ *
+ * 只有任务自己把宽高写成非 1080p 时才需要缩放。`engine._scaledGrid()` 与
+ * `style.gridFor()` 共用这一份 —— 以前两处各有一张字段表，改一处就会漏另一处。
+ * `k === 1` 时**原样返回**（不新建对象，调用方可以直接比引用）。
+ *
+ * @param {any} grid
+ * @param {number} k
+ */
+export function scaleGrid(grid, k) {
+  if (!grid) return null;
+  if (Math.abs(k - 1) < 1e-6) return grid;
+  const s = (v) => Math.round(v * k);
+  return {
+    ...grid,
+    pad: s(grid.pad), top: s(grid.top), footerLineY: s(grid.footerLineY), footerY: s(grid.footerY),
+    captionLineY: s(grid.captionLineY), captionY: s(grid.captionY), contentBottom: s(grid.contentBottom),
+    captionBand: [s(grid.captionBand[0]), s(grid.captionBand[1])],
+  };
+}
+
 export function pad(n, w = 2) { return String(n).padStart(w, '0'); }
 
 /** 秒 -> 'm:ss.ff'，给 HUD / 时间码。 */
