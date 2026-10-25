@@ -584,8 +584,9 @@ class FakeTextKit {
   writeLine(text, x, y, opts = {}) {
     const w = this.measure(text, opts);
     const anchor = opts.anchor ?? 'left';
-    const ax = anchor === 'center' ? x - w / 2 : anchor === 'right' ? x - w : x;
-    this.write(text, ax, y, { ...opts, align: 'left' });
+    // 与引擎同构（`src/core/text.js` 的 `writeLine` 现在就是一层转发到 `write`）：
+    // 锚点直接变成 `align`，由 `write()` 按整行算偏移。
+    this.write(text, x, y, { ...opts, align: anchor });
     return w;
   }
   karaoke(text, words, x, y, t, opts = {}) {
@@ -630,12 +631,17 @@ class FakeTextKit {
   /**
    * 出画判定：只算"还看得见"的那一笔（alpha > 0.03）。
    *
-   * ⚠ 包围盒必须按引擎的 `align` 语义算 —— `type.write` 的 align 是**逐字**生效的：
-   * 每个字素簇被摆在自己的位置 `x + cum[i]` 上再各自对齐，所以
+   * ⚠ 包围盒必须按引擎的 `align` 语义算。**2026-10-24 起引擎的 align 是「整行」的**
+   * （`src/core/text.js` 的 `write()`：内部一律按 left 摆字，再把整行宽度那一份偏移
+   * 加进 x）—— 所以三种写法与 `writeLine(..., { anchor })` 完全等价：
    *   align:'left'   → [x, x + w]
    *   align:'right'  → [x - w, x]          （chart 右上角那个读数就是这么写的）
-   *   align:'center' → 每个字的**中心**对齐到 x + cum[i] ⇒ 整行整体右移半个字宽
-   * 不按这个算就会把右对齐的读数误判成"出画"（第一版就是这么误报的）。
+   *   align:'center' → [x - w/2, x + w/2]
+   *
+   * 历史：在这之前引擎是**逐字**生效的（align:'center' ⇒ 整行右移半个字宽），
+   * 这一层也照着那个错误语义算过 —— 于是它只能"忠实地"把错的包围盒报出来
+   * （demo 的 kinetic 一直报「文字长期出画」，那既是真 bug，又被这条判据看见）。
+   * 引擎修好之后这里必须跟着改，否则判据会开始误报。
    */
   __box(text, x, y, opts, glyphs, alpha) {
     const rec = this.__rec;
@@ -647,10 +653,8 @@ class FakeTextKit {
     const size = opts.size ?? 64;
     const w = estW(str, size, opts.tracking ?? 0);
     const align = opts.align ?? 'left';
-    const g0 = estW([...str][0] ?? '', size) / 2;
-    const gN = estW([...str][[...str].length - 1] ?? '', size) / 2;
-    const x0 = align === 'center' ? x - g0 : align === 'right' ? x - w : x;
-    const x1 = align === 'center' ? x + w - gN : align === 'right' ? x : x + w;
+    const x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+    const x1 = align === 'center' ? x + w / 2 : align === 'right' ? x : x + w;
     rec.stats.visibleTexts++;
     // y 用**基线**±三分之一字高，而不是整块字形框：引擎是 alphabetic 基线，`y = 32` 这种
     // 贴着上边缘的标注再叠上"ascender 估计"就会变成 -22、被误判出画（optifine 的 hook 就是这样）。

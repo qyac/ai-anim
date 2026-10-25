@@ -21,10 +21,11 @@ const DEFAULTS = {
   title: '写代码，就是做动画',
   sub: 'deterministic · seekable · motion-blurred by averaging sub-frames',
   readout: true,
+  blur: 0,
 };
 
 /**
- * @param {{ id?: string, eyebrow?: string, title?: string, sub?: string, readout?: boolean }} [opts]
+ * @param {{ id?: string, eyebrow?: string, title?: string, sub?: string, readout?: boolean, blur?: number }} [opts]
  *   每个参数都可选；不传就用 `DEFAULTS`（= demo 的画面）。
  * @returns {any} 场景对象（`{ id, setup, render }`，可以直接放进时间线）
  */
@@ -96,6 +97,8 @@ export function titleShot(opts = {}) {
       type.write(o.title, x0, H * 0.46 * breath, {
         size: 128, weight: 800, family: 'sans', color: css(P.bone),
         stagger: 0.075, staggerDur: 0.7, from: 'up', dist: 70, t: t - 0.5,
+        // 虚焦收敛（1-41）：与上浮共用同一条缓动 —— 0 时 type.write 完全不碰 filter，像素不变。
+        ...(o.blur > 0 ? { blur: [o.blur, 0] } : {}),
       });
 
       // 副标题：等主标题基本进场后淡入
@@ -132,13 +135,18 @@ titleShot.meta = {
   name: 'title',
   summary: '大标题入场：眉标逐字打出 + 主标题逐字上浮 + 一条生长的横线与刻度',
   notes: '背景是本模板自带的整帧 Pass（key `demo_title_bg`），所以它自己铺满整帧，'
-    + '既不需要时间线的 world，也不能和别的模板叠在同一段。readout: false 时不画右下角读数。',
+    + '既不需要时间线的 world，也不能和别的模板叠在同一段。readout: false 时不画右下角读数。'
+    + 'blur: 18 左右是"从虚焦里浮出来"（外部配方的默认标题解）；0 = 不碰 Canvas2D 的 filter。',
+  use: '全片第一镜或一章的开头：先让观众读到一句主标题',
+  energy: '低',
+  avoid: '正文段落、或同屏还要读别的信息时；一支片里连用两次像回了片头',
   params: [
     { name: 'id', type: 'string', desc: '段名（出现在 HUD、--only、报错里）' },
     { name: 'eyebrow', type: 'string', desc: '左上眉标（等宽小字，逐字打出；长度决定打字时长）' },
     { name: 'title', type: 'string', desc: '主标题（逐字上浮入场）' },
     { name: 'sub', type: 'string', desc: '副标题（等主标题基本进场后淡入）' },
     { name: 'readout', type: 'boolean', desc: '是否画右下角随时间走的百分比读数' },
+    { name: 'blur', type: 'number', desc: '主标题入场的虚焦量（px）：字从 blur 收到 0，与上浮共用缓动；0 = 不糊' },
   ],
 };
 
@@ -152,7 +160,7 @@ titleShot.meta = {
  */
 titleShot.spec = {
   params: {
-    id: 'string', eyebrow: 'string', title: 'string', sub: 'string', readout: 'boolean',
+    id: 'string', eyebrow: 'string', title: 'string', sub: 'string', readout: 'boolean', blur: 'number',
   },
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },

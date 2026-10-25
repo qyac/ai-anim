@@ -248,6 +248,7 @@ export class TextKit {
    * @param {TypeStyle & {
    *   color?: string|string[],
    *   alpha?: number|[number,number],
+   *   blur?: number|[number,number],   // 虚焦量（px）：数值=常量，数组=[起,止] 随进场进度插值
    *   stagger?: number,        // 每个字延迟多少秒（逐字入场）
    *   staggerDur?: number,     // 每个字自己的动画时长
    *   from?: 'up'|'down'|'left'|'right'|'scale'|'none',  // 入场方向
@@ -259,8 +260,30 @@ export class TextKit {
   write(text, x, y, opts = {}) {
     const c = this.ctx;
     const style = opts;
-    this.font(style);
-    const { clusters, cum, x: X } = this.layout(text, style);
+    /**
+     * ⚠⚠ **`align` 的语义（2026-10-24 修正，BACKLOG 0-3 的真正修法）**
+     *
+     * `write()` 是**逐字素簇** `fillText(cl, x + X[i])`，而 Canvas2D 的 `textAlign`
+     * 对**每一次** `fillText` 都生效。所以直接把 `align` 传下去时：
+     *   · `'center'` → 每个字各自居中在自己的推进位置上，整行从中心**往右排**
+     *     （`kinetic` 的第二行「都是时间的函数」7 个字，实测 x 875..2029 —— 右边 109px 被切掉）；
+     *   · `'right'`  → 每个字的右边缘对齐到 `x + X[i]`，整行向右溢出约 4 个字宽。
+     *
+     * 老代码靠 `writeLine(..., { anchor })` 绕开它，但 `src/shots/` 里 8 个模板是从老场景
+     * **逐字搬过来**的，仍然是错的（5 个模板中招）。这条缺陷一直没修，理由是
+     * 「修它会改 `demo` 的画面、要重存 hashes 基线」—— 那条理由已经作废（BACKLOG §4）。
+     *
+     * 现在 `align` 按**整行**算：内部一律对齐到 `left`，再把整行宽度那一份偏移加进 x。
+     * 于是 `write(t, x, y, { align })` 与 `writeLine(t, x, y, { anchor: align })` 完全等价，
+     * 两种写法不会再给出两个不同的画面。单字字符串的行为不变（偏移量恰为 0 或半个字宽）。
+     */
+    const align = style.align ?? 'left';
+    const flat = align === 'left' ? style : { ...style, align: 'left' };
+    this.font(flat);
+    const { clusters, cum, x: X } = this.layout(text, flat);
+    /** 整行宽度（含 tracking）。`cum` 的长度是 `clusters.length + 1`，最后一项才是整行宽。 */
+    const lineW = cum[cum.length - 1] ?? 0;
+    const alignDx = align === 'center' ? -lineW / 2 : align === 'right' ? -lineW : 0;
     const stagger = opts.stagger ?? 0;
     const dur = opts.staggerDur ?? 0.45;
     const t = opts.t ?? 0;
@@ -283,8 +306,16 @@ export class TextKit {
     //   （tasks/beast 的字典 4 个大格 + 兽语卡 16 个字就是这么没的）。
     //   现在：只有**数组型** alpha（[a0,a1] 这种随 t 插值的）才需要进度；数值型直接当常量乘进 al。
     const alphaIsRamp = Array.isArray(opts.alpha);
-    // 「这一笔到底要不要按 t 求进度」：逐字入场 or 整行淡入。常量 alpha 不算。
-    const perGlyphAnim = stagger > 0 || alphaIsRamp;
+    /**
+     * `blur` 的语义与 `alpha` **同构**（BACKLOG 1-41，来源见 `docs/REFERENCE-eac-design-world.md` §5）：
+     *   · **数值** = 常量虚焦（与 t 无关，画完就那个糊度）；
+     *   · **数组 `[b0, b1]`** = 随进场进度从 b0 收到 b1 —— 这一路才是"从虚焦里浮出来"。
+     * 不传 = 0 = **完全不动 Canvas2D 的 filter**（像素逐字节不变，`hashes` 基线靠这一条）。
+     */
+    const blurIsRamp = Array.isArray(opts.blur);
+    const constBlur = blurIsRamp ? 0 : Math.max(0, Number(opts.blur ?? 0) || 0);
+    // 「这一笔到底要不要按 t 求进度」：逐字入场 / 整行淡入 / 虚焦收敛。常量 alpha、常量 blur 都不算。
+    const perGlyphAnim = stagger > 0 || alphaIsRamp || blurIsRamp;
     // 常量不透明度：数值型 alpha 或缺省（1）
     const constAlpha = alphaIsRamp ? 1 : clamp(opts.alpha ?? 1);
     // 明确要求全透明：什么都不画（这是调用方的本意）。
@@ -311,7 +342,8 @@ export class TextKit {
       }
       const cl = clusters[i];
       if (cl === ' ' || cl === '\n') continue;
-      const gx = x + X[i];
+      // `alignDx` 把「整行按 align 对齐」一次性摊到每个字上（见上面的长注释）
+      const gx = x + X[i] + alignDx;
       // 常量 alpha 先乘进去；数组型 alpha 按 k 插值（整行淡入）。
       // ⚠ 数值型 alpha 走 constAlpha，绝不参与 k —— 这就是 P0-1 的修法。
       al *= constAlpha;
@@ -321,6 +353,16 @@ export class TextKit {
       }
       c.globalAlpha = clamp(al);
       c.fillStyle = colors ? colors[i % colors.length] : (typeof opts.color === 'string' ? opts.color : css([1, 1, 1]));
+      // 虚焦：与位移共用**同一条缓动 e**（不是线性 k）。分开缓动会出现"位移到位了、
+      // 字还糊着"——外部配方的「已知坑」第 3 条点名的就是它（blur-slide）。
+      // `blurPx < 0.05` 时**不碰 filter**：默认路径一个字节都不改（hashes 基线依赖这一条）。
+      let blurPx = constBlur;
+      if (blurIsRamp) {
+        const [b0, b1] = /** @type {[number, number]} */ (opts.blur);
+        blurPx = Math.max(0, lerp(Number(b0) || 0, Number(b1) || 0, e));
+      }
+      const canFilter = blurPx >= 0.05 && 'filter' in c;
+      if (canFilter) c.filter = `blur(${blurPx.toFixed(2)}px)`;
       if (sc !== 1 || dx || dy) {
         c.save();
         c.translate(gx + dx, y + dy);
@@ -330,12 +372,15 @@ export class TextKit {
       } else {
         c.fillText(cl, gx, y);
       }
+      if (canFilter) c.filter = 'none';
     }
     c.restore();
     // 版面守门记账（见 noteText）：整行都画出来了才算"一块字画满了"，
     // 逐字入场半途的那一帧只量到已经画出来的那一段宽度。
     noteText(
-      this, text, x, y, style,
+      // ⚠ 记账的 x 必须带上 `alignDx`：版面守门判的是"这块字实际占在哪"，
+      //   传原始 x 会让右对齐的读数被算到左边去（`src/layout.js` 的 noteText 只用 x + w）。
+      this, text, x + alignDx, y, style,
       perGlyphAnim ? constAlpha * lineK : constAlpha,
       // 宽度一律量**整行**：它是"这块字横向占多宽"的读数，判据只用它算主体区重叠比。
       // 逐字入场半途量前缀会让同一行字的宽度随帧变化，反而更难解释。
@@ -347,13 +392,19 @@ export class TextKit {
   /**
    * 按**锚点**写一行字：`anchor: 'center'` 时 x 是整行中心，`'right'` 时 x 是右边缘。
    *
-   * 为什么需要它：`write()` 是**逐字素簇** `fillText(cl, x + X[i])`，而 `textAlign`
-   * 对每个字都生效 —— 所以 `write(..., { align: 'center' })` 会让**每个字各自居中**，
-   * 多字字符串整体跑偏。这是个很容易踩、而且看起来"只是有点歪"的坑，
-   * 两个任务的 `_kit.js` 都为此各写了一份 `put()`。
+   * 历史：`write()` 曾经把 `align` 原样传给 Canvas2D，而 `textAlign` 对**每个字**的
+   * `fillText` 都生效 —— 于是 `write(..., { align: 'center' })` 会让每个字各自居中、
+   * 整行跑偏。所以引擎加了这么一个「先量宽度再偏移」的入口，两个任务的 `_kit.js`
+   * 也各自抄了一份 `put()`。
    *
-   * 这里内部先 `measure()` 量宽度再偏移，并且强制 `align: 'left'`，所以动画
-   * （stagger / alpha / from）与锚点可以放心一起用。
+   * **2026-10-24 起 `write()` 自己就按整行算 `align` 了**（见那边的长注释），
+   * 所以这个函数现在只是一层**语义更清楚**的转发（`anchor` 与 `align` 同义），
+   * 下面是同一件事的两种写法，画面完全一样：
+   *
+   * ```js
+   * type.writeLine('标题', 960, 400, { anchor: 'center', size: 96 });
+   * type.write('标题', 960, 400, { align: 'center', size: 96 });
+   * ```
    *
    * @param {string} text @param {number} x @param {number} y
    * @param {TypeStyle & { anchor?: 'left'|'center'|'right', color?: any, alpha?: any,
@@ -362,10 +413,8 @@ export class TextKit {
    */
   writeLine(text, x, y, opts = {}) {
     const anchor = opts.anchor ?? 'left';
-    const w = this.measure(text, opts);
-    const ax = anchor === 'center' ? x - w / 2 : anchor === 'right' ? x - w : x;
-    this.write(text, ax, y, { ...opts, align: 'left' });
-    return w;
+    this.write(text, x, y, { ...opts, align: anchor });
+    return this.measure(text, opts);
   }
 
   /**
