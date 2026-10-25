@@ -54,9 +54,11 @@ import { Pass, RT } from './gl.js';
  *                                 `'tpdf'` 是三角分布（两个均匀分布相加），去色带更干净、噪声感更弱。
  * @property {boolean} [bloomKaris] 泛光的亮部提取用 **Karis 加权平均**（`c/(1+luma(c))` 之后再还原）：
  *                                 极亮的单个像素不会在降采样时"炸"成一个方块（fireflies）。默认 `false` = 现状。
- * @property {'screen'|'design'} [grainScale] 颗粒撒在哪个栅格上（默认 `'screen'` = 物理像素，引擎一直以来的行为）。
- *                                 `'design'` 按**逻辑分辨率**撒 —— `--scale 2` 出 4K 时颗粒大小与 1080p 一致，
- *                                 跨分辨率观感才不变（否则 4K 的颗粒细一半）。
+ * @property {'screen'|'design'|'auto'} [grainScale] 颗粒撒在哪个栅格上。**默认 `'auto'`**（2026-10-24）：
+ *                                 `--scale 1`（1080p）→ `'screen'`（物理像素，引擎一直以来的行为）；
+ *                                 `--scale 2+`（4K）→ `'design'`（按逻辑分辨率，颗粒大小与 1080p 一致）。
+ *                                 `'screen'` 在 4K 下会让颗粒细一半 —— 那是缺陷，所以 auto 会避开它。
+ *                                 显式写 `'screen'` / `'design'` 时照旧生效（老任务想钉死行为就写死它）。
  */
 
 /** 默认后处理参数。场景返回的 post 对象会与它合并。 */
@@ -85,10 +87,40 @@ export const DEFAULT_POST = /** @type {PostParams} */ ({
   tonemap: 'off',
   dither: 'rpdf',
   bloomKaris: false,
-  grainScale: 'screen',
+  /**
+   * 颗粒栅格。**默认 `'auto'`**（2026-10-24 改）：1080p 出片用 `'screen'`（= 引擎一直以来的
+   * 物理像素栅格，逐像素不变），`--scale 2` 出 4K 时自动切 `'design'`（按逻辑分辨率撒，
+   * 颗粒与 1080p 同大小）。理由见 `grainDesignFor()`。
+   */
+  grainScale: 'auto',
 });
 
 const LEVELS = 4;
+
+/**
+ * 颗粒撒在哪个栅格上 —— `'auto'` 的解析（2026-10-24）。
+ *
+ * **为什么默认值从 `'screen'` 改成 `'auto'`**：`'screen'` 在 4K 下会让颗粒**细一半**
+ * （颗粒撒在物理像素上，逻辑 1px 变成物理 2×2），这是**确定的缺陷**，不是观感取舍 ——
+ * 实测 lag-1 自相关 `screen` ≈ -0.05（单物理像素）vs `design` ≈ +0.51（2×2 物理像素、
+ * 与 1080p 同大小），两者幅度 std 一致（0.0594 / 0.0593，= 只有栅格不同、强度相同）。
+ *
+ * **但它不该一刀切成 `'design'`**：1080p 下 `design` 与 `screen` 的栅格**完全相同**
+ * （逻辑像素 = 物理像素），改默认值不会带来任何收益，只会让基线无谓地变一遍。
+ * 所以这里做的是**按分辨率自动选**：`scale === 1` 走 `screen`（老行为逐像素不变），
+ * `scale > 1` 走 `design`（跨分辨率观感一致）。作者显式写 `'screen'` / `'design'` 时照旧生效。
+ *
+ * @param {PostParams} p
+ * @param {GL} gl
+ * @returns {number} 1 = design 栅格，0 = screen 栅格
+ */
+export function grainDesignFor(p, gl) {
+  const mode = p.grainScale ?? 'auto';
+  if (mode === 'design') return 1;
+  if (mode === 'screen') return 0;
+  // 'auto'：物理分辨率高于逻辑分辨率（--scale 2+）才需要按逻辑栅格撒
+  return gl.pw > gl.w ? 1 : 0;
+}
 
 export class Post {
   /**
@@ -399,7 +431,7 @@ export class Post {
       seed: seed % 1000,
       tonemap: p.tonemap === 'agx' ? 1 : p.tonemap === 'aces' ? 2 : 0,
       ditherMode: p.dither === 'tpdf' ? 2 : p.dither === 'off' ? 0 : 1,
-      grainDesign: p.grainScale === 'design' ? 1 : 0,
+      grainDesign: grainDesignFor(p, gl),
       center: Array.isArray(c) && c.length >= 2
         ? [c[0] / gl.w, 1 - c[1] / gl.h]
         : [0.5, 0.5],
