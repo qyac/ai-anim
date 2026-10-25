@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * 音频/进程的小工具（**Node 侧共用**，不进浏览器、不进 Vite 模块图）。
+ * 音频 / 媒体文件 / 进程的小工具（**Node 侧共用**，不进浏览器、不进 Vite 模块图）。
  *
  * 为什么单独一份、而不是从 `scripts/anim.mjs` import：
  * `anim.mjs` 是**带副作用的脚本**（import 的那一刻就解析 argv、开始跑命令），
@@ -37,7 +37,7 @@ export function ffprobeArgv() {
 /**
  * 跑一条外部命令。
  * @param {string[]} argv
- * @param {{ cwd?: string, input?: Buffer|string, inherit?: boolean, maxBuffer?: number }} [opts]
+ * @param {{ cwd?: string, input?: Buffer|string, inherit?: boolean, maxBuffer?: number, timeout?: number }} [opts]
  * @returns {{ status: number|null, stdout: string, stderr: string, stdoutBuf: Buffer, spawnError?: string }}
  */
 export function run(argv, opts = {}) {
@@ -48,6 +48,8 @@ export function run(argv, opts = {}) {
     encoding: inherit ? undefined : 'buffer',
     stdio: inherit ? 'inherit' : undefined,
     maxBuffer: opts.maxBuffer ?? (1 << 30),
+    // 只有调用方显式给了才设超时（scanMediaFile 这种"可能跑几分钟"的整片扫描要它）。
+    ...(opts.timeout ? { timeout: opts.timeout, killSignal: 'SIGKILL' } : {}),
   });
   if (r.error) throw new Error(`跑不起 ${argv.join(' ')}：${r.error.message}`);
   const stdoutBuf = inherit ? Buffer.alloc(0) : (r.stdout ?? Buffer.alloc(0));
@@ -498,4 +500,258 @@ export function formatLoudness(m, opts = {}) {
   const line = `${one(Number(m?.i))} LUFS / ${Number.isFinite(Number(m?.tp)) ? Number(m.tp).toFixed(2) : (Number(m?.tp) === -Infinity ? '-∞' : 'NaN')} dBTP`
     + ` / LRA ${one(Number(m?.lra))}`;
   return opts.verdict ? `${line} —— ${assessLoudness(m, opts).verdict}` : line;
+}
+
+/* ================================================================== 成片级技术扫描（1-39）
+ *
+ * 和上面那一层（响度）的分工：响度只量**音轨**；这一层量**编码后的整个文件** ——
+ * 解码是否干净、黑场在哪、静帧多长、音量有没有。它存在的理由是一个真实的盲区：
+ *
+ *   · `check` 每段只采 15% / 50% / 85% 三个点（AGENTS.md §10.1）—— **切点两侧 0.3s 的黑闪
+ *     正好从三个采样点之间漏过去**；
+ *   · `rhythm` 是重新渲染再差分（`scripts/anim.mjs` 的 cmdRhythm），`verify` 是若干时刻抽帧比像素
+ *     —— 两条都在"渲染/重渲"这一侧，**没有任何一条读过成片文件的每一秒**。
+ *
+ * ⚠ 这一层**只报读数**，不自动修、不默认 gate。黑场与静帧都可能是**设计如此**：
+ * 我们的 `outro` 结尾压黑 0.6s、hold 段本来就不动（`rhythm` 的标定样本就有一段 1s 死静）。
+ * 所以分类器把"片头淡入 / 片尾淡出 / 短静帧"降成 info，只有**中段黑场**与**过长的静帧**
+ * 才是 warn —— 再交给调用方决定 `--strict` 要不要拦（与 loudness 的"只报数字"同一条纪律）。
+ */
+
+/** 秒 → 两位小数的读数（扫描输出里到处都是这种数）。 */
+const s2 = (x) => (Number.isFinite(Number(x)) ? Number(x).toFixed(2) : 'NaN');
+
+/**
+ * 扫描用的 ffmpeg 滤镜串，以及它**实际生效的两个阈值**。
+ * ⚠ 滤镜和报告里的数字必须同源：改了滤镜不改这里，打印出来的判据就是假的
+ * （`classifyMediaScan()` 的 `thresholds` 直接读这份常量）。
+ */
+export const MEDIA_SCAN_FILTER = 'blackdetect=d=0.25:pix_th=0.10,freezedetect=n=-50dB:d=1';
+export const MEDIA_SCAN_THRESHOLDS = { blackDur: 0.25, freezeDur: 1 };
+
+/**
+ * 用 ffprobe 量一个**媒体文件**的基本盘（时长 / 帧率 / 尺寸 / 有哪几条流）。
+ * 与 `probeDuration` 的分工：那个只量音频时长，这个要喂给整片扫描。
+ *
+ * @param {string} file
+ * @returns {{ file: string, duration: number, fps: number, width: number|null, height: number|null,
+ *             hasVideo: boolean, hasAudio: boolean, streams: any[], format: any }}
+ */
+export function probeMediaInfo(file) {
+  if (!existsSync(file)) throw new Error(`文件不存在：${file}`);
+  const r = run([...ffprobeArgv(), '-v', 'error', '-show_streams', '-show_format', '-of', 'json', file], { maxBuffer: 1 << 26 });
+  if (r.status !== 0) throw new Error(`ffprobe 读不动 ${file}：${(r.stderr || r.stdout).trim().split(/\r?\n/).slice(-3).join(' ')}`);
+  let j;
+  try { j = JSON.parse(r.stdout); } catch (e) { throw new Error(`ffprobe 的输出不是 JSON：${String(e.message)}`); }
+  const streams = Array.isArray(j.streams) ? j.streams : [];
+  const v = streams.find((s) => s.codec_type === 'video');
+  const a = streams.find((s) => s.codec_type === 'audio');
+  const [num, den] = String(v?.avg_frame_rate || v?.r_frame_rate || '0/1').split('/').map(Number);
+  const durations = [j.format?.duration, ...streams.map((s) => s.duration)].map(Number).filter(Number.isFinite);
+  return {
+    file,
+    duration: Math.max(0, ...durations),
+    fps: den ? num / den : 0,
+    width: v?.width ?? null,
+    height: v?.height ?? null,
+    hasVideo: Boolean(v),
+    hasAudio: Boolean(a),
+    streams,
+    format: j.format ?? {},
+  };
+}
+
+/**
+ * 从 ffmpeg 的 stderr 里解析 `blackdetect` / `freezedetect` 的区间。
+ *
+ * 日志长这样（前缀是滤镜实例，不参与解析）：
+ *   `[blackdetect @ …] black_start:1.03333 black_end:2.06667 black_duration:1.03333`
+ *   `[freezedetect @ …] lavfi.freezedetect.freeze_start: 3.2`
+ *   `[freezedetect @ …] lavfi.freezedetect.freeze_end: 5`
+ *
+ * ⚠ **收尾时只有 start 没有 end**（片尾一直黑/一直静到文件结束）：那种区间按"开到文件末尾"处理，
+ * `end = null`，由分类器补上总时长 —— 直接丢弃会让"整片后半段全黑"这种最严重的情况**报不出来**。
+ *
+ * @param {string} stderr ffmpeg 的 stderr
+ * @param {'black'|'freeze'} kind
+ * @returns {{ start: number, end: number|null, duration: number|null }[]}
+ */
+export function parseDetectIntervals(stderr, kind) {
+  const text = String(stderr ?? '');
+  // `freeze_start` 的日志前缀里已经带了 `lavfi.freezedetect.`，所以直接找 `<kind>_start:`
+  // 就能同时命中两种写法；数字允许负数与科学计数（ffmpeg 偶尔会打 `1e-05`）。
+  const num = '-?\\d+(?:\\.\\d+)?(?:e[-+]?\\d+)?';
+  const starts = [...text.matchAll(new RegExp(`${kind}_start:\\s*(${num})`, 'gi'))].map((m) => Number(m[1]));
+  const ends = [...text.matchAll(new RegExp(`${kind}_end:\\s*(${num})`, 'gi'))].map((m) => Number(m[1]));
+  const out = [];
+  for (let i = 0; i < starts.length; i++) {
+    const start = starts[i];
+    const end = i < ends.length ? ends[i] : null;
+    if (!Number.isFinite(start)) continue;
+    if (end !== null && (!Number.isFinite(end) || end < start)) continue;
+    out.push({ start, end, duration: end === null ? null : end - start });
+  }
+  return out;
+}
+
+/**
+ * 对**编码后的文件**做一遍技术扫描：解码校验 + 黑场 + 静帧 + 音量。
+ *
+ * 跑三条 ffmpeg（`-f null -`，不落文件）：
+ *   ① 解码：`-v error -xerror` —— 半截流 / 坏帧在这里就红；
+ *   ② 画面：`blackdetect=d=0.25:pix_th=0.10, freezedetect=n=-50dB:d=1`；
+ *   ③ 音频：`volumedetect`（`mean_volume` / `max_volume`）。
+ * ②③ 分开跑是**故意的**：没有音轨的文件上 `-map 0:a:0` 会让整条命令非零退出，
+ * 合并成一条时"没有音频"会被误读成"扫描失败"。
+ *
+ * @param {string} file
+ * @param {{ decode?: boolean, timeoutMs?: number }} [opts] `decode:false` 跳过解码那一条（大文件赶时间）
+ * @returns {{ file: string, duration: number, fps: number, width: number|null, height: number|null,
+ *             hasVideo: boolean, hasAudio: boolean,
+ *             decode: { ok: boolean, error: string|null },
+ *             black: { start: number, end: number|null, duration: number|null }[],
+ *             freeze: { start: number, end: number|null, duration: number|null }[],
+ *             audio: { meanDb: number|null, peakDb: number|null } | null }}
+ */
+export function scanMediaFile(file, opts = {}) {
+  const info = probeMediaInfo(file);
+  const timeout = opts.timeoutMs ?? 30 * 60 * 1000;
+  const base = [...ffmpegArgv(), '-hide_banner', '-nostats', '-v', 'error', '-i', file];
+
+  /** @type {{ ok: boolean, error: string|null }} */
+  let decode = { ok: true, error: null };
+  if (opts.decode !== false) {
+    const r = run([...base, '-xerror', '-map', '0:v?', '-map', '0:a?', '-f', 'null', '-'], { timeout, maxBuffer: 1 << 26 });
+    if (r.status !== 0) {
+      const tail = (r.stderr || r.stdout).trim().split(/\r?\n/).filter(Boolean).slice(-3).join('；');
+      decode = { ok: false, error: tail || `ffmpeg 退出码 ${r.status}` };
+    }
+  }
+
+  let black = [];
+  let freeze = [];
+  if (info.hasVideo) {
+    const r = run([
+      ...ffmpegArgv(), '-hide_banner', '-nostats', '-v', 'info', '-i', file,
+      '-map', '0:v:0', '-vf', MEDIA_SCAN_FILTER,
+      '-f', 'null', '-',
+    ], { timeout, maxBuffer: 1 << 28 });
+    if (r.status !== 0) throw new Error(`黑场/静帧扫描失败：${(r.stderr || '').trim().split(/\r?\n/).slice(-3).join(' ')}`);
+    // ⚠ ffmpeg 在**文件结束时**经常会漏打 `freeze_end` / `black_end`（片尾一直在黑/静，
+    //   没有"下一帧"来关门）。解析器保留 end=null 的诚实形状，扫描器在这里用实测总时长收口 ——
+    //   不收口的话"整片后半段全黑/全静"这种最严重的情况反而算不出时长。
+    const close = (list) => list.map((x) => (x.end === null && info.duration
+      ? { start: x.start, end: info.duration, duration: Math.max(0, info.duration - x.start) }
+      : x));
+    black = close(parseDetectIntervals(r.stderr, 'black'));
+    freeze = close(parseDetectIntervals(r.stderr, 'freeze'));
+  }
+
+  /** @type {{ meanDb: number|null, peakDb: number|null } | null} */
+  let audio = null;
+  if (info.hasAudio) {
+    const r = run([...ffmpegArgv(), '-hide_banner', '-nostats', '-v', 'info', '-i', file,
+      '-map', '0:a:0', '-af', 'volumedetect', '-f', 'null', '-'], { timeout, maxBuffer: 1 << 24 });
+    if (r.status === 0) {
+      const grab = (key) => {
+        const m = String(r.stderr).match(new RegExp(`${key}:\\s*(-?inf|-?[\\d.]+)\\s*dB`, 'i'));
+        return m ? (m[1] === '-inf' ? -Infinity : Number(m[1])) : null;
+      };
+      audio = { meanDb: grab('mean_volume'), peakDb: grab('max_volume') };
+    }
+  }
+
+  return {
+    file, duration: info.duration, fps: info.fps, width: info.width, height: info.height,
+    hasVideo: info.hasVideo, hasAudio: info.hasAudio,
+    decode, black, freeze, audio,
+  };
+}
+
+/** 把 `{ start, end }` 补成分类器要的形状（片尾开口的区间用总时长收口）。 */
+function closeIntervals(list, duration) {
+  return (list ?? []).map((x) => {
+    const start = Math.max(0, Number(x.start));
+    const end = x.end === null || x.end === undefined ? (duration || start) : Number(x.end);
+    return { start, end, duration: Math.max(0, end - start) };
+  });
+}
+
+/**
+ * 把 `scanMediaFile()` 的读数分成 **error / warn / info** 三档 —— 这一步才是判据，也是唯一可单测的部分。
+ *
+ * 判据（阈值都在返回值里，打印时一起打出来）：
+ *   · 解码失败 → **error**（文件坏了，什么都不用谈）；
+ *   · 黑场：起点在片头 `head` 秒内 → info「淡入」；起点在片尾 `tail` 秒内 → info「淡出」；
+ *     其余 → **warn**（切点黑闪、某段没画东西都在这一类）；
+ *   · 静帧：时长 < `maxFreeze` → info「hold（设计如此）」；≥ `maxFreeze` → **warn**
+ *     （多是我们自己的 hold，但 3 秒以上值得回去看一眼是不是忘了推进）；
+ *   · 音量：峰值 ≤ -60 dB → **warn**「静音」；≥ -0.1 dB → info「贴满刻度」（平台会压）；
+ *     中间 → info 读数。
+ *
+ * @param {ReturnType<typeof scanMediaFile>} scan
+ * @param {{ head?: number, tail?: number, maxFreeze?: number }} [opts]
+ * @returns {{ items: { kind: string, tier: 'error'|'warn'|'info', at: number|null, text: string }[],
+ *             errors: any[], warnings: any[], infos: any[],
+ *             thresholds: { head: number, tail: number, maxFreeze: number, blackDur: number, freezeDur: number } }}
+ */
+export function classifyMediaScan(scan, opts = {}) {
+  const head = opts.head ?? 0.5;
+  const tail = opts.tail ?? 1.2;
+  const maxFreeze = opts.maxFreeze ?? 3.0;
+  const duration = Number(scan?.duration) || 0;
+  /** @type {{ kind: string, tier: 'error'|'warn'|'info', at: number|null, text: string }[]} */
+  const items = [];
+
+  if (scan?.decode && scan.decode.ok === false) {
+    items.push({ kind: 'decode', tier: 'error', at: null, text: `解码失败：${scan.decode.error || '未知原因'}` });
+  }
+
+  for (const b of closeIntervals(scan?.black, duration)) {
+    const at = b.start;
+    if (at < head) {
+      items.push({ kind: 'black', tier: 'info', at, text: `片头淡入 ${s2(b.start)}–${s2(b.end)}s（${s2(b.duration)}s，< --head ${head}s，算设计）` });
+    } else if (duration && at >= duration - tail) {
+      items.push({ kind: 'black', tier: 'info', at, text: `片尾淡出 ${s2(b.start)}–${s2(b.end)}s（${s2(b.duration)}s，收尾压黑）` });
+    } else {
+      items.push({ kind: 'black', tier: 'warn', at, text: `第 ${s2(b.start)}s 起黑场 ${s2(b.duration)}s（到 ${s2(b.end)}s）—— 切点黑闪，或这一段没画东西` });
+    }
+  }
+
+  // 黑场天然也是"静帧"（整片静止）。不去重的话一段 1s 黑场会被报三条（黑场 + 两个静帧），
+  // 读数淹没判据。规则：静帧有 ≥80% 落在某个黑场区间里就丢掉 —— 黑场那条已经说了。
+  const blackRanges = closeIntervals(scan?.black, duration);
+  const mostlyBlack = (f) => blackRanges.some((b) => {
+    const overlap = Math.min(f.end, b.end) - Math.max(f.start, b.start);
+    return overlap > 0 && overlap >= f.duration * 0.8;
+  });
+
+  for (const f of closeIntervals(scan?.freeze, duration)) {
+    if (mostlyBlack(f)) continue;
+    const tier = f.duration >= maxFreeze ? 'warn' : 'info';
+    items.push({
+      kind: 'freeze', tier, at: f.start,
+      text: `第 ${s2(f.start)}s 起静帧 ${s2(f.duration)}s（到 ${s2(f.end)}s）`
+        + (tier === 'warn' ? ` —— 超过 ${maxFreeze}s，先确认不是忘了推进` : ' —— hold 段正常'),
+    });
+  }
+
+  if (scan?.audio) {
+    const { meanDb, peakDb } = scan.audio;
+    if (Number.isFinite(peakDb) && peakDb <= -60) {
+      items.push({ kind: 'audio', tier: 'warn', at: null, text: `音轨几乎静音（峰值 ${peakDb.toFixed(1)} dB）—— 混音或旁白没接上？` });
+    } else if (Number.isFinite(peakDb) && peakDb >= -0.1) {
+      items.push({ kind: 'audio', tier: 'info', at: null, text: `音量贴满刻度（峰值 ${peakDb.toFixed(2)} dB）—— 平台/有损转码会削顶` });
+    } else if (Number.isFinite(meanDb) || Number.isFinite(peakDb)) {
+      items.push({ kind: 'audio', tier: 'info', at: null, text: `音量读数 mean ${Number.isFinite(meanDb) ? meanDb.toFixed(1) : 'NaN'} dB / peak ${Number.isFinite(peakDb) ? peakDb.toFixed(1) : 'NaN'} dB` });
+    }
+  }
+
+  return {
+    items,
+    errors: items.filter((i) => i.tier === 'error'),
+    warnings: items.filter((i) => i.tier === 'warn'),
+    infos: items.filter((i) => i.tier === 'info'),
+    thresholds: { head, tail, maxFreeze, ...MEDIA_SCAN_THRESHOLDS },
+  };
 }

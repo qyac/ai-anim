@@ -59,6 +59,12 @@ const ITEMS = [
   { name: 'unit:cam-math', cmd: ['tools/test-cam-math.mjs'], note: '3D 相机/投影/透视变换 + **手性**（33 项）' },
   { name: 'unit:segment-cuts', cmd: ['tools/test-segment-cuts.mjs'], note: 'P2-4 分块切点只落在安全处' },
   { name: 'unit:shots', cmd: ['tools/test-shots.mjs'], note: 'A 档镜头库：模板登记/参数名/任务段名（写错就响）' },
+  { name: 'unit:subs', cmd: ['tools/test-subs.mjs'], note: '1-40 anim subs：ASS 文本转义（\\\\ / {} / 换行）、assTime 向上取整不留三位小数、接线自检（11 项）' },
+  { name: 'unit:hashes-policy', cmd: ['tools/test-hashes-policy.mjs'], note: '基线策略（2026-10-24）：--accept 必须带 --note / --save 拒绝覆盖 / notes 审计 / 前后对比图 / negligible 判据不许放松 / 文档与回归清单接线（10 项）' },
+  // BACKLOG 0-3 的真正修法（2026-10-24）：`write` 的 align 从"逐字生效"改成"整行对齐"。
+  // 判据是**几何**的（假 Canvas2D 记录每次 fillText 的 x），不是"代码里有某个字符串"——
+  // 这条 bug 活了很久正是因为 5 个模板都用着错的写法而没人量过像素。
+  { name: 'unit:text-align', cmd: ['tools/test-text-align.mjs'], note: 'type.write 的 align 是整行（BACKLOG 0-3）：三种 align 的落点几何 / 与 writeLine(anchor) 逐字等价 / 7 字居中不出画 / 逐字动画共存 / 三份文档不再教旧绕法（13 项）' },
   // 风格 / 字幕 / 版面（docs/history/IMPROVEMENTS-4-5.md）：全部纯 JS，毫秒级。
   // ⚠ **不把 `lint-narration-dup` 放进清单**：已交付的 sodium / optifine 必然命中（12 / 3 句），
   //   放进来会让回归清单永久变红，反而没人看了。它是「交付前自检」（AGENTS.md §10.9）
@@ -85,6 +91,8 @@ const ITEMS = [
   { name: 'say:real-tts', cmd: ['tools/probe-tts-edge.mjs'], allowSkip: true, note: 'B/C 档真 TTS（联网；连不上会「跳过」退出码 2 —— 服务端 403 也算这一类）', timeout: 10 * 60e3 },
   // ⚠ 这一项**会**在没有 ffmpeg 的机器上退出 2（"跳过，不算通过"）—— 所以挂 allowSkip
   { name: 'unit:loudness', cmd: ['tools/test-loudness.mjs'], allowSkip: true, note: '响度数字守门：合成已知响度的测试音、对不上就是函数错了 + **-t 是输入侧选项**与"真的截断"（39 项）' },
+  // 1-39：黑场/静帧/音量扫描。纯函数（解析 + 分档）不依赖 ffmpeg；端到端那几条自己跳过并明说"没验"。
+  { name: 'unit:media-qa', cmd: ['tools/test-media-qa.mjs'], note: '成片级技术扫描：blackdetect/freezedetect 解析（含片尾只有 start）+ 分档（片头片尾白名单 / 静帧阈值 / 黑场里的静帧去重）+ 真 ffmpeg 夹具（17 项）' },
 
   // ── 注入式回归（会临时改文件；必须串行）──
   { name: 'smoke:scene-error', cmd: ['tools/smoke-scene-error.mjs'], note: 'P0-3 场景抛错 = 硬失败（10 项）', timeout: 20 * 60e3 },
@@ -108,6 +116,8 @@ const ITEMS = [
   // carry 词表的图册 + 1-38 静/动标定样本（2026-10-17）：7 段全走 makeShot（rhythm 段裸场景），
   // check 验证六个 carry 函数真的画得出来；节奏腿在它身上 CoV ≈0.27（好样本）。
   { name: 'check:_carry-lab', cmd: ['scripts/anim.mjs', 'check', '_carry-lab', '--quick'], note: 'carry 图册夹具：morphRect/iris/zoomThrough/hop/gather/operatorCam 各一段 + rhythm 静/动标定', timeout: 30 * 60e3 },
+  // 1-41：同一模板 blur 0 / 20 / 20 三段 —— 画面本身要人眼验收，这里只防它腐烂（模板参数 / 背景 / 版面）。
+  { name: 'check:_blur-lab', cmd: ['scripts/anim.mjs', 'check', '_blur-lab', '--quick'], note: 'blur 通道夹具：title 的 blur 0 vs 20（三段，长度故意不等以免节奏腿报节拍器）', timeout: 30 * 60e3 },
   { name: 'check:nekohome', cmd: ['scripts/anim.mjs', 'check', 'nekohome', '--quick'], note: '8 段', timeout: 30 * 60e3 },
   { name: 'check:fidus', cmd: ['scripts/anim.mjs', 'check', 'fidus', '--quick'], note: '9 段', timeout: 30 * 60e3 },
   { name: 'check:pdoom-lab', cmd: ['scripts/anim.mjs', 'check', 'pdoom-lab'], note: '3D 验证片：raymarch 走廊 + 非有限值扫描', timeout: 30 * 60e3 },

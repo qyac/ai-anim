@@ -62,8 +62,15 @@
  *   node scripts/anim.mjs verify <task> [--file x.mp4 --from 1 --samples 2 --tol 18]
  *                                                        成片抽帧 vs 同 t 重渲，按**帧号**逐像素比
  *                                                        （--from 是成片在任务时间轴上的起点）
- *   node scripts/anim.mjs hashes <task> --save            存画面基线（重构前跑）
- *   node scripts/anim.mjs hashes <task> --baseline        与基线逐像素比（重构后跑；证明画面没变）
+ *   node scripts/anim.mjs qa <task> [--file x.mp4 --strict --freeze 3]
+ *                                                        成片级技术扫描（纯 ffmpeg，不起浏览器）：
+ *                                                        解码 / 黑场 / 静帧 / 音量，报区间。
+ *                                                        默认只报读数，--strict 才把 warn 当失败
+ *   node scripts/anim.mjs hashes <task> --save            存画面基线（第一次；**已存在时拒绝覆盖**）
+ *   node scripts/anim.mjs hashes <task> --baseline        与基线逐像素比（变了 ⇒ 退出码 1）
+ *   node scripts/anim.mjs hashes <task> --accept --note "为什么"
+ *                                                        有意改画面：先比一遍 + 落前后对比图，再存新基线
+ *                                                        （note 写进基线，下次比对失败会打出来）
  *   node scripts/anim.mjs probe <task> --times 4,12       渲染顺序会不会改变结果（确定性）
  *   node scripts/anim.mjs diff <task> --times 12          同一时刻渲两次，差了多少
  *   node scripts/anim.mjs audit <task> [--debug]          每个交叠段在交叠期到底画了什么
@@ -2930,15 +2937,58 @@ async function cmdHashes() {
   const scale = Number(opt('scale', '0')) || undefined;
   const only = opt('only', '');
   const baseFile = path.resolve(ROOT, opt('file', path.join('out', task, `hashes${only ? '_' + only.replace(/,/g, '-') : ''}.json`)));
-  const useBaseline = flag('baseline');
+  const accept = flag('accept');
+  const force = flag('force');
+  const note = String(opt('note', '') || '').trim();
+  const useBaseline = flag('baseline') || accept;
+  const baseExists = existsSync(baseFile);
+
+  /**
+   * 基线是**变更探测器**，不是"画面永远不许变"（2026-10-24 拍板，见 `docs/BACKLOG.md` §4）。
+   *
+   * 以前这里只有一个隐含规矩：改完引擎必须让 22 帧逐像素不变 —— 于是任何**有意的**视觉改进
+   * 都被挡在门外（1-41 的 blur 就是被这条逼成"默认 0"的）。现在拆成四种明确用法：
+   *
+   *   `--save`              第一次存基线；**已存在时拒绝覆盖**（防止"改完顺手重存"绕过比对）
+   *   `--baseline`          比对；不一致 ⇒ 退出码 1。它回答"变了没有"，不回答"该不该变"
+   *   `--accept --note "…"` 有意改画面：先比一遍、落一张前后对比图、再存新基线（原因进 `notes`）
+   *   `--force`             只想重存（不推荐；比对会断掉，基线里留一条 force 记录）
+   *
+   * 判据仍然是 `negligible()`（over16 === 0 且 mean < 0.002），没有放松 —— 放松的是**流程**：
+   * 有意的变化要**被看见、被说明**，而不是被"改回去"。
+   */
+  if (accept) {
+    if (!baseExists) die(`没有基线可接受：${path.relative(ROOT, baseFile)} 不存在。第一次先跑 --save。`);
+    if (!note) {
+      die(`--accept 必须带 --note "这次画面为什么该变"。\n`
+        + `  基线的作用是**抓住没注意到的变化**；接受一次视觉改动是决定，不是例行公事：\n`
+        + `  node scripts/anim.mjs hashes ${task} --accept --note "title 默认开启 18px 虚焦入场（1-41 后续）"`);
+    }
+  } else if (!useBaseline && baseExists && !force) {
+    die(`基线已经存在：${path.relative(ROOT, baseFile)}。\n`
+      + `  · 有意改了画面：--accept --note "改了什么、为什么"（会先比一遍、落对比图，再存）\n`
+      + `  · 只是重存一遍：--force（不推荐 —— 比对会断掉）`);
+  }
 
   await openSession({ task, scale, only: only || undefined });
   try {
     const info = session.info;
+    /** @type {{ t: number, buf: Buffer, stats: any }[]} */
+    const changed = [];
+    let baseCount = 0;
+    /** @type {any} */
+    let baseJson = null;
+    if (baseExists) {
+      baseJson = JSON.parse(readFileSync(baseFile, 'utf8'));
+      baseCount = Array.isArray(baseJson.frames) ? baseJson.frames.length : 0;
+    }
+
     if (useBaseline) {
-      if (!existsSync(baseFile)) die(`没有基线文件 ${path.relative(ROOT, baseFile)}。先跑一次 --save。`);
-      const j = JSON.parse(readFileSync(baseFile, 'utf8'));
+      const j = baseJson;
+      if (!j || !Array.isArray(j.frames)) die(`基线文件格式不对：${path.relative(ROOT, baseFile)}（没有 frames 数组）。`);
+      const lastNote = Array.isArray(j.notes) && j.notes.length ? j.notes[j.notes.length - 1] : null;
       log(`与基线比对：${path.relative(ROOT, baseFile)}（${j.frames.length} 帧，${j.width}×${j.height}×${j.scale}）`);
+      if (lastNote) log(`  上一次接受：${lastNote.at}  ${lastNote.note}`);
       let bad = 0;
       let prev = null;
       for (const f of j.frames) {
@@ -2952,25 +3002,78 @@ async function cmdHashes() {
         // 判据**以 negligible() 为准**（函数头那段）：over16 === 0 且 mean < 0.002。
         // 日志里的 max / >16 / >32 是给人看的读数，哪一个都不单独构成判据。
         const same = negligible(r);
-        if (!same) bad++;
+        if (!same) { bad++; changed.push({ t: f.t, buf: cur, stats: r }); }
         log(`  t=${f.t.toFixed(3)}  ${same ? '✓ 画面一致' : '✗ 变了'}  max ${r.max}  mean ${r.mean.toFixed(4)}  >16 ${(r.over16 * 100).toFixed(4)}%  >32 ${(r.over32 * 100).toFixed(4)}%`);
       }
-      if (bad) { warn(`\n✗ ${bad}/${j.frames.length} 帧与基线不一致（逐像素差异超出噪声范围）`); process.exitCode = 1; }
-      else log(`\n✓ ${j.frames.length} 帧全部与基线一致（画面没有被改动）`);
-      reportErrors(session.info);
-      return;
+      if (bad) {
+        const sheet = await writeHashesDiffSheet(task, changed, j.width * j.scale, j.height * j.scale);
+        warn(`\n✗ ${bad}/${j.frames.length} 帧与基线不一致（逐像素差异超出噪声范围）`);
+        if (sheet) log(`  前后对比图：${path.relative(ROOT, sheet)}（每行左 = 基线、右 = 现在）`);
+        if (!accept) {
+          warn(
+            `  这是**变更探测器**，不是"画面永远不许变"。两种收场：\n`
+            + `    · 有意改的 → node scripts/anim.mjs hashes ${task} --accept --note "改了什么、为什么"\n`
+            + `    · 不该变的 → 把改动改回去，重跑这一条\n`
+            + `  （已交付片子的 mp4 是既成产物，不会因为基线更新而被重渲。）`,
+          );
+          process.exitCode = 1;
+          reportErrors(session.info);
+          return;
+        }
+        log('  ✓ 已确认这次变化（note 会写进基线，下一次比对失败时会打出来）');
+      } else {
+        log(`\n✓ ${j.frames.length} 帧全部与基线一致（画面没有被改动）`);
+        if (!accept) { reportErrors(session.info); return; }
+        log('  没有变化，不需要接受 —— 只补一条 note 记录。');
+      }
     }
 
     const dur = info.onlyDuration || info.duration;
+    /**
+     * ⚠ **`--accept` 必须沿用基线自己的采样时刻**（2026-10-24 修）。
+     *
+     * 在修之前这三条分支对 `--accept` 一视同仁：没写 `--every` 就回落到"默认 4 帧"
+     * （`[0, 25%, 50%, 75%]`）。而基线通常是 `--every 2` 存的 11 帧 —— 于是一次
+     * `hashes demo --accept --note …` 会把基线**从 11 帧悄悄缩成 4 帧**：
+     * 检查密度掉了 64%，而日志只说"已确认这次变化"。
+     *
+     * 这是变更探测器上最不该有的那种损失：它不报错、不违反判据，只是**以后更查不出东西**了
+     * （实测：0-3 与字体两次 accept 之后 demo 基线只剩 4 帧）。
+     * 所以 `--accept` 时优先用基线里那批 `t`；只有第一次存基线（没有基线可继承）才用默认采样。
+     */
+    const baselineTimes = accept && Array.isArray(baseJson?.frames) && baseJson.frames.length
+      ? baseJson.frames.map((f) => Number(f.t)).filter(Number.isFinite)
+      : null;
     const times = timesArg
       ? timesArg.split(',').map(Number).filter(Number.isFinite)
       : every > 0
         ? Array.from({ length: Math.max(1, Math.ceil(dur / every)) }, (_, i) => i * every).filter((t) => t < dur)
-        : [0, dur * 0.25, dur * 0.5, dur * 0.75].map((x) => Math.round(x * 1000) / 1000);
+        : baselineTimes && baselineTimes.length
+          ? baselineTimes
+          : [0, dur * 0.25, dur * 0.5, dur * 0.75].map((x) => Math.round(x * 1000) / 1000);
     if (!times.length) die('--times 需要给时间，例如 --times 0,2.5,6');
+    if (baselineTimes && !timesArg && !(every > 0)) {
+      log(`  （沿用基线原有的 ${times.length} 帧采样 —— --accept 不该改变检查密度）`);
+    }
 
-    /** @type {{ task: string, width: number, height: number, scale: number, bytes: number, frames: any[] }} */
-    const snap = { task, width: info.width, height: info.height, scale: info.scale, bytes: 0, frames: [] };
+    /** @type {{ task: string, width: number, height: number, scale: number, bytes: number,
+     *          format: number, savedAt: string, notes: any[], frames: any[] }} */
+    const snap = {
+      task, width: info.width, height: info.height, scale: info.scale, bytes: 0,
+      format: 2, savedAt: new Date().toISOString(),
+      // notes 是**审计轨迹**：基线为什么被接受过。没有它，`--accept` 就只是"把红的刷绿"。
+      notes: Array.isArray(baseJson?.notes) ? baseJson.notes : [],
+      frames: [],
+    };
+    if (accept) {
+      snap.notes.push({
+        at: snap.savedAt, note, changed: changed.length, total: baseCount || times.length,
+        frames: changed.map((c) => Number(c.t.toFixed(3))),
+      });
+    } else if (force && baseExists) {
+      snap.notes.push({ at: snap.savedAt, note: note || '（--force 重存，没有说明）', changed: null, total: times.length, force: true });
+    }
+
     let prev = null;
     /**
      * ⚠ 基线是**一个 JSON 文件**，写和读都要经过 V8 的**单个字符串**（上限约 512MB）。
@@ -3005,8 +3108,73 @@ async function cmdHashes() {
     mkdirSync(path.dirname(baseFile), { recursive: true });
     writeFileSync(baseFile, JSON.stringify(snap));
     log(`· 指纹已存 ${path.relative(ROOT, baseFile)}（${(statSync(baseFile).size / 1048576).toFixed(1)} MB）`);
+    if (accept) log(`· 接受记录已写进基线的 notes（${snap.notes.length} 条）：${note}`);
     reportErrors(session.info);
   } finally { await closeSession(); }
+}
+
+/**
+ * 把「基线 vs 现在」画成一张对比图 —— `--baseline` 失败 / `--accept` 时的**审查入口**。
+ *
+ * 左列是基线里存的那一帧（从 delta 还原出的原始 RGBA），右列是现在重渲的一帧。
+ * 最多 8 行：够看清改了什么，再多也没人看。基线里存的是**像素**不是图片，
+ * 所以这里要自己做一次行翻转（`readPixels` 自下而上，canvas 自上而下）。
+ *
+ * @param {string} task
+ * @param {{ t: number, buf: Buffer, stats: any }[]} changed
+ * @param {number} W 物理像素宽 @param {number} H 物理像素高
+ * @returns {Promise<string|null>} 图片路径（没有变化时 null）
+ */
+async function writeHashesDiffSheet(task, changed, W, H) {
+  if (!changed.length) return null;
+  const rows = changed.slice(0, 8);
+  const out = path.join(ROOT, 'out', task, 'hashes-diff.png');
+  const dataUrl = await session.page.evaluate(async ({ items, W, H, rows }) => {
+    const api = /** @type {any} */ (window).__anim;
+    const cellW = 640;
+    const cellH = Math.max(1, Math.round(cellW * H / W));
+    const pad = 8;
+    const label = 20;
+    const cv = document.createElement('canvas');
+    cv.width = pad * 3 + cellW * 2;
+    // 最后一行下面还有 label 那行字，所以底部要多留一个 pad（第一版按 rows*(…) 算，标签被裁掉了一半）。
+    cv.height = pad * 2 + rows * (cellH + label + pad);
+    const c = cv.getContext('2d');
+    c.fillStyle = '#1a1a1c'; c.fillRect(0, 0, cv.width, cv.height);
+    const off = document.createElement('canvas'); off.width = W; off.height = H;
+    const offc = off.getContext('2d', { willReadFrequently: true });
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const bytes = Uint8Array.from(atob(it.b64), (ch) => ch.charCodeAt(0));
+      // readPixels 是自下而上；canvas 是自上而下 → 按行翻
+      const flipped = new Uint8ClampedArray(bytes.length);
+      const row = W * 4;
+      for (let y = 0; y < H; y++) flipped.set(bytes.subarray((H - 1 - y) * row, (H - y) * row), y * row);
+      offc.putImageData(new ImageData(flipped, W, H), 0, 0);
+      const y = pad + i * (cellH + label + pad);
+      c.drawImage(off, pad, y + label, cellW, cellH);
+      await api.frame(it.t, { samples: 1 });
+      const img = new Image();
+      img.src = api.png();
+      await img.decode();
+      c.drawImage(img, pad * 2 + cellW, y + label, cellW, cellH);
+      c.fillStyle = '#ddd'; c.font = '13px monospace';
+      c.fillText(`t=${it.t.toFixed(3)}s   max ${it.max}  mean ${it.mean.toFixed(3)}  >16 ${(it.over16 * 100).toFixed(3)}%`, pad, y + 14);
+      c.fillStyle = '#888';
+      c.fillText('基线（改动前）', pad + 2, y + label + cellH + 13);
+      c.fillText('现在（改动后）', pad * 2 + cellW + 2, y + label + cellH + 13);
+    }
+    return cv.toDataURL('image/png');
+  }, {
+    items: rows.map((c) => ({
+      t: c.t, b64: c.buf.toString('base64'),
+      max: c.stats.max, mean: c.stats.mean, over16: c.stats.over16,
+    })),
+    W, H, rows: rows.length,
+  });
+  mkdirSync(path.dirname(out), { recursive: true });
+  writeFileSync(out, Buffer.from(String(dataUrl).split(',')[1], 'base64'));
+  return out;
 }
 
 /**
@@ -3731,6 +3899,73 @@ async function cmdVerify() {
       process.exitCode = 1;
     } else log(`\n✓ ${times.length} 个时刻（按帧号对齐）全部与重新渲染的结果一致（成片可信）`);
   } finally { if (ownSession) await closeSession(); }
+}
+
+/* ------------------------------------------------------------------ 命令：qa */
+
+/**
+ * `anim qa <任务>` —— **成片级技术扫描**（BACKLOG 1-39），纯 ffmpeg：不起 Vite、不起 Chrome、不 import 引擎。
+ *
+ * 为什么需要它（`docs/REFERENCE-eac-design-world.md` §3）：
+ * `check` 每段只采 15% / 50% / 85% 三个点，`rhythm` 是**重新渲染**再差分，`verify` 是若干时刻抽帧比像素 ——
+ * 三条都在"渲染/重渲"这一侧，**没有一条读过编码后的文件的每一秒**。切点处 0.3s 的黑闪正好从三点采样之间漏过去。
+ *
+ * 与 `verify` 的分工（别混）：
+ *   · `verify` = 成片 vs 同 t 重渲 → 证明**画面是这一版**（拼错位 / 色彩 / 旧产物）；
+ *   · `qa`     = 文件自己的技术读数 → 证明**这份文件没有黑闪 / 冻结 / 静音**，且能解码。
+ *
+ * ⚠ 默认**只报读数**（warn 不改退出码），因为黑场和静帧都可能是设计如此：
+ * 我们的 `outro` 结尾压黑、hold 段本来就不动。`--strict` 才把 warn 当失败。
+ *
+ * ```sh
+ * node scripts/anim.mjs qa demo
+ * node scripts/anim.mjs qa demo --strict --freeze 5      # 静帧超过 5s 才算问题
+ * node scripts/anim.mjs qa demo --file out/demo/shot_0-3.mp4 --json
+ * ```
+ */
+async function cmdQa() {
+  const task = pickTask();
+  const file = path.resolve(ROOT, opt('file', opt('o', path.join('out', task, `${task}.mp4`))));
+  if (!existsSync(file)) die(`没有找到成片 ${path.relative(ROOT, file)}。先跑 video，或用 --file 指定。`);
+  const strict = flag('strict');
+  const withDecode = !flag('no-decode');
+  const head = Number(opt('head', '0.5'));
+  const tail = Number(opt('tail', '1.2'));
+  const maxFreeze = Number(opt('freeze', '3'));
+  for (const [k, v] of Object.entries({ head, tail, maxFreeze })) {
+    if (!Number.isFinite(v) || v < 0) die(`--${k === 'maxFreeze' ? 'freeze' : k} 要一个非负秒数（收到 ${JSON.stringify(v)}）`);
+  }
+
+  const { scanMediaFile, classifyMediaScan } = await import('./lib/media.mjs');
+  const scan = scanMediaFile(file, { decode: withDecode });
+  const verdict = classifyMediaScan(scan, { head, tail, maxFreeze });
+  const frames = scan.fps ? Math.round(scan.duration * scan.fps) : null;
+
+  if (flag('json')) {
+    log(JSON.stringify({ scan, verdict, strict }, null, 2));
+    process.exitCode = verdict.errors.length || (strict && verdict.warnings.length) ? 1 : 0;
+    return;
+  }
+
+  log(`成片技术扫描 ${path.relative(ROOT, file)}  ${scan.width ?? '?'}×${scan.height ?? '?'} @${scan.fps ? scan.fps.toFixed(2) : '?'}fps`
+    + `  ${scan.duration.toFixed(3)}s  ${frames ?? '?'} 帧`);
+  const th = verdict.thresholds;
+  log(`  判据：黑场 ≥${th.blackDur}s（pix_th 0.10）· 静帧 ≥${th.freezeDur}s（-50dB）`
+    + ` · 片头 ${th.head}s / 片尾 ${th.tail}s 的黑算设计 · 静帧超过 ${th.maxFreeze}s 才警`);
+  log('');
+
+  const label = { error: '✗', warn: '⚠', info: '·' };
+  for (const group of [verdict.errors, verdict.warnings, verdict.infos]) {
+    for (const it of group) log(`  ${label[it.tier]} ${it.text}`);
+  }
+  if (!verdict.items.length) log('  ✓ 解码、黑场、静帧、音量四项都没有异常读数');
+
+  log('');
+  log(`结论：${verdict.errors.length ? '失败' : (strict && verdict.warnings.length ? '失败（--strict）' : '通过')}`
+    + `（${verdict.errors.length} 错 / ${verdict.warnings.length} 警 / ${verdict.infos.length} 条读数`
+    + (withDecode ? '' : '；--no-decode：解码这一条没验') + '）');
+  if (verdict.warnings.length && !strict) log('  （警告默认不改退出码；要当门用加 --strict）');
+  process.exitCode = verdict.errors.length || (strict && verdict.warnings.length) ? 1 : 0;
 }
 
 /**
@@ -6202,6 +6437,11 @@ function shotsCatalog(list, requireTokens = null) {
     //   "还没声明过"伪装成"声明了、不需要任何东西"—— 那正是 §14.9 第 2 条读法要防的静默失真。
     ...(s && 'requires' in s ? { requires: s.requires ?? [] } : {}),
     ...(s && 'outputs' in s ? { outputs: s.outputs ?? null } : {}),
+    // 用途元数据（1-42）：同样是"有才加键"。`use` / `avoid` 是给人和 agent 读的，
+    // `energy` 只许取 SHOT_ENERGY 里的五档（`tools/test-shots.mjs` 断言）。
+    ...(s && 'use' in s ? { use: s.use } : {}),
+    ...(s && 'energy' in s ? { energy: s.energy } : {}),
+    ...(s && 'avoid' in s ? { avoid: s.avoid } : {}),
   }));
   return {
     schema: SHOTS_SCHEMA,
@@ -6228,17 +6468,34 @@ function shotsCatalog(list, requireTokens = null) {
  *   的示例是同一份事实，要改就得三处一起说清。
  */
 async function cmdShots() {
-  const { listShots, SHOTS, SHOT_REQUIRES } = await import('../src/shots/index.js');
+  const { listShots, filterShots, SHOTS, SHOT_REQUIRES, SHOT_ENERGY } = await import('../src/shots/index.js');
   const all = listShots();
-  const want = positional(0);
+  const use = opt('use', '');
+  // ⚠ `positional()` 只按"以 - 开头"过滤，**不认识"某个 flag 的值"**：`shots --use 转场` 会把
+  //   `转场` 当成 positional(0)。这条命令没有任务名参数，所以在这里把 flag 的值让开。
+  const want = positional(0) === use && use !== '' ? positional(1) : positional(0);
 
   if (!want) {
-    if (flag('json')) { log(JSON.stringify(shotsCatalog(all, SHOT_REQUIRES), null, 2)); return; }
-    log(`镜头模板（src/shots/，共 ${all.length} 个）：\n`);
-    const w = Math.max(...all.map((s) => s.name.length));
-    for (const s of all) log(`  ${s.name.padEnd(w)}   ${String(s.params.length).padStart(2)} 个参数   ${s.summary}`);
+    if (flag('json')) { log(JSON.stringify(shotsCatalog(use ? filterShots(all, use) : all, SHOT_REQUIRES), null, 2)); return; }
+    const list = filterShots(all, use);
+    if (use && !list.length) {
+      die(
+        `没有模板匹配 --use ${JSON.stringify(use)}（匹配面：模板名 / summary / use / energy / avoid）。\n`
+        + `  能量档位只有这五档：${SHOT_ENERGY.join(' / ')}。全部模板：\n`
+        + all.map((s) => `  · ${s.name.padEnd(8)} ${s.energy ?? '?'}  ${s.use ?? s.summary}`).join('\n'),
+      );
+    }
+    log(`镜头模板（src/shots/，共 ${list.length} 个${use ? `，--use ${JSON.stringify(use)} 从全部 ${all.length} 个里筛` : ''}）：\n`);
+    const w = Math.max(...list.map((s) => s.name.length));
+    for (const s of list) {
+      log(`  ${s.name.padEnd(w)}   ${String(s.params.length).padStart(2)} 个参数   ${s.summary}`);
+      // 第二行只放"选镜头时最先要回答的两件事"：多响、什么时候用。
+      // `avoid` 留在详情页 —— 列表里塞三段话会让人扫不动（11 个模板 × 3 行）。
+      if (s.energy || s.use) log(`  ${' '.repeat(w)}   能量 ${(s.energy ?? '?').padEnd(2)}  ·  ${s.use ?? ''}`);
+    }
     log('\n用法：scenes/xxx.js 里 export default shot(\'名字\', { 参数 })');
     log('看某个模板的参数与默认值：node scripts/anim.mjs shots chart');
+    log('按用途筛（匹配名 / summary / use / energy / avoid）：node scripts/anim.mjs shots --use 转场');
     return;
   }
 
@@ -6248,6 +6505,11 @@ async function cmdShots() {
   const s = all.find((x) => x.name === want);
   if (flag('json')) { log(JSON.stringify(shotsCatalog([s], SHOT_REQUIRES), null, 2)); return; }
   log(`镜头模板 ${s.name} —— ${s.summary}\n`);
+  if (s.use || s.energy || s.avoid) {
+    log(`  能量  ${s.energy ?? '未标注'}`);
+    log(`  用于  ${s.use ?? '未标注'}`);
+    log(`  别用  ${s.avoid ?? '未标注'}\n`);
+  }
   if (s.notes) log(`${s.notes}\n`);
   const shown = (v) => {
     const str = JSON.stringify(v);
@@ -6294,12 +6556,44 @@ function srtTime(sec) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
 }
 
-/** 秒 → `H:MM:SS.cc`（ASS，百分秒） */
-function assTime(sec) {
-  const s = Math.max(0, sec);
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = Math.floor(s % 60);
-  const cs = Math.round((s - Math.floor(s)) * 100);
-  return `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+/**
+ * 秒 → `H:MM:SS.cc`（ASS，百分秒）。**时间向上取整**，字幕宁可晚 10ms 也不早显一帧。
+ *
+ * ⚠ 旧实现是 `Math.round(小数部分 × 100)`：`1.999` 会被舍成 `cs = 100`，输出
+ * `0:00:01.100`（ASS 的百分秒字段只有两位）—— 一个**不报错但时间轴错位**的坏值。
+ * 现在先化成整数百分秒再拆分，`cs % 100` 天然落在 0..99。
+ */
+export function assTime(sec) {
+  const cs = Math.max(0, Math.ceil(Number(sec) * 100 - 1e-7));
+  const h = Math.floor(cs / 360000), m = Math.floor(cs / 6000) % 60, ss = Math.floor(cs / 100) % 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}`;
+}
+
+/**
+ * ASS 的 `Dialogue:` 文本转义。**不做就会静默坏掉**，而且导出时看不出任何异常。
+ *
+ * ASS 不是纯文本格式：`\N` 是硬换行、`{...}` 是覆盖块（样式指令）。旁白里一句
+ * `C:\new\table` 会被渲成两行，`{...}` 会整段消失 —— 平台上传的软字幕于是和画面里的
+ * 字幕不是一回事（而这条命令存在的唯一理由就是"和画面一致"）。
+ *
+ * 三种写法：
+ *   · **反斜杠**：ASS 没有通用转义（`\\` 不可靠），在 `\` 后面插 **U+2060 词连接符**，
+ *     让 `\N` / `\n` / `\h` 不再是两字符序列 —— 渲染时零宽、不可见。上游 EAC design world
+ *     的 `literalText()` 用的是同一手法（`src/media/captions.mjs:78-84`，那个仓库是 AGPL：
+ *     这里只借"插零宽连接符"这条**知识**，实现与命名都是我们自己的）；
+ *   · **花括号**：`\{` / `\}` 是 libass 认的字面量转义；
+ *   · **换行**：文本里本来就该是一行（`wrapCaption` 已经切好），残留的 `\n` 统一成 `\N`。
+ */
+export function assText(text) {
+  return String(text ?? '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0085\u2028\u2029]/gu, '\n')
+    .replace(/\t/g, ' ')
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/gu, '')
+    .replace(/\\/g, '\\\u2060')
+    .replace(/\{/g, '\\{')
+    .replace(/\}/g, '\\}')
+    .replace(/\n/g, '\\N');
 }
 
 /**
@@ -6405,7 +6699,9 @@ async function cmdSubs() {
     if ([...String(l.text ?? '')].length / Math.max(0.1, Number(l.dur)) > 9) tooLong++;
     n++;
     srt += `${n}\n${srtTime(a)} --> ${srtTime(b)}\n${rows.join('\n')}\n\n`;
-    ass += `\nDialogue: 0,${assTime(a)},${assTime(b)},Main,,0,0,0,,${rows.join('\\N')}`;
+    // ⚠ 逐行转义再拼 `\N`：直接把原文拼进去，含 `\` / `{}` 的那一行会被 ASS 解释成
+    //   换行或覆盖块（见 assText 的注释）。`\N` 只能出现在我们自己的行间。
+    ass += `\nDialogue: 0,${assTime(a)},${assTime(b)},Main,,0,0,0,,${rows.map(assText).join('\\N')}`;
   }
   ass += '\n';
   writeFileSync(`${base}.srt`, srt, 'utf8');
@@ -6449,6 +6745,7 @@ const commands = {
   diff: cmdDiff,
   probe: cmdProbe,
   verify: cmdVerify,
+  qa: cmdQa,
   audit: cmdAudit,
   determinism: cmdDeterminism,
   dumppx: cmdDumpPx,
