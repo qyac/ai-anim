@@ -31,7 +31,7 @@
  * `scenes/_kit.js` 里，从 `src/kit/` import 通用件再叠加自己的东西。
  */
 
-export { mul, withAlpha, sat01, put, writeLine, fade, typed, codeRow, seqRnd, contrast, css } from './layout.js';
+export { mul, withAlpha, sat01, put, writeLine, fade, typed, codeRow, labelRow, seqRnd, contrast, css } from './layout.js';
 
 /**
  * `src/kit/motion.js` —— **运动规则**的纯函数（规则表：`docs/MOTION.md`；BACKLOG 1-27）。

@@ -19,9 +19,12 @@
  * 引擎照旧只认一条轨（`audio: { music, vo, mix }` 里的 `mix`）。
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
-import { assessLoudness, decodeChannels, decodeMono, encodeMp3, formatLoudness, measureLoudness, normalize, probeDuration, readTaskAudioSpec, taskRel, writeWav16 } from './media.mjs';
+import {
+  LOUDNESS_TARGET, assessLoudness, decodeChannels, decodeMono, encodeMp3, ffmpegArgv, formatLoudness,
+  measureLoudness, normalize, parseLoudnormJson, probeDuration, readTaskAudioSpec, runChecked, taskRel, writeWav16,
+} from './media.mjs';
 
 /** beast 那一版实测的默认值 —— 改这些之前先听一遍，别凭感觉调。 */
 export const DEFAULT_DUCK = {
@@ -166,12 +169,286 @@ export function resolveMusic(taskDir, explicit) {
   );
 }
 
+/* ---------------------------------------------------------------- 响度归一化（显式开启）
+
+ * 为什么这一段存在、为什么**默认关**：
+ * `anim mix` 从第一天起就只报响度、不归一化（`scripts/lib/media.mjs` 顶部那条纪律）——
+ * 归一化会让**所有已交付片子的音轨**逐字节变掉，等于全部重出。但"贴平台靶子"是
+ * **每支新片子都要做一遍**的动作：实测《把信号拆开》混出来是 −21.2 LUFS，离 −14 差 7.2 LU，
+ * 于是仓库里长出了 5 个 `scripts/make-*-audio.mjs` 和一个 `scripts/master-spectrum-audio.mjs`，
+ * 每个都在手抄同一段两遍式 loudnorm。这里的做法是把它收进引擎，但**必须显式**：
+ * 不传 `--target` 时一个字节都不动（`tools/test-mix-loudnorm.mjs` ③ 钉着这一条）。
+ */
+
+/**
+ * 平台预设。`streaming` **直接用** `media.mjs` 的 `LOUDNESS_TARGET` —— 同一组数字
+ * 在两处各写一遍，迟早会漂成"报告说达标、混音按另一个靶子做"。
+ *
+ * `cinema` = 广播/影厅的那一组（EBU R128 的 −23 LUFS，真峰再留一档余量）。
+ * 这两个预设不是"哪个更好"，是**两种交付面**：上传平台走 streaming，投展/送广播走 cinema。
+ */
+export const LOUDNESS_PRESETS = {
+  streaming: { ...LOUDNESS_TARGET },
+  cinema: { i: -23, tp: -2, lra: 15 },
+  /** 显式关掉（`--target off`）：与"不传"等价，但写出来能让人一眼看见"这里**故意**不归一化" */
+  off: null,
+};
+
+/** loudnorm 滤镜接受的取值范围（超了它直接非零退出，报错还很难懂 —— 在这里先拦住）。 */
+const LOUDNORM_RANGE = { i: [-70, -5], tp: [-9, 0], lra: [1, 50] };
+
+/** 两位小数：ffmpeg 参数与读数都用这个精度（`-14` 与 `-14.00` 都收，统一成后者便于 diff）。 */
+const f2 = (x) => (Number.isFinite(x) ? x.toFixed(2) : String(x));
+
+/**
+ * 把 `--target` 的三种写法收成一个靶子对象。**纯函数**（不碰磁盘、不跑 ffmpeg）。
+ *
+ * 数字写法（`-14`）= "整合响度贴到 −14，真峰与 LRA 仍用 streaming 那一组" ——
+ * 作者提这个需求时的原话就是这一句，没必要逼他记住三个数。
+ *
+ * @param {string|number|{i?:number,tp?:number,lra?:number}|null|undefined} target
+ * @param {number} [lra] 只覆盖 LRA（`--lra`）：想保住动态、又不想动靶子时用它
+ * @returns {{ i:number, tp:number, lra:number } | null} null = 不归一化
+ * @throws {Error} 名字写错 / 数字超范围 —— **不许静默回落到默认靶子**（那会让人以为归一化过了）
+ */
+export function resolveLoudnessTarget(target, lra) {
+  let base;
+  if (target === undefined || target === null || target === 'off') {
+    base = null;
+  } else if (typeof target === 'string') {
+    const key = target.trim().toLowerCase();
+    // 命令行上 `--target -14` 拿到的是**字符串** "−14"，不是数字 —— 不认它的话
+    // 作者得写 `--target=-14`（我们的 argv 解析不认那种写法）。所以这里先试数字。
+    if (/^-?\d+(?:\.\d+)?$/.test(key)) {
+      base = { i: Number(key), tp: LOUDNESS_TARGET.tp, lra: LOUDNESS_TARGET.lra };
+    } else if (key in LOUDNESS_PRESETS) {
+      base = LOUDNESS_PRESETS[key] ? { ...LOUDNESS_PRESETS[key] } : null;
+    } else {
+      throw new Error('不认识的 --target "' + target + '"。可用：'
+        + Object.keys(LOUDNESS_PRESETS).join(' / ') + '，或者一个数字（如 -14）。');
+    }
+  } else if (typeof target === 'number' || (typeof target === 'object' && target)) {
+    const src = typeof target === 'number' ? { i: target } : target;
+    base = {
+      i: src.i ?? LOUDNESS_TARGET.i,
+      tp: src.tp ?? LOUDNESS_TARGET.tp,
+      lra: src.lra ?? LOUDNESS_TARGET.lra,
+    };
+  } else {
+    throw new Error('--target 的类型不对（' + typeof target + '）：给预设名、数字或 { i, tp, lra }。');
+  }
+  // `--lra` 只在开了 target 时才有意义：单独给一个 LRA 什么都说明不了（没有靶子时
+  // "压到 LRA 8" 是句空话）。宁可抛，也不要吞掉一个参数让人以为它生效了。
+  if (lra !== undefined && lra !== null && !base) {
+    throw new Error('给了 LRA（' + lra + '）却没给 target —— LRA 只在归一化时才有意义，'
+      + '请同时给 --target（如 --target streaming --lra 8）。');
+  }
+  if (base && Number.isFinite(Number(lra))) base.lra = Number(lra);
+  if (!base) return null;
+  for (const k of ['i', 'tp', 'lra']) {
+    const v = Number(base[k]);
+    const range = LOUDNORM_RANGE[k];
+    if (!Number.isFinite(v) || v < range[0] || v > range[1]) {
+      throw new Error('靶子的 ' + k + ' = ' + base[k] + ' 超出 loudnorm 的合法范围 '
+        + range[0] + '..' + range[1] + '（ffmpeg 会直接非零退出）。');
+    }
+    base[k] = v;
+  }
+  return base;
+}
+
+/**
+ * **纯函数**：给第一遍量到的读数与目标，算出第二遍 ffmpeg 的 `-af` 参数串，并说清这一遍会发生什么。
+ *
+ * 为什么必须两遍：loudnorm 的第一遍是**测量**（`-f null -`），第二遍要靠第一遍的
+ * `measured_*` 才算得出增益。不带 `measured_*` 就只能边看边压 —— 那是**压动态换响度**。
+ *
+ * 为什么坚持 `linear=true`：两遍 + linear 时 loudnorm 只乘一个**常数增益**，动态一点不动；
+ * 让它退回 dynamic 就会压动态，口播 + 音乐床的片子会听到"音乐被推来推去"。
+ * ⚠ 但 `linear=true` 只是**请求**：目标增益超出真峰余量（或 LRA 超靶子）时 ffmpeg 会**静默**
+ *   改走 dynamic（实测：−13.99 LUFS / −0.89 dBTP 的 spectrum 混音要"贴 −14"其实只差 −0.11 dB，
+ *   它自己判 `normalization_type: "dynamic"`、真峰按 −1 削）。所以这里先**预测**一遍 ——
+ *   预测不成立就在 reason 里说清楚，实际结果再由第二遍的 normalization_type 复核（见 runMix 的打印）。
+ *
+ * 分支（每一条都在 `reason` 里说人话，**没有静默路径**）：
+ *   · `skip`        —— 量不出响度（静音/非音频），或本来就已经达标 → 不动音轨；
+ *   · `single-pass` —— 读数不完整（真峰/LRA/门限拿不到，或门限是 −70 那个"没量到"哨兵值）
+ *                          → 退回单遍，并**明说**"这一遍是压动态换响度"；
+ *   · `linear`      —— 两遍 + 常数增益，动态不变（预期）；
+ *   · `dynamic`     —— 两遍，但增益放不进真峰余量（或 LRA 超靶子）→ 会压动态，同样明说。
+ *
+ * @param {{ i:number, tp:number, lra:number, thresh?:number, targetOffset?:number }} measured
+ *        `measureLoudness()` 的读数（i/tp/lra 可能是 ±Infinity / NaN，这个函数必须容得下）
+ * @param {{ i:number, tp:number, lra:number } | string | number} target 靶子（预设名、数字、或对象）
+ * @param {{ tolLu?: number }} [opts] tolLu = "算达标"的容差（默认 1.0 LU，与 assessLoudness 同口径）
+ * @returns {{ mode: 'skip'|'single-pass'|'linear'|'dynamic', af: string|null,
+ *             target: { i:number, tp:number, lra:number } | null,
+ *             gainDb: number, linearExpected: boolean, reason: string, notes: string[] }}
+ */
+export function planLoudnorm(measured, target, opts = {}) {
+  const t = resolveLoudnessTarget(target);
+  const tolLu = Number(opts.tolLu ?? 1.0);
+  /** @type {string[]} */
+  const notes = [];
+  if (!t) {
+    return {
+      mode: 'skip', af: null, target: null, gainDb: 0, linearExpected: false,
+      reason: '没有给靶子（--target 没开）—— 不归一化', notes,
+    };
+  }
+  const i = Number(measured?.i);
+  const tp = Number(measured?.tp);
+  const lra = Number(measured?.lra);
+  const thresh = Number(measured?.thresh);
+  const offset = Number(measured?.targetOffset);
+  const base = { target: t, notes };
+
+  // ① 量不出整合响度：静音 / 不是音频 / loudnorm 没跑成。归一化无从下手 —— 明说，不假装做了。
+  if (!Number.isFinite(i) || i === -Infinity) {
+    return {
+      ...base, mode: 'skip', af: null, gainDb: 0, linearExpected: false,
+      reason: '量不出整合响度（input_i = ' + measured?.i + '）—— 文件是静音或不是音频，归一化跳过',
+    };
+  }
+
+  // ② 已经达标：一个字节都不动。硬塞一遍 loudnorm 只多一代有损编码，什么也不改善。
+  const di = i - t.i;
+  if (Math.abs(di) <= tolLu && Number.isFinite(tp) && tp <= t.tp) {
+    return {
+      ...base, mode: 'skip', af: null, gainDb: 0, linearExpected: true,
+      reason: '已经达标（' + i.toFixed(1) + ' LUFS / ' + tp.toFixed(2) + ' dBTP，靶子 '
+        + t.i + ' / ' + t.tp + '，容差 ±' + tolLu + ' LU）—— 不动音轨',
+    };
+  }
+
+  // ③ 读数不完整 → 只能单遍。门限 −70 是 loudnorm 的"没量到"哨兵值（拿它当真实门限会算出错的增益）。
+  const missing = [
+    !Number.isFinite(tp) && '真峰',
+    !Number.isFinite(lra) && 'LRA',
+    (!Number.isFinite(thresh) || thresh <= -70) && '门限',
+  ].filter(Boolean);
+  if (missing.length) {
+    return {
+      ...base, mode: 'single-pass', gainDb: di, linearExpected: false,
+      af: 'loudnorm=I=' + f2(t.i) + ':TP=' + f2(t.tp) + ':LRA=' + f2(t.lra) + ':print_format=json',
+      reason: '读数不完整（' + missing.join(' / ') + ' 拿不到，tp=' + measured?.tp
+        + ' lra=' + measured?.lra + ' thresh=' + measured?.thresh
+        + '）—— 退回单遍 loudnorm：这一遍是**压动态换响度**，动态会被削',
+    };
+  }
+
+  // ④ 两遍式。增益是纯数学：目标 − 现状；真峰会跟着一起抬。
+  const gainDb = t.i - i;
+  const predictedPeak = tp + gainDb;
+  const headroomOk = predictedPeak <= t.tp + 1e-6;
+  const lraOk = lra <= t.lra;
+  /**
+   * ⚠ 实测出来的第三条隐藏分支：**measured_LRA = 0 时 ffmpeg 一定退回 dynamic**。
+   * 判据是量出来的（同一段 −20 dBFS 正弦、其余参数不变，只改 measured_LRA）：
+   *   measured_LRA 0 → dynamic；0.001 / 0.01 / 0.1 / 0.5 → 全是 linear。
+   * 它咬人的地方正是**恒定电平**的材料（纯测试音、压得很平的配乐床）—— 那种材料本来
+   * 就没有动态可压，效果与常数增益一模一样；但"计划说 linear、实际说 dynamic"如果不解释，
+   * 读日志的人会以为动态被削了。所以先记账，由下面的 reason / runMix 的打印按已知原因讲清。
+   */
+  const zeroLra = Number.isFinite(lra) && lra <= 0;
+  const af = 'loudnorm='
+    + 'I=' + f2(t.i) + ':TP=' + f2(t.tp) + ':LRA=' + f2(t.lra)
+    + ':measured_I=' + f2(i) + ':measured_TP=' + f2(tp) + ':measured_LRA=' + f2(lra)
+    + ':measured_thresh=' + f2(thresh) + ':offset=' + f2(Number.isFinite(offset) ? offset : 0)
+    + ':linear=true:print_format=json';
+  // 措辞用"提/压 + dB"：增益就是 dB，不是 LU（LU 是**响度差**的单位，两个数在这里虽然同值，
+  // 但混着写会让人以为 loudnorm 的 offset 与 measured_I 是两个量纲）。
+  const direction = gainDb < 0
+    ? '压 ' + Math.abs(gainDb).toFixed(2) + ' dB'
+    : '提 ' + gainDb.toFixed(2) + ' dB';
+
+  if (headroomOk && lraOk && zeroLra) {
+    notes.push('measured_LRA = 0 ⇒ ffmpeg 会自己退回 dynamic（没有动态范围可测）。'
+      + '恒定电平的材料本来就没有动态可压，听感与常数增益相同 —— 不是"动态被削了"。');
+    return {
+      ...base, mode: 'linear', af, gainDb, linearExpected: false,
+      reason: '两遍 loudnorm（' + direction + '）：真峰余量够，但 measured_LRA = 0，ffmpeg 会退回 dynamic'
+        + '（这段材料没有可测的动态，效果与常数增益相同）',
+    };
+  }
+  if (headroomOk && lraOk) {
+    return {
+      ...base, mode: 'linear', af, gainDb, linearExpected: true,
+      reason: '两遍 loudnorm + linear（' + direction + '，纯常数增益，动态不变）：真峰 '
+        + tp.toFixed(2) + ' → ' + predictedPeak.toFixed(2) + ' dBTP，余量够',
+    };
+  }
+  const why = [
+    headroomOk ? null : '线性要' + direction + ' ⇒ 真峰 ' + tp.toFixed(2) + ' → ' + predictedPeak.toFixed(2)
+      + ' dBTP，超过上限 ' + t.tp,
+    lraOk ? null : 'LRA ' + lra.toFixed(1) + ' LU 超过靶子 ' + t.lra,
+    zeroLra ? 'measured_LRA = 0（ffmpeg 会退回 dynamic）' : null,
+  ].filter(Boolean).join('；');
+  notes.push('ffmpeg 在增益放不进真峰余量时会**自己**从 linear 退回 dynamic，linear=true 只是请求');
+  return {
+    ...base, mode: 'dynamic', af, gainDb, linearExpected: false,
+    reason: '两遍 loudnorm，但线性放不下：' + why + ' —— 这一遍会压动态换响度（音乐会被推来推去）',
+  };
+}
+
+/**
+ * 跑第二遍：把 plan.af 套到文件上，**原地覆写**（先写同目录临时文件再改名）。
+ *
+ * 为什么要临时文件：loudnorm 中途失败时原文件必须还是完整的那一份 —— 混音轨被
+ * `task.config.mjs` 直接引用，写坏一个字节就等于片子打不开。
+ *
+ * @param {string} file 要处理的音频（会被覆写）
+ * @param {ReturnType<typeof planLoudnorm>} plan
+ * @param {{ bitrate?: string }} [opts]
+ * @returns {{ file: string, output: Record<string, any>|null, normalizationType: string|null }}
+ *          第二遍 loudnorm 自己打印的 JSON（output_i / output_tp / normalization_type）
+ */
+export function applyLoudnorm(file, plan, opts = {}) {
+  if (!plan || !plan.af || plan.mode === 'skip') {
+    throw new Error('applyLoudnorm 收到一个不需要执行的计划（mode = skip 或没有 af）');
+  }
+  const tmp = file + '.loudnorm.tmp.mp3';
+  try {
+    // ⚠ -v info 而不是 -v error：第二遍的 loudnorm JSON 走 stderr，error 级别会把它吞掉，
+    //   于是"到底走了 linear 还是 dynamic"就无从核对（tools/test-mix-loudnorm.mjs ② 靠它断言）。
+    // 不给 -ar：保持源采样率，多一次重采样就多一次听不见的损失。
+    const r = runChecked([
+      ...ffmpegArgv(), '-y', '-v', 'info', '-i', file,
+      '-af', plan.af,
+      '-codec:a', 'libmp3lame', '-b:a', opts.bitrate ?? '192k', tmp,
+    ]);
+    const output = parseLoudnormJson(r.stderr);
+    renameSync(tmp, file);
+    return { file, output, normalizationType: output?.normalization_type ?? null };
+  } catch (e) {
+    try { unlinkSync(tmp); } catch { /* 没写出来就算了 */ }
+    throw e;
+  }
+}
+
 /**
  * `anim mix` 的实现。
  *
+ * ## `opts.target`：**默认 undefined = 一个字节都不变**
+ *
+ * 这条是硬约束，不是客套：`out/` 里的成片有一条已交付的混音轨，`tasks/<任务>/audio/<任务>-mix.mp3`
+ * 又被 `task.config.mjs` 直接引用 —— 让默认路径多跑一遍 ffmpeg，已交付片子的音轨就会
+ * 重新编码、多一代有损、读数也变。所以归一化只有**显式点名**才会发生：
+ *
+ *   · `undefined` / `'off'` / `null` ⇒ 走老路径（混 → 量 → 打印），与改动前逐字节相同；
+ *   · `'streaming'` / `'cinema'` / 数字 / `{ i, tp, lra }` ⇒ 混 → **两遍 loudnorm** →
+ *     覆写同一个 mp3 → **重新量一遍**，打印 `before → after` 与"是否达标"。
+ *
+ * 为什么是"覆写同一个 mp3"而不是另出一个 `-mastered` 文件：`task.config.mjs` 里那行
+ * `audio.mix` 指向的是一个路径，多出一个文件等于每次都要人手动改配置；而 `--out` 已经
+ * 让人能把产物写到别处（`out/_staging/`）。
+ *
  * @param {string} task 任务名
  * @param {{ taskDir: string, music?: string, out?: string, duck?: Partial<typeof DEFAULT_DUCK>,
- *           sr?: number, bitrate?: string, voOnly?: boolean, log?: (...a:any[])=>void }} opts
+ *           sr?: number, bitrate?: string, voOnly?: boolean, log?: (...a:any[])=>void,
+ *           target?: string|number|{i?:number,tp?:number,lra?:number}|null,
+ *           lra?: number }} opts
+ *        `target` 见上；`lra` 只覆盖 LRA（`--target cinema --lra 8` 这种）。
  */
 export function runMix(task, opts) {
   const log = opts.log ?? console.log;
@@ -205,28 +482,92 @@ export function runMix(task, opts) {
   const { L, R, peakRaw } = mixTracks({ vo, musicL, musicR, gain, voGain: duck.voGain, bedGain: duck.bedGain });
   const { gain: norm } = normalize([L, R], 0.89);
 
+  const target = resolveLoudnessTarget(opts.target, opts.lra);
   const wav = path.join(taskDir, 'audio', `${task}-mix.wav`);
   const mp3 = opts.out ? path.resolve(opts.out) : path.join(taskDir, 'audio', `${task}-mix.mp3`);
   writeWav16(wav, [L, R], sr);
   encodeMp3(wav, mp3, opts.bitrate);
-  const dur = probeDuration(mp3);
+  let dur = probeDuration(mp3);
 
   /**
    * 音频的**数字守门**（BACKLOG 1-20）——「你听不见，就报数字」。
-   * 只报，**不 gate、不自动归一化**：归一化会改动所有带旁白片子的音轨 = 已交付片子全部重出。
-   * 它 spawnSync 跑 ffmpeg（约 3s/分钟），放在这里是因为 `mix` 本来就是 CLI 侧一次性的批处理步骤。
+   * 只报，**不 gate**；归一化只有 `--target` 显式点名时才发生（默认路径一个字节都不动）。
+   *
+   * ⚠ 默认分支的那几行输出是**契约**：已交付片子的日志、回归里 `test-say` 的断言
+   *   （`/闪避最深/`、`/说话/`）都按它读。开 target 时走另一条打印，别去改老的那条。
    */
-  try {
-    const t0 = Date.now();
-    const m = measureLoudness(mp3);
-    const a = assessLoudness(m);
-    log(`  响度 ${formatLoudness(m)}  ${a.tier === 'ok' ? '✓' : a.tier === 'warn' ? '⚠' : '✗'} ${a.verdict}`);
-    if (a.tier === 'error') {
-      log(`    靶子是 ${m.target.i} LUFS / ${m.target.tp} dBTP（主流平台归一化目标）—— 只报数字，不动音轨。`);
+  let before = null;
+  const t0 = Date.now();
+  if (!target) {
+    try {
+      before = measureLoudness(mp3);
+      const a = assessLoudness(before);
+      log(`  响度 ${formatLoudness(before)}  ${a.tier === 'ok' ? '✓' : a.tier === 'warn' ? '⚠' : '✗'} ${a.verdict}`);
+      if (a.tier === 'error') {
+        log(`    靶子是 ${before.target.i} LUFS / ${before.target.tp} dBTP（主流平台归一化目标）—— 只报数字，不动音轨。`);
+      }
+      log(`    （量了 ${((Date.now() - t0) / 1000).toFixed(1)}s；4 分钟的轨约 12s）`);
+    } catch (e) {
+      log(`  ⚠ 响度没量成（${e.kind}）：${String(e.message).split('\n')[0]}`);
     }
-    log(`    （量了 ${((Date.now() - t0) / 1000).toFixed(1)}s；4 分钟的轨约 12s）`);
-  } catch (e) {
-    log(`  ⚠ 响度没量成（${e.kind}）：${String(e.message).split('\n')[0]}`);
+  } else {
+    // 归一化要先**量**（两遍法的第一遍就是测量）。量不出读数就不许猜增益：跳过并明说。
+    try {
+      before = measureLoudness(mp3);
+      log(`  归一化前 ${formatLoudness(before)}  （靶子 ${target.i} LUFS / ${target.tp} dBTP / LRA ${target.lra}）`);
+    } catch (e) {
+      log(`  ⚠ 归一化前量不成（${e.kind}）：${String(e.message).split('\n')[0]} —— 没有读数就不知道增益，归一化跳过`);
+    }
+  }
+
+  /**
+   * 显式归一化：两遍式 loudnorm（第一遍=上面的测量，第二遍=applyLoudnorm），覆写同一个 mp3，
+   * 然后**重新量一遍**再打印 before → after。为什么非要重测：loudnorm 自己会把 linear 请求
+   * 悄悄换成 dynamic（真实案例见 planLoudnorm 的注释），"计划说 linear"不等于"真的没压动态"。
+   */
+  let after = null;
+  let normalized = false;
+  let plan = null;
+  if (target) {
+    plan = planLoudnorm(before ?? { i: NaN, tp: NaN, lra: NaN, thresh: NaN }, target);
+    if (plan.mode === 'skip') {
+      log(`  · 归一化：跳过 —— ${plan.reason}`);
+    } else {
+      log(`  · 归一化计划：${plan.reason}`);
+      const brief = (m) => (Number.isFinite(Number(m?.i))
+        ? `${Number(m.i).toFixed(1)} LUFS / ${Number(m.tp).toFixed(2)} dBTP`
+        : `量不出（${m?.i} LUFS）`);
+      try {
+        const applied = applyLoudnorm(mp3, plan, { bitrate: opts.bitrate });
+        normalized = true;
+        dur = probeDuration(mp3);
+        after = measureLoudness(mp3);
+        const actual = applied.normalizationType;
+        if (plan.mode === 'single-pass') {
+          log(`  · 归一化：${brief(before)} → ${brief(after)}（单遍 loudnorm，${actual ?? '没报告'} —— 压动态换响度）`);
+        } else {
+          log(`  · 归一化：${brief(before)} → ${brief(after)}（两遍 loudnorm，${actual ?? '没报告'}）`);
+        }
+        // 计划与实际不一致时必须点名：`linear=true` 只是**请求**，ffmpeg 会按真峰余量 / LRA 自己改判。
+        // 两种原因分开说 —— 把"measured_LRA=0 的恒定电平材料"也报成"动态被削"，会让人白查一轮。
+        if (plan.mode === 'linear' && actual && actual !== 'linear') {
+          if (plan.linearExpected === false) {
+            log(`    · 计划里已经预告过：measured_LRA = 0，ffmpeg 退回 ${actual} —— 这段材料没有可测的动态，`
+              + `效果与常数增益相同（不是动态被削）。`);
+          } else {
+            log(`    ⚠ 计划是 linear、ffmpeg 实际走了 ${actual} —— 增益放不进真峰余量时它会自己压动态`
+              + `（linear=true 只是请求）。动态被削了一点，音乐床值得重听一遍。`);
+          }
+        }
+        const afterA = assessLoudness(after, { target });
+        const tierText = afterA.tier === 'ok' ? '✓ 达标'
+          : afterA.tier === 'warn' ? '⚠ 达标（LRA 超靶子，不 gate）' : '✗ 没达标';
+        log(`    靶子 ${target.i} LUFS / ${target.tp} dBTP / LRA ${target.lra} → ${tierText}：${afterA.verdict}`);
+      } catch (e) {
+        log(`  ⚠ 归一化没成：${String(e.message).split('\n')[0].slice(0, 200)}`);
+        log(`    音轨保持混音后的原样（${brief(before)}），没有半成品。`);
+      }
+    }
   }
 
   const rel = (f) => path.relative(taskDir, f).replace(/\\/g, '/');
@@ -236,5 +577,9 @@ export function runMix(task, opts) {
     + `，闪避最深 −${(20 * Math.log10(1 / Math.max(1e-6, 1 - duck.depth))).toFixed(0)} dB`
     + `（有 ${(duckedRatio * 100).toFixed(0)}% 的时间压着）`);
   log(`  在 task.config.mjs 里写：audio: { music: './${rel(music)}', vo: './${rel(path.join(taskDir, 'audio', `${task}-vo.mp3`))}', mix: './${rel(mp3)}' }`);
-  return { ok: true, file: mp3, wav, music, timing, voiced, total, norm, peakRaw };
+  return {
+    ok: true, file: mp3, wav, music, timing, voiced, total, norm, peakRaw,
+    // 归一化这一层的读数（CLI / 单测都从这里读；没开 target 时 target=null、after=null、normalized=false）
+    target, before, after, normalized, plan,
+  };
 }

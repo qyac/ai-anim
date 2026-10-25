@@ -51,6 +51,7 @@
 // 免得同一个默认值在两处各写一份（见 CAPTIONS_BASE 的注释）。
 import { DEFAULT_CAPTION_STYLE } from '../core/captions.js';
 import { scaleGrid } from '../core/util.js';
+import { tokensWith } from './tokens.js';
 
 /** 默认字体栈（与 `src/core/text.js` 的 `FAMILIES` 一致；风格包只写要覆盖的那几个）。 */
 const SANS = "'Archivo', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif";
@@ -215,6 +216,24 @@ export const STYLES = {
     captions: { ...CAPTIONS_BASE, size: 40, bg: 0.62, weight: 500 },
   },
 
+  /* ------------------------------------------------------------------ 纯色摄影棚（设计 token 的承载风格） */
+  flat: {
+    label: '纯色摄影棚 · 无母题背景',
+    note: '纯色墨黑 + 颗粒 + 暗角；**没有背景母题**（不画网格）。高级感全部来自排版、线宽三档、'
+      + '弹簧动效 —— 设计 token（`src/style/tokens.js`）的默认承载风格。适合"主角必须是内容本身"的片子。',
+    // 底色与正文必须跟 print 拉开（test-style 断言）：色板再净半档 ——
+    // 底 = 近黑里带一点冷青（"摄影棚"），正文 = 更干净的纸白。信号橙保持不变（它是全引擎的"正色"）。
+    palette: { ink: '#0b0c0f', bone: '#f7f4ec' },
+    fonts: { sans: ENG, mono: MONO_UI },
+    post: { bloom: 0.30, grain: 0.03, vignette: 0.55, ca: 0.08, shoulder: 0.95 },
+    // 用户 2026-10-25 拍板：「网格直接去掉」。motif 不是"没写"，是**刻意画成纯色**（见 world.js 的 flat 分支）
+    motif: 'flat',
+    grid: { ...GRID_BASE, pad: 128, top: 96 },
+    captions: { ...CAPTIONS_BASE, size: 44, bg: 0.5 },
+    // 设计 token 的逐项覆盖（空 = 用 tokens.js 的默认值；别的风格可以只改一两项）
+    tokens: {},
+  },
+
   /* ------------------------------------------------------------------ 黑白电影 */
   noir: {
     label: '黑白电影 · 单点琥珀',
@@ -292,6 +311,13 @@ export function resolveStyle(spec = {}) {
     post: { ...(pack.post ?? {}), ...(over.post ?? {}) },
     grid: { ...GRID_BASE, ...(pack.grid ?? {}), ...(over.grid ?? {}) },
     captions: caps,
+    /**
+     * 设计 token（`src/style/tokens.js`）：字号阶梯 / 线宽三档 / 动效配方 / 边距 / 质感。
+     * 场景里写 `ctx.style.tokens.type.hero` 而不是 `size: 24` —— **模型只填名字，不填数字**。
+     * 风格包可以逐项覆盖（例如 noir 的颗粒更重），默认 = tokens.js 的 TOKENS（纯被动字段，
+     * 旧的场景不引用它，所以老任务一个像素都不变）。
+     */
+    tokens: tokensWith(pack.tokens ?? {}),
     // 版面守门（docs/LAYOUT.md）：`{ maxBlocks, maxOffSubject, maxInFocus, gap, minAlpha }`。
     // 空对象 = 用 src/layout.js 的默认值 —— 老任务一个像素都不变（这几项不进任何绘制路径）。
     layout,

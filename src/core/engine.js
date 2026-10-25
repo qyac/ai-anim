@@ -25,6 +25,12 @@ import { SILENT } from './audio.js';
 import * as U from './util.js';
 // 交叠期的默认转场（甩镜）。`transitions.js` 只依赖 gl/util，不会再反向依赖 engine —— 无环。
 import { transitionPass, cameraDir } from './trans.js';
+// 自适应子帧的**判据**（误差分位 / 停滞熔断 / 档位）在纯函数模块里，见文件头
+import {
+  BASE_SAMPLES, MAX_SAMPLES, DEFAULT_TOL,
+  fixedOffsets, ternaryOffsets, levelsFor, snapMaxSamples,
+  quantileFromHist, samplingVerdict,
+} from './sampling.js';
 
 /** @typedef {import('./post.js').PostParams} PostParams */
 
@@ -41,10 +47,6 @@ import { transitionPass, cameraDir } from './trans.js';
  * @property {string} [note]        备注，只在 timeline 列表里显示
  */
 
-/** 运动模糊容差：显示空间（0..255）里最大允许的平均变化。 */
-const DEFAULT_TOL = 2.5;
-const BASE_SAMPLES = 8;
-const MAX_SAMPLES = 216;
 
 export class Engine {
   /**
@@ -128,14 +130,37 @@ export class Engine {
     this.newRT = new RT(this.gl, this.gl.pw, this.gl.ph);
     /** 场景级变换（ctx.setXform）的外部目标：绝不「读自己写自己」 */
     this.xformRT = new RT(this.gl, this.gl.pw, this.gl.ph);
-    this.errRT = new RT(this.gl, Math.ceil(this.gl.pw / 16), Math.ceil(this.gl.ph / 16), { nearest: true });
+    /**
+     * 误差归约的目标：1/16 分辨率、每格一个 8bit 值（0..255 级）。
+     *
+     * ⚠ **必须是 8bit**（`float: false`）。从前的写法是默认浮点 RT，然后用
+     * `readPixels(RGBA, UNSIGNED_BYTE)` 读它 —— WebGL2 对 RGBA16F + UNSIGNED_BYTE 抛
+     * `INVALID_OPERATION`，缓冲原样不动（全 0）⇒ 误差恒为 0 ⇒ 自适应采样**从来没起过作用**
+     * 每一帧都在第 1 级"收敛"。这个 bug 不报错、只少画拖影，活了很久
+     * （`docs/HANDOFF-spectrum-friction.md` §1 把它误判成"静止画面上不收敛"）。
+     * 见 `tools/probe-sampling.mjs` 与 `tools/test-sampling.mjs`。
+     */
+    this.errRT = new RT(this.gl, Math.ceil(this.gl.pw / 16), Math.ceil(this.gl.ph / 16), { float: false, nearest: true });
     this.outRT = new RT(this.gl, this.gl.pw, this.gl.ph, { float: false });
     this.errBuf = new Uint8Array(this.errRT.w * this.errRT.h * 4);
+    /** 误差直方图（256 桶，复用）。`_sampleError` 用它取 99 分位而不是最大值。 */
+    this._errHist = new Uint32Array(256);
     this.errPass = null;
 
     this.lines = null; // 由 load() 建（需要 palette 就绪）
     this.lastT = -1;
     this.lastSamples = 1;
+    /**
+     * 上一帧**为什么**停在这个子帧数上（`'tol'` 收敛 / `'stall'` 停滞熔断 / `'cap'` 到上限 /
+     * `'more'` 还在加 / `null` 没走自适应）。`video` 收尾与 `perf` 会打出来 ——
+     * 作者以前只能靠"实测帧率反推"，因为引擎从不解释自己（`docs/HANDOFF-spectrum-friction.md` §1）。
+     */
+    this.lastSampleReason = null;
+    /** 上一帧判定时的误差（0..1，显示空间；`NaN` = 第一级就到上限，没量过） */
+    this.lastSampleErr = NaN;
+    /** 上一帧允许的上限（已收成 8/24/72/216 档位）与被谁压下来的 */
+    this.lastMaxSamples = null;
+    this.lastCappedBy = [];
     this.lastErrors = [];
     this.lastPost = { ...DEFAULT_POST };
     /**
@@ -695,6 +720,11 @@ export class Engine {
       if (scanNf) this._scanFrameNonFinite(t, idx, r.tex, 1, t);
       this.lastSamples = 1;
       this.lastErrors = [];
+      // 单子帧这条路**没有**做自适应判定：把上一帧的结论清掉，别让调用方读到过期的原因
+      this.lastSampleReason = null;
+      this.lastSampleErr = NaN;
+      this.lastMaxSamples = null;
+      this.lastCappedBy = [];
     } else {
       const tol = opts.tol ?? DEFAULT_TOL;
       const adaptive = wanted === 'auto';
@@ -707,11 +737,23 @@ export class Engine {
             `把状态改成「由 t 直接求值」（例如粒子位置 = f(出生时间)），或对该段用 { samples: 1 }。`);
         }
       }
+      /**
+       * 这一帧允许的上限：引擎顶档 → 逐段 `maxSamples` 取最小 → **收到合法档位**。
+       *
+       * 收档位这一步以前是 `Math.max(BASE_SAMPLES, min(...))`，于是 `maxSamples: 36` 会被
+       * 当成"能跑到 36"—— 而子帧序列只有 8/24/72/216 四种密度（`ternaryOffsets` 是嵌套的），
+       * 36 实际上只会跑 24，**而且没人知道**。现在由 `snapMaxSamples()` 明确收档，
+       * 作者写 36 得到的仍是 24，但它会出现在 `check` 的提示里（见 scripts/anim.mjs）。
+       */
       let maxSamples = adaptive ? MAX_SAMPLES : /** @type {number} */ (wanted);
       for (const it of active0) if (it.maxSamples) maxSamples = Math.min(maxSamples, it.maxSamples);
-      maxSamples = Math.max(BASE_SAMPLES, maxSamples);
+      maxSamples = adaptive ? snapMaxSamples(maxSamples) : Math.max(BASE_SAMPLES, maxSamples);
+      /** 这一段是**谁**把上限压下来的（`maxSamples` 报错时要知道改哪一行） */
+      const cappedBy = adaptive
+        ? active0.filter((it) => it.maxSamples && it.maxSamples < MAX_SAMPLES).map((it) => it.id)
+        : [];
 
-      const levels = adaptive ? Math.max(0, Math.floor(Math.log(maxSamples / BASE_SAMPLES) / Math.log(3) + 1e-9)) : 0;
+      const levels = adaptive ? levelsFor(maxSamples) : 0;
       const offsets = adaptive ? ternaryOffsets(levels) : fixedOffsets(/** @type {number} */ (wanted));
       const step = (1 / this.fps) * shutter;
       const acc = this._accumPass();
@@ -737,24 +779,67 @@ export class Engine {
       };
 
       if (adaptive) {
-        addSamples(0, BASE_SAMPLES, this.sumRT);
+        /**
+         * 第一级：8 个等距子帧，但**分成两半**各累一半 —— 这样在还没"上一级"可比的时候，
+         * 就有一个合法的判据：**快门窗口前半段与后半段长得一样吗？**
+         *
+         * 这一条是这一轮最重要的行为改动。"画面主体静止"的片子（图表、方波、格阵）以前
+         * 每一帧都被迫跑 24 个子帧 —— 因为旧代码在 8 个子帧之后**无条件**进入下一级，
+         * 而判据又永远读 0、于是 24 之后立刻"收敛"。作者实测 0.9 fps，唯一的办法是
+         * 逐段写 `maxSamples: 8`（`docs/HANDOFF-spectrum-friction.md` §1）。
+         * 现在静止帧在**第一级**就判停：8 子帧，比原来快 3 倍，而画面**一个像素都不差**
+         * （静止画面求 N 次平均 = 同一张图）。
+         *
+         * 为什么"两半比较"是合法的：两半覆盖快门窗口的两个半边，静止 ⇒ 逐像素相同（差 0）；
+         * 有运动 ⇒ 两半必然不同，差异量就是"这一帧要不要模糊"。它比"8 对 16"更保守一点
+         * （有运动就一定超阈值 ⇒ 继续加到 24），这正是我们要的方向：**宁可多一档，不要漏拖影**。
+         */
+        const half = BASE_SAMPLES >> 1;
+        addSamples(0, half, this.newRT);
+        addSamples(half, BASE_SAMPLES, this.sumRT);
         done = BASE_SAMPLES;
-        this._groupA = BASE_SAMPLES;   // 当前 sumRT 里累的是 offsets[0..done)
-        this._groupB = BASE_SAMPLES;
-        for (let L = 0; L < levels; L++) {
-          const from = done, to = done * 3;
+        this._groupA = half;
+        this._groupB = half;
+        /** @type {{ err: number, prevErr?: number }[]} */
+        const hist = [];
+        let verdict;
+        if (done >= maxSamples) {
+          // `maxSamples: 8`（作者的提速旋钮）：一级到底，不用量
+          verdict = { stop: true, reason: /** @type {string} */ ('cap'), err: NaN };
+        } else {
+          const err0 = this._sampleError(half, half);
+          hist.push({ err: err0 });
+          this.lastErrors.push(err0);
+          // 把前半并进总和 ⇒ sumRT = 完整的 8 个子帧
+          acc.u.src.value = { tex: this.newRT.tex, __tex: true };
+          acc.render(this.gl, this.sumRT, t, 1 / this.fps);
+          this._groupA = BASE_SAMPLES;
+          this._groupB = BASE_SAMPLES;
+          verdict = samplingVerdict(hist, { tol, maxSamples, samples: done });
+          // 第一级的"停"只有一个合法解释：两半一致 = 这一帧是静止的
+          if (verdict.stop && verdict.reason === 'tol') verdict = { ...verdict, reason: 'static' };
+        }
+        while (!verdict.stop && done < maxSamples) {
+          const from = done, to = Math.min(maxSamples, done * 3);
           this.gl.clear(this.newRT, [0, 0, 0], 0);
           addSamples(from, to, this.newRT);
-          const err = this._sampleError();
+          // 误差：**新一组**（offsets[done..to)）与**已有总和**（offsets[0..done)）在显示空间里的
+          // 高分位差异。两者的均值权重分别是 1/(to-from) 与 1/done —— 见 _sampleError。
+          const err = this._sampleError(done, to - from);
+          hist.push({ err, prevErr: hist.length ? hist[hist.length - 1].err : undefined });
           this.lastErrors.push(err);
-          // 把新样本并进总累加，然后刷新分组记账
+          // 把新样本并进总累加
           acc.u.src.value = { tex: this.newRT.tex, __tex: true };
           acc.render(this.gl, this.sumRT, t, 1 / this.fps);
           done = to;
           this._groupA = done;
-          this._groupB = (to - from) * 2;  // 用于误差比较的「新组」均值权重
-          if (err < tol) break;
+          this._groupB = to - from;
+          verdict = samplingVerdict(hist, { tol, maxSamples, samples: done });
         }
+        this.lastSampleReason = verdict.reason;
+        this.lastSampleErr = verdict.err;
+        this.lastMaxSamples = maxSamples;
+        this.lastCappedBy = cappedBy;
       } else {
         addSamples(0, /** @type {number} */ (wanted), this.sumRT);
         done = /** @type {number} */ (wanted);
@@ -883,37 +968,84 @@ export class Engine {
   }
 
   /**
-   * 采样误差：把「前一组子帧的均值」和「后一组子帧的均值」投到显示空间比较。
-   * 移动边缘的阶梯状采样在两组之间差别大；已经收敛成连续拖影的差别小。
-   * 返回 0..1（显示空间 0..255 除以 255）。
+   * 采样误差：把「已累的子帧均值」和「这一级新加的子帧均值」投到显示空间比较，
+   * 取**高分位**（默认 99%）而不是最大值/平均值 —— 理由写在 `src/core/sampling.js` 头部。
+   *
+   * ## 三个曾经同时错在这里的地方（2026-10-25 修）
+   *
+   * ① **读数永远为 0**：`errRT` 原来是默认的 RGBA16F，却用 `readPixels(RGBA, UNSIGNED_BYTE)`
+   *    读 —— WebGL2 对这种组合抛 `INVALID_OPERATION`，缓冲原样不动（全 0），于是误差恒为 0、
+   *    每帧都在第一级"收敛"。现在 `errRT` 是 8bit（见构造函数），shader 里量化到 0..255。
+   * ② **权重算错**：旧代码把"新一组"的权重写成 `(to-from)*2`（`_groupB`），而那个 RT 里只有
+   *    `to-from` 个样本的**和**，均值权重应当是 `1/(to-from)`。差一个 2 倍 → 读数整体偏小一半。
+   *    现在两个权重都由调用方按真实样本数传进来。
+   * ③ **HDR 没有上限**：`pow(26.25, 1/2.2)` 这种输入是允许的，于是**泛光源**（线性值 5~30）
+   *    与普通像素的差异会把误差顶到天上 —— 而泛光是后处理做的、本来就与子帧无关。
+   *    现在两边都先夹到 0..1（显示空间的上界），再比较。
+   * ④ **判据是最大值**：8160 个格子里只要有一格抖 1 级就会把读数顶到 1/255（看不见）。
+   *    现在是**直方图 + 99 分位**（`src/core/sampling.js` 的 `quantileFromHist`），
+   *    单个坏格子再也决定不了整帧要不要 216 个子帧。
+   *
+   * @param {number} nA 已有总和（`sumRT`）里累的**样本数**
+   * @param {number} nB 新一组（`newRT`）里的**样本数**
+   * @returns {number} 0..1（显示空间 0..255 除以 255），高分位
    */
-  _sampleError() {
+  _sampleError(nA, nB) {
     const gl = this.gl;
     if (!this._errPass) {
+      /**
+       * 每个格子取 **4×4 = 16 个采样点的最大值**，而不是只采格心一个点。
+       *
+       * 为什么必须这样：这个目标是 1/16 分辨率（120×68 格，每格盖 16×16 像素），而"细线
+       * 甩过去"恰恰只占几像素宽 —— 只采格心的话，一条 2px 的移动竖线在多数帧里
+       * **一个格子都碰不到**，误差读 0、判定"收敛"（实测：`_calib` 的 ribbon 段与 216 子帧
+       * 的真值差 13 级，而格心采样读到 0）。4×4 个点、间距 4px，配上 bilinear 采样自带的
+       * ~1px footprint，合起来覆盖整格。
+       */
       this._errPass = new Pass(gl, /* glsl */ `
         uniform sampler2D a; uniform sampler2D b;
         uniform float wA; uniform float wB;
+        uniform vec2 texel;      // 源图一个像素的 uv 尺寸（= 1/帧尺寸）
+        uniform float cellPx;    // 一格盖多少像素（16）
+        float errAt(vec2 uv) {
+          // 夹到 0..1：这是**显示空间**的比较，HDR 的 26 与 5 在观众眼里都是"白"。
+          vec3 A = clamp(texture(a, uv).rgb * wA, 0.0, 1.0);
+          vec3 B = clamp(texture(b, uv).rgb * wB, 0.0, 1.0);
+          A = pow(A, vec3(1.0 / 2.2));
+          B = pow(B, vec3(1.0 / 2.2));
+          return max(abs(A.r - B.r), max(abs(A.g - B.g), abs(A.b - B.b)));
+        }
         void main() {
-          vec3 A = texture(a, vUv).rgb * wA;
-          vec3 B = texture(b, vUv).rgb * wB;
-          A = pow(max(A, vec3(0.0)), vec3(1.0 / 2.2));
-          B = pow(max(B, vec3(0.0)), vec3(1.0 / 2.2));
-          float e = max(abs(A.r - B.r), max(abs(A.g - B.g), abs(A.b - B.b)));
-          fragColor = vec4(vec3(e * 255.0), 1.0);
-        }`, { a: { value: null }, b: { value: null }, wA: 1, wB: 1 }, { key: 'engine_err', blend: false });
+          float e = 0.0;
+          for (int j = 0; j < 4; j++) {
+            for (int i = 0; i < 4; i++) {
+              vec2 off = ((vec2(float(i), float(j)) + 0.5) / 4.0 - 0.5) * cellPx;
+              e = max(e, errAt(vUv + off * texel));
+            }
+          }
+          // 写 0..1（**不是** 0..255）：目标是 RGBA8，颜色会被夹到 [0,1] 再量化成 8bit ——
+          // 写成 255.0 会被夹成 1.0，读回来恒是 255（那正是这个 bug 的第二副面孔）。
+          fragColor = vec4(vec3(e), 1.0);
+        }`, { a: { value: null }, b: { value: null }, wA: 1, wB: 1, texel: [1, 1], cellPx: 16 }, { key: 'engine_err', blend: false });
     }
     this._errPass.u.a.value = { tex: this.sumRT.tex, __tex: true };
     this._errPass.u.b.value = { tex: this.newRT.tex, __tex: true };
-    // sumRT 里累的是 offsets[0..done)，newRT 里是这一级新加的 (done/3) 个
-    this._errPass.u.wA.value = 1 / Math.max(1, this._groupA);
-    this._errPass.u.wB.value = 1 / Math.max(1, this._groupB);
+    // sumRT 里累的是 offsets[0..done)，newRT 里是这一级新加的 (done..to) 个。
+    // 权重就是**均值权重 = 1 / 样本数**（漏掉它读的就是"和"而不是"均值"：
+    // 子帧一多，"和"必然更大，误差会凭空涨上去 —— 旧代码的 `(to-from)*2` 是另一个方向的错）。
+    this._errPass.u.wA.value = 1 / Math.max(1, Number(nA) || this._groupA);
+    this._errPass.u.wB.value = 1 / Math.max(1, Number(nB) || this._groupB);
+    this._errPass.u.texel.value = [1 / this.gl.pw, 1 / this.gl.ph];
+    this._errPass.u.cellPx.value = this.gl.pw / this.errRT.w;
     this._errPass.render(gl, this.errRT, 0, 1 / this.fps);
     const g = gl.ctx;
     this.errRT.bind();
     g.readPixels(0, 0, this.errRT.w, this.errRT.h, g.RGBA, g.UNSIGNED_BYTE, this.errBuf);
-    let m = 0;
-    for (let i = 0; i < this.errBuf.length; i += 4) if (this.errBuf[i] > m) m = this.errBuf[i];
-    return m / 255;
+    // 直方图 → 高分位（浏览器里跑 256 桶的累计，8160 个格子，代价可忽略）
+    const hist = this._errHist ?? (this._errHist = new Uint32Array(256));
+    hist.fill(0);
+    for (let i = 0; i < this.errBuf.length; i += 4) hist[this.errBuf[i]]++;
+    return quantileFromHist(hist) / 255;
   }
 
   /* ------------------------------------------------------------ HUD */
@@ -1321,35 +1453,11 @@ function assertXform(x, id, t, errors) {
   if (!errors.includes(msg)) errors.push(msg);
 }
 
-/** 固定 N 个等距子帧（居中）。 */
-function fixedOffsets(n) {
-  const u = new Array(n);
-  for (let i = 0; i < n; i++) u[i] = (i + 0.5) / n - 0.5;
-  return u;
-}
-
-/**
- * 自适应采样的嵌套序列：
- *   先 8 个等距；之后每一级把每个间隔三等分，在两侧各插一个新样本。
- * 于是每一级都是「等距且以帧时刻为中心」的，任一级的样本数都是 8·3^L。
+/*
+ * 子帧偏移的两种排法（`fixedOffsets` / `ternaryOffsets`）搬去了 `src/core/sampling.js` ——
+ * 它们与"什么时候停"的判据是同一件事的两半，分开放的话判据永远测不到（那个模块是纯函数，
+ * 有离线回归 `tools/test-sampling.mjs`）。
  */
-function ternaryOffsets(levels) {
-  let u = fixedOffsets(BASE_SAMPLES);
-  for (let L = 0; L < levels; L++) {
-    /** @type {number[]} */
-    const next = [];
-    const n = u.length;
-    for (let i = 0; i < n; i++) {
-      const a = u[i];
-      const b = i + 1 < n ? u[i + 1] : u[i] + (u[i] - u[i - 1]);
-      const d = b - a;
-      next.push(a + d / 3, a + (2 * d) / 3);
-    }
-    // 排序后得到等距序列（下一级的 a/b 依赖有序性）
-    u = u.concat(next).sort((x, y) => x - y);
-  }
-  return u;
-}
 
 function fmtErr(e) {
   const s = e && e.stack ? e.stack : String(e);

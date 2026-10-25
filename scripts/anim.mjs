@@ -19,7 +19,12 @@
  *                                                         画方框的那一格就是切点 = 后一段第一帧）
  *   node scripts/anim.mjs video <task> [--from 1 --to 5]  逐帧渲染 + ffmpeg 出 mp4（收尾自动 ffprobe 复核）
  *   node scripts/anim.mjs shot  <task> --from 0 --to 4    出无音轨的短预览 mp4（快）
+ *   node scripts/anim.mjs queue <taskA> <taskB> […选项]    睡前排队渲几支：顺序渲完（并行实测更慢）、
+ *                                                          每支结束响一声、全部结束响三声、某支失败不中断后续；
+ *                                                          选项原样转发给 video（如 --segments 10 --gpu high）
  *   node scripts/anim.mjs video <task> --dry-run          只测速 + 给耗时预估，不出片
+ *   node scripts/anim.mjs video <task> --draft            草稿档：半分辨率（960×540）+ samples=1，
+ *                                                         只用来审节奏与信息密度（**不是成片**；定稿去掉）
  *   node scripts/anim.mjs analyze <task>                  分析音频（拍子/小节/段落/包络）
  *
  * 【口播/旁白】（docs/NARRATION.md；这两条都不渲染画面，改旁白/换音色不用动场景代码）
@@ -33,10 +38,14 @@
  *                                                          --dry-run **不写** timing/narration/旁白轨，
  *                                                          但仍会合成或复用音频来量真实时长；--force 全部重合成）
  *   node scripts/anim.mjs mix <task> [--music x.mp3] [--out y.mp3] [--vo-only] [--bitrate 192k]
+ *                                  [--target streaming|cinema|off|<数字>] [--lra N]
  *                                                        旁白摆到绝对时刻 + 用旁白包络给音乐**闪避** →
  *                                                        audio/<任务>-mix.mp3（引擎只认一条音轨，见 NARRATION.md）
  *                                                        --music 不给就从 task.audio 里取；
- *                                                        收尾会报一次响度数字（LUFS / true peak / LRA）
+ *                                                        收尾会报一次响度数字（LUFS / true peak / LRA）；
+ *                                                        --target **默认关**（只报不动），开了才用两遍式
+ *                                                        loudnorm 归一化，并打印 before → after 与是否达标
+ *                                                        （数字 = 整合响度贴到它，真峰仍取 -1；见 NARRATION.md §7）
  *   node scripts/anim.mjs subs <task> [--out dir] [--name x] [--per 16]
  *                                                         从旁白表导出 .srt / .ass（给**视频平台上传**用的软字幕；
  *                                                         Netflix 简体中文：每行 ≤16 字、最多 2 行）
@@ -275,6 +284,44 @@ function firstLine(x) {
   const s = String(x == null ? '' : (x.message ? x.message : x));
   const line = s.split(/\r?\n/).find((l) => l.trim()) ?? '';
   return line.trim() || '(没有说明)';
+}
+
+/**
+ * 版面守门那一行里的「主体区 …」怎么写（**纯函数**，离线单测钉住 —— 见 `tools/test-layout.mjs`）。
+ *
+ * 为什么不是一句 `${w.inFocus} 块`：一段的主体是**图形**（方波 / 格阵 / 波形，文字只是标注）时，
+ * 主体区里天然一个字块都没有 —— 而"主体是图形"与"这一段什么都没画"在读数上原本长得一样，
+ * 简报里那条「主体区 0 块看起来像没画东西」说的就是它（交接单 F）。
+ *
+ * 所以分这几种写法，**判据一个字都没放松**（判据 ② 在 0 块时本来就恒成立）：
+ *   · 主体区有字          → `N 块`（照旧）；
+ *   · 0 块 + 画了图形     → `0 块字（这一帧的主体是图形：N 次非文字绘制）`；
+ *   · 0 块 + 一笔都没有   → `0 块字，而且**一笔非文字绘制都没有**`（比原来的措辞更明确）；
+ *   · 没声明 focus        → `未声明`（判据没跑，不许说成通过）。
+ *
+ * @param {any} w `layoutReport()` 的那一行（读 `focus` / `inFocus` / `focusNote` / `nonTextDraws`）
+ * @returns {string}
+ */
+function focusReading(w) {
+  if (!w?.focus) return '未声明';
+  const n = Number.isFinite(w.inFocus) ? w.inFocus : 0;
+  if (n > 0) return `${n} 块`;
+  const draws = Number.isFinite(w.nonTextDraws) ? w.nonTextDraws : 0;
+  switch (w.focusNote) {
+    case 'graphics': {
+      // 拆开报"矢量批次 / 全屏 Pass"：`lines.flush()` **一次**里可以有几百条线段，
+      // 只说一个总数会让人以为"只画了 3 个东西"（hook 那条整条方波就是 1 个批次）。
+      const lns = Number.isFinite(w.nonTextLines) ? w.nonTextLines : 0;
+      const ps = Number.isFinite(w.nonTextPasses) ? w.nonTextPasses : 0;
+      return `0 块字（这一帧的主体是图形：${draws} 次非文字绘制`
+        + `（矢量批次 ${lns} · 全屏 Pass ${ps}）；${w.blocks} 块字全是标注）`;
+    }
+    case 'empty':
+      return '0 块字，而且**一笔非文字绘制都没有**（这一屏看起来确实没画东西）';
+    default:
+      // `unjudged`（拿不到绘制账 / 错帧卡片）：宁可说"没判"，也不说 0
+      return '0 块字（这一帧的绘制账没读到 —— 主体是图形还是空屏**没判**）';
+  }
 }
 
 /**
@@ -865,8 +912,8 @@ async function openSession(o) {
   // scale > 1 = 真 4K。曾经因为 LineBatch 在 SCALE>1 下不出图而被整体拒绝；
   // 根因已定位并修好（顶点着色器用物理分辨率换算裁剪空间，见 gl.js 的 LineBatch VS），
   // 现在 scale 1..4 都可用。
-  if (o.scale && (Number(o.scale) < 1 || Number(o.scale) > 4)) {
-    die(`--scale 只接受 1..4（收到 ${o.scale}）。1 = 1080p，2 = 真 4K。`);
+  if (o.scale && (Number(o.scale) < 0.25 || Number(o.scale) > 4)) {
+    die(`--scale 只接受 0.25..4（收到 ${o.scale}）。1 = 1080p，2 = 真 4K，0.5 = 草稿档（--draft 用的就是这个）。`);
   }
   const wantUrl = opt('url', '');
   let url = wantUrl;
@@ -2438,7 +2485,7 @@ async function cmdCheck() {
               ? `  ← ${r.violations.map((v) => v.detail).join('；')}（${r.over}/${r.samples} 个采样点超限）`
               : '';
             log(`  ${mark} ${String(r.id).padEnd(14)} t=${w.t.toFixed(2)}s  ${w.blocks} 块（${w.draws} 次文字绘制）`
-              + `  主体区 ${w.focus ? `${w.inFocus} 块` : '未声明'}${extra}`);
+              + `  主体区 ${focusReading(w)}${extra}`);
           }
           if (summary.violates.length) {
             warn(`\n⚠ 版面守门：${summary.violates.length}/${summary.judged} 段**一屏的东西太多**`);
@@ -2446,7 +2493,9 @@ async function cmdCheck() {
             warn('  → 改法（都不需要动引擎）：① 读数**一次只揭一个**（同屏别一次亮 6 个数）；');
             warn('    ② 画面文字只放**标注**（名词 / 数字 / 出处），句子交给旁白与字幕；');
             warn('    ③ 场景里声明 focus（或时间线上写 focus: { x, y, w, h } / focus: center）——');
-            warn('      声明之后「主体区里压了几块 / 主体之外还有几个看的地方」才有判据（见 docs/LAYOUT.md）。');
+            warn('      声明之后「主体区里压了几块 / 主体之外还有几个看的地方」才有判据（见 docs/LAYOUT.md）；');
+            warn('    ④ 几个**一行读得完**的标注合成一行（kit 的 labelRow）：判据 ② 数的是"看的地方"，');
+            warn('      分三处写的 LOW / MID / HIGH 是三个入口，写成一行就只是一块（docs/LAYOUT.md §1 的「标注可以合并成一行」）。');
             if (strict) {
               for (const r of summary.violates) {
                 errs.push(`[版面守门] ${r.id}：${r.violations.map((v) => v.detail).join('；')}`);
@@ -4503,7 +4552,12 @@ function audioMuxArgs(stitched, audioFile, from, out) {
 async function cmdVideo(short = false) {
   const task = pickTask();
   const from = Number(opt('from', '0'));
-  const scale = Number(opt('scale', '0')) || undefined;
+  /**
+   * 草稿档（BACKLOG 1-44）：`--draft` = 半分辨率 + `samples 1`，两样都可以被显式选项覆盖。
+   * 用途只有一个 —— **审节奏与信息密度**（一晚上能验 3–5 版，而不是一版）。定稿去掉它。
+   */
+  const draft = flag('draft');
+  const scale = draft ? (Number(opt('scale', '0')) || 0.5) : (Number(opt('scale', '0')) || undefined);
 
   if (!(await checkFfmpeg())) die(`找不到 ffmpeg。装一个，或用 ANIM_FFMPEG 环境变量指定路径。`);
 
@@ -4541,14 +4595,22 @@ async function cmdVideo(short = false) {
 
     const to = Number(opt('to', String(short ? Math.min(info.duration, from + 4) : (info.onlyDuration || info.duration))));
     const fps = Number(opt('fps', String(info.fps)));
-    const samples = opt('samples', short ? '8' : 'auto');
+    const samples = opt('samples', draft ? '1' : (short ? '8' : 'auto'));
     const shutter = Number(opt('shutter', '0.5'));
     const out = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, short ? `shot_${from}-${to}.mp4` : `${task}.mp4`))));
     mkdirSync(path.dirname(out), { recursive: true });
 
     const audioFile = tracks.packaging;
     const withAudio = !short && !!audioFile && !flag('noaudio');
-    log(`渲染 ${from}→${to}s @${fps}fps  ${info.width}×${info.height}${info.scale > 1 ? ' ×' + info.scale : ''}  samples=${samples}  快门 ${shutter}`);
+    if (draft) {
+      log(`· 草稿档（--draft）：${info.pw}×${info.ph}、samples=${samples} —— **不是成片**，只用来审节奏与信息密度；`);
+      log('  定稿去掉 --draft（仍出 1080p60）。半分辨率下小字会糊，那是分辨率不是 bug。');
+    }
+    // 物理像素才是真正的输出尺寸：`--scale 2` 是 4K、`--draft` 是半分辨率，都会让 width/height 骗人
+    const sizeLabel = info.scale === 1
+      ? `${info.width}×${info.height}`
+      : `${info.pw}×${info.ph}（逻辑 ${info.width}×${info.height} @${info.scale}×）`;
+    log(`渲染 ${from}→${to}s @${fps}fps  ${sizeLabel}  samples=${samples}  快门 ${shutter}`);
     const total = Math.max(1, Math.round((to - from) * fps));
     log(`共 ${total} 帧 → ${path.relative(ROOT, out)}${withAudio ? '  (带音轨)' : ''}`);
 
@@ -6368,13 +6430,38 @@ async function cmdSay() {
 async function cmdMix() {
   const task = pickTask();
   const { runMix } = await import('./lib/mix.mjs');
-  return runMix(task, {
-    taskDir: path.join(ROOT, 'tasks', task),
-    music: opt('music'),
-    out: opt('out') ?? opt('o'),
-    voOnly: flag('vo-only'),
-    bitrate: opt('bitrate'),
-  });
+  /**
+   * `--target` 的三种写法都在 `mix.mjs` 的 `resolveLoudnessTarget()` 里收口（预设名 / 数字 /
+   * 都不给）。这里**只做透传**，不在这里判数字合不合法 —— 判据只有一份，单测直接断言那个
+   * 纯函数；在 CLI 里再抄一遍，两边迟早漂成"命令行放行、lib 拒绝"这种最难查的错。
+   * 唯一的例外是"写了 `--target` 却没跟值"：那会让 opt() 拿到 undefined，归一化就**静默
+   * 不发生** —— 必须当场拒绝。
+   */
+  const rawTarget = opt('target');
+  if (flag('target') && rawTarget === undefined) die('--target 后面要跟一个值：streaming / cinema / off，或一个数字（如 -14）。');
+  const rawLra = opt('lra');
+  const lra = rawTarget !== undefined && rawLra !== undefined ? Number(rawLra) : undefined;
+  if (lra !== undefined && !Number.isFinite(lra)) die(`--lra 要一个数字（现在给的是 "${rawLra}"）。`);
+  /**
+   * ⚠ 参数错（预设名写错 / 数字超范围 / 只给 `--lra`）在 lib 里是**抛异常**的 —— 那是给单测
+   * 直接断言用的形状。CLI 这一侧要把它变成一行 `✗ …`：抛出去的 stack 会盖住真正的错因，
+   * 作者看到的是 20 行 node 内部帧，找不到"是我把 streaming 拼错了"。
+   * 判据仍只有 lib 那一份（这里只换呈现，不重写判据）。
+   */
+  try {
+    return runMix(task, {
+      taskDir: path.join(ROOT, 'tasks', task),
+      music: opt('music'),
+      out: opt('out') ?? opt('o'),
+      voOnly: flag('vo-only'),
+      bitrate: opt('bitrate'),
+      target: rawTarget,
+      lra,
+    });
+  } catch (e) {
+    if (e && /^(不认识的 --target|靶子的 |给了 LRA)/.test(String(e.message))) die(String(e.message));
+    throw e;
+  }
 }
 
 /* ------------------------------------------------------------------ 命令：shots */
@@ -6727,6 +6814,88 @@ function help() {
   log(src.slice(start + 3, end).split('\n').map((l) => l.replace(/^\s*\* ?/, '')).join('\n').trim());
 }
 
+/* ------------------------------------------------------------------ 排队 */
+
+/**
+ * 响一声（一声 / 两声 / 三声）—— 让"渲完了"这件事在**不看屏幕**的时候也能被听见（BACKLOG 1-43）。
+ * BEL 在所有终端都能响；Windows 再补一个 `[console]::beep`（更明显，拉不起来就算了）。
+ */
+function chime(n, silent) {
+  if (silent) return;
+  for (let i = 0; i < n; i++) process.stdout.write('\u0007');
+  try {
+    if (process.platform === 'win32') {
+      spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', '[console]::beep(880,250)'],
+        { stdio: 'ignore', windowsHide: true }).unref();
+    } else if (process.platform === 'darwin') {
+      spawn('afplay', ['/System/Library/Sounds/Glass.aiff'], { stdio: 'ignore' }).unref();
+    }
+  } catch { /* 响不了就算了：BEL 已经响过 */ }
+}
+
+/**
+ * `anim queue <任务…> [video 的选项…]` —— 睡前排队渲几支，早上收片（BACKLOG 1-43）。
+ *
+ * **为什么是顺序而不是并行**：本机实测 4 进程并行 720 帧只有 **6.1 fps**，比单进程 7.5 fps 还慢
+ * （抢核显与 ws 带宽，见 `docs/PERF.md` §5.6）。所以这里一支接一支地跑。
+ *
+ * **为什么用子进程**：`cmdVideo` 用的是本文件里那批**全局** argv 解析（`opt` / `flag` 读同一个
+ * `rest`），连跑两支就得改全局状态；而且每支片子各自起停一次 Vite + Chrome 本来就更干净
+ * （`--segments` 的块缓存也不受影响）。
+ *
+ * **失败不中断**：夜里没人看着，第二支因为第一支出错而没渲，比"少一支"更糟。最后汇总，
+ * 按失败数给退出码（0 = 全部成功 / 1 = 有失败）。
+ */
+async function cmdQueue() {
+  // 任务名 = 开头的裸词；遇到第一个 `-` 开头的参数，后面全部原样转发给 `video`
+  let i = 0;
+  const tasks = [];
+  while (i < rest.length && !rest[i].startsWith('-')) tasks.push(rest[i++]);
+  const silent = flag('silent');
+  const forward = rest.slice(i).filter((a) => a !== '--silent');
+  if (!tasks.length) {
+    die('用法：node scripts/anim.mjs queue <任务A> [任务B …] [video 的选项…]\n' +
+        '      例：node scripts/anim.mjs queue promo spectrum --segments 10 --gpu high');
+  }
+  const names = taskNames();
+  for (const t of tasks) {
+    if (!names.includes(t)) die(`没有任务 "${t}"。现有：${names.join(', ') || '(空)'}`);
+  }
+  const self = fileURLToPath(import.meta.url);
+  log(`排队渲染 ${tasks.length} 支：${tasks.join(' → ')}`);
+  log(`  转发给 video 的选项：${forward.length ? forward.join(' ') : '(无)'}`);
+  log('  ⚠ 渲染期间**不要动仓库里的任何文件**（连 docs/*.md 也会把私有 Vite 打崩）');
+
+  const done = [];
+  const failed = [];
+  const t0 = Date.now();
+  for (const [k, t] of tasks.entries()) {
+    log(`\n──────── [${k + 1}/${tasks.length}] ${t} ────────`);
+    const s = Date.now();
+    const code = await new Promise((resolve) => {
+      const child = spawn(process.execPath, [self, 'video', t, ...forward], { stdio: 'inherit' });
+      children.add(child);
+      child.on('close', (c, sig) => { children.delete(child); resolve(sig ? 1 : (c ?? 1)); });
+      child.on('error', () => { children.delete(child); resolve(1); });
+    });
+    const sec = Math.round((Date.now() - s) / 1000);
+    const mmss = `${Math.floor(sec / 60)}m${String(sec % 60).padStart(2, '0')}s`;
+    if (code === 0) { done.push({ t, mmss }); log(`\n✅ ${t} 完成（${mmss}）`); chime(1, silent); }
+    else { failed.push({ t, mmss, code }); warn(`\n✗ ${t} 失败（${mmss}，退出码 ${code}）`); chime(2, silent); }
+  }
+
+  const total = Math.round((Date.now() - t0) / 1000);
+  log(`\n──────── 排队结束（总 ${Math.floor(total / 60)}m${String(total % 60).padStart(2, '0')}s）────────`);
+  for (const d of done) log(`  ✅ ${d.t}  ${d.mmss}`);
+  for (const f of failed) warn(`  ✗ ${f.t}  ${f.mmss}（退出码 ${f.code}）`);
+  if (failed.length) {
+    warn(`\n${failed.length} 支失败。排查顺序：先看上面那一支的报错 → docs/DIAGNOSIS.md §1.5；`);
+    warn('分块渲染时已渲好的块会保留，重跑只补没渲完的块。');
+  }
+  chime(failed.length ? 2 : 3, silent);
+  process.exitCode = failed.length ? 1 : 0;
+}
+
 /* ------------------------------------------------------------------ 分发 */
 
 const commands = {
@@ -6754,6 +6923,7 @@ const commands = {
   'probe-alpha': cmdProbeAlpha,
   video: () => cmdVideo(false),
   shot: () => cmdVideo(true),
+  queue: cmdQueue,
   perf: cmdPerf,
   shake: cmdShake,
   gpu: cmdGpu,

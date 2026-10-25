@@ -118,6 +118,9 @@
 | P-3 | **--segments 块级失效值不值得做** —— 改一段只重渲一块；这轮那种返工从 81 分钟降到 ~15 分钟 | 约 2–3 天 | 复盘 §3.C-2 |
 | P-4 | **自适应运动模糊的收敛判据要不要改** —— 静止画面上它一路加到 72 子帧（实测 0.9 fps），根因是 `makeShot` 让摄影机抖动跟着**子帧时间**走。三条候选修法（排除 shake / 加"停滞熔断" / 让 `perf` 报子帧分布） | 约半天–1 天 | [HANDOFF-spectrum-friction.md](HANDOFF-spectrum-friction.md) §1 |
 | P-5 | **`anim mix` 要不要加显式 `--target -14`** —— 现在只报不归一化（立场正确），但没有官方"怎么贴靶子"的做法，每支新片子都要自己写一个脚本 | 约半天 | [同 §5](HANDOFF-spectrum-friction.md) |
+| ~~P-6~~ | **已拍板（2026-10-25）：成片保留 60fps**。渲染时间不减半 ⇒ 靠 1-44 草稿档 / 1-43 排队 / 1-45 增量重渲补回来；`fps` 全局默认仍 60 | — | [HANDOFF-directions.md](HANDOFF-directions.md) §9 |
+| ~~P-7~~ | **已拍板（2026-10-25）：竖屏提前**，排 W4–W5（tokens 之后、块级增量重渲之前） | 已并入 1-52 | 同 §9 |
+| ~~P-8~~ | **已拍板（2026-10-25）：可以拆 Opus 5.5 案例，好的就学**；纪律 = 只学手法与配方，**不抄素材/文案/代码** | 已并入 1-48 | 同 §9 |
 
 另有 7 条半天以内、**不需要拍板**的改进列在复盘 §3（A-2 旁白表加载失败要可见 / C-1 dry-run 按档预估 /
 D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loudnorm / E-1 out/.render-lock）。
@@ -127,6 +130,18 @@ D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loud
 > [`docs/HANDOFF-spectrum-friction.md`](HANDOFF-spectrum-friction.md)。
 > 上面 P-4 / P-5 是其中**需要拍板**的两条；其余（渲染卡死要用 `--segments`、`--only` 平移、
 > 片段没音轨、focus 对图形主体不友好、标注可以合并成一行）已在 §1 各自条目里登记或直接进文档。
+
+> **2026-10-25 · 方向定案：把 anim 当「一个人的内容工厂」** —— 用户明确三件事：① 这是**方便自己做视频**的
+> 内容工厂（不是对外产品）；② **开源延后**到"足够完善"；③ **只有他自己用**。因此评估口径换成
+> **"每支片子的边际工时 + 画面下限"**，分发层（MCP / Agent Skills / WebMCP / OTIO / 跨生态视频 CI / 商业化）
+> **全部砍掉**，VLM 自动评审当 gate 也砍（judge 会把 78–90% 的画面失败判成通过，见
+> [arXiv 2609.28564](https://arxiv.org/abs/2609.28564)）。
+> 完整背景、外部证据、四阶段路线与判据在 **[HANDOFF-directions.md](HANDOFF-directions.md)**（自包含）；
+> 活条目落在下面 **§1.F**（1-43 ~ 1-55）；三条待拍板 **P-6 / P-7 / P-8 已于同日拍板**：
+> 成片**保留 60fps**、**竖屏提前**（W4–W5）、**可以拆 Opus 案例**（只学手法，不抄素材/文案/代码）。
+> 目前 §0 **没有待拍板项**。
+> **同一天的工程批次交接单**：[HANDOFF-2026-10-25.md](HANDOFF-2026-10-25.md)
+> （W1+W2 已完成的证据、踩掉的坑、以及接管的上一会话 WIP 清单）。
 
 ---
 
@@ -224,6 +239,28 @@ D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loud
 | ~~1-40~~ | **已完成（2026-10-24）**：`anim subs` 的 ASS 文本转义（`assText()`：反斜杠后插 U+2060、花括号转义、控制字符剔除、换行收成 `\N`）+ `assTime()` 向上取整（顺带修掉 `1.999 → .100` 的三位百分秒坏值）。纯函数导出后由 `tools/test-subs.mjs` 覆盖（含"cmdSubs 真的接了 assText"的接线自检）。验收见 §4 | | |
 | ~~1-41~~ | **已完成（2026-10-24）**：`type.write` 的 `blur` 通道（数值=常量 / 数组=随缓动收敛，与 `alpha` 同构；Canvas2D `c.filter`，`blurPx < 0.05` 时**完全不碰 filter**）+ `title` 模板的 `blur` 参数（默认 0）。目视夹具 `tasks/_blur-lab/`（blur 0 / 20 / 20 三段）；`hashes demo` 与 `hashes beat --baseline` 各 11/11 max 0。验收见 §4 | | |
 | ~~1-42~~ | **已完成（2026-10-24）**：11 个镜头模板补 `meta.use` / `energy` / `avoid`（`SHOT_ENERGY` 五档），`listShots()` 原样带出、`shotsCatalog()` 进 `--json`、`anim shots` 打印并支持 `--use <词>`（`filterShots()`，匹配面 = 名 / summary / use / energy / avoid）。`tools/test-shots.mjs` 124 → **129 项**。验收见 §4 | | |
+
+### 1.F 个人内容工厂（2026-10-25 定的主线，**按"周末能多出一支"排序**）
+
+> 来源：[HANDOFF-directions.md](HANDOFF-directions.md)（这一轮的方向结论：硬约束 C-1~C-8、现状读数、外部证据、四阶段路线）。
+> 判断口径只有两条：**每支片子的边际工时**（现在 3 小时/支，顺利时）与**画面下限**。
+> 前三条（1-43 ~ 1-45）解决"等渲染"；1-46 ~ 1-49 解决"劣质感"；其后是复利与选题。
+
+| # | 事 | 从哪接着做 | 出处 |
+|---|---|---|---|
+| ~~1-43~~ | **已完成（2026-10-25）**：`anim queue <任务…> [video 选项…]` 落地 —— 顺序跑（并行实测更慢）、每支结束响一声 / 全部结束响三声（`--silent` 静音）、**某支失败不中断后续**、最后汇总并按失败数给退出码；实测 `queue _calib --from 0 --to 1 --samples 1` 一次跑通，坏任务名报错退出码 1。文档进了 `AGENTS.md` §7 与 `anim help` | **判据（还差一步）**：周末连续两天各用 `queue` 跑两支无人值守，产物 `verify`/`qa` 通过 —— 代码与文档到位，只等真实周末验证 | [同 §5 Phase 1](HANDOFF-directions.md) |
+| ~~1-44~~ | **已完成（2026-10-25）**：`--draft` 落地 —— `--scale` 放开到 **0.25..4**（`scripts/anim.mjs` 校验 + `src/app.js` 的 clamp），draft = 半分辨率 + `samples 1`（都可被显式选项覆盖），输出帧就是 960×540。读数（`_calib` 60 帧，`samples=1`）：**13.5 → 33.5 fps = 2.5×**；走 `auto` 的片子差距 8–24×。读数进了 `PERF.md` A1。**判据修正**：没有按原写的"PSNR ≥30dB"验（draft 字看着糊是正常的，本来就是分辨率）—— 改验"输出尺寸正确 + 渲染路径无报错 + 速度提升" | — | 同 §5 Phase 1 |
+| 1-45 | **块级增量重渲**（= P-3 落地）：按"场景源码 hash + 段参数 hash"判断块是否失效，改一段只重渲受影响块 | 在 `renderSegments` 的块命名里加内容指纹（现在只按时间区间命名）；`--force` 语义保留。判据：改 1 段后 3 分钟片子的返工 ≤15 分钟（现在 ~70 分钟），实测进 PERF.md | 同 §5 Phase 1 · P-3 |
+| 1-46 | **设计 token 层**：`src/style/tokens.js` + 新风格包 `flat`（纯色摄影棚，无母题背景）+ `ctx.style.tokens` 接线 | **已落（2026-10-25）**：`tokens.js`、`worldPass` 新母题 `flat`（`src/kit/world.js`）、`src/style/index.js` 的 `flat` 包与 `resolveStyle` 的 `tokens` 合并；验证夹具 `tasks/_token-lab/`（前后对比）+ `tasks/_flat-lab/`（风格背景对比）；`test-style.mjs` 66 项全过；`docs/STYLE.md` 已记。**剩下**：`type.write` 认语义字号（`size: 'hero'`）+ 其余 5 套风格各自的 token 覆盖样片 | 同 §7 |
+| ~~1-47~~ | **已完成（2026-10-25）**：对比图落地 —— 新夹具 `tasks/_token-lab/`（同一份"方波拆成 4 条正弦"内容，两套 token），成品 `out/_token-lab/{before,after}/f_0002.400.png`。实际画的是**傅里叶拆方波**而不是 spectrum 段（公平起见同几何同文案）。**原地踩掉一个引擎坑**：`type.write` 传**数组型** `alpha` 必须配 `t`，否则取 k=0 → 整行隐形（第一版出处行不出来就这原因）。判断等作者看图；若"一眼更高级"成立 ⇒ 1-46 铺开 | — | 同 §5 Phase 2 |
+| 1-48 | **模板 11 → 20+**：从 Opus 案例的视觉语言里挑适合科普片的配方（kinetic bumper / device mock / lineart / big-type / scan-grid / countUp / chart-morph / paper-layer / lockup） | 每个模板带默认参数 + `use/energy/avoid` + `tools/test-shots.mjs` 夹具；做法见 §1.E 的拆解格式。**P-8 已定：可以拆 Opus 5.5 案例，只学手法与配方、不抄素材/文案/代码** | 同 §5 Phase 2 |
+| 1-49 | **母题库**：`sodium` 积木 / `spectrum` 波形格阵 / `bikeshed` 会议室 抽进 `src/kit/motifs/` | 抽完之后 `beast`/`fidus`/`nekohome` 三份私有 `_kit.js` 可删；画面变化用 `hashes --accept --note` 记录 | 同 §5 Phase 2 |
+| 1-50 | **`infoShot` 段落骨架**：标题 + 旁白 cue + 图形区 + 标注 + 出处行的标准段落 | 判据：新片子手写行数占比 < 30%（现在 ≈100%：每支 1472–3981 行） | 同 §5 Phase 3 |
+| 1-51 | **判据元测试**：每个守门判据都要有一条"能红"的证明（注入错误 → 必须报） | `sampling` 那个"误差恒为 0"的 bug 证明判据会静默失效（`src/core/sampling.js` 文件头）。做法照 `tools/lint-fabricated-numbers.mjs`：纯函数判据 + 夹具 + 挂 `regress-all` 的 `meta:` 组 | 同 §5 Phase 3 |
+| 1-52 | **竖屏 1080×1920** | 四处：`GRID_BASE` 按画幅走 / 字号按短边缩放 / `src/layout.js` 判据重新标定（别直接放宽）/ 字幕带避开 B 站底部 UI。清单见 HANDOFF §8。**优先级已定（P-7）：排在 W4–W5，tokens 之后、块级重渲之前**；草稿档（1-44）要能出竖屏比例 | 同 §8 |
+| 1-53 | **B 站配套**：`anim cover <任务> -t <秒>`（1920×1080 压字封面）+ 章节时间码导出 | 封面复用 `still` 的渲染路径 + 文字层压字；章节从 `timeline` 的段名与起点生成 | 同 §5 Phase 3 |
+| ~~1-54~~ | **已完成（2026-10-25）**：`tasks/_ideas.md` 落地（🟡候选 / 🔵在做 / 🟢已发 三档 + 一行一条的格式 + "池子少于 3 条就该补"）。判据仍是**连续 4 个周末选题环节 ≤5 分钟** —— 文件到位，效果要等 4 周后回看 | — | 同 §5 Phase 4 |
+| ~~1-55~~ | **已完成（2026-10-25）**：`docs/SCENE-BRIEF-TEMPLATE.md` **新增 §11「选题 → brief」** —— 可复制的指令（七块产出）+ 四条判据（无编造数字 / 视觉主角一个名词 / "要新写" ≤2 段 / anti-list ≥3 条）+ 与 §4/§5/§7/§8/§10 的对应表。作者的动作只剩"抽一行 + 审一份 brief" | 前提是模型弱（DeepSeek v4.1-flash / GLM-5.3）—— brief 越像规格书，出片越稳（Opus 案例的共识）。判据：一份 brief 直接喂给场景 agent，作者不需补结构性信息 | 同 §5 Phase 4 |
 
 ---
 

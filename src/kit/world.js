@@ -80,7 +80,7 @@ export function worldPass(ctx, opts = {}) {
    * 这一条是"反审美疲劳"里最省事的一刀 —— 引擎从前的共享底只有**一种**网格
    * （60px 细格 + 一道扫描带），每支片子都一样。现在：
    *   `grid`（默认，= 从前逐像素不变）/ `blueprint` 坐标纸 + 图框 /
-   *   `paper` 纸面横格 / `scan` 终端扫描线 / `noir` 电影暗角。
+   *   `paper` 纸面横格 / `scan` 终端扫描线 / `noir` 电影暗角 / `flat` **纯色（不画母题）**。
    *
    * 用法（`task.config.mjs`）：
    * ```js
@@ -92,7 +92,7 @@ export function worldPass(ctx, opts = {}) {
     ? (ctx?.style?.motif ?? 'grid')
     : String(opts.motif);
   /** GLSL 里用的是 float（`Pass` 的数字 uniform 一律走 `uniform1f`；声明成 int 会静默失效） */
-  const MOTIF_ID = { grid: 0, blueprint: 1, paper: 2, scan: 3, noir: 4 };
+  const MOTIF_ID = { grid: 0, blueprint: 1, paper: 2, scan: 3, noir: 4, flat: 5 };
   const motif = MOTIF_ID[motifName] ?? 0;
   return new Pass(ctx.gl, /* glsl */ `
     uniform vec3 cInk, cInk2, cLine, cAccent;
@@ -170,11 +170,17 @@ export function worldPass(ctx, opts = {}) {
         float grid2 = 1.0 - smoothstep(0.44, 0.5, max(cell.x, cell.y));
         col += cAccent * 0.020 * (1.0 - grid2) * mask;
         col += cAccent * 0.05 * smoothstep(0.5, 1.2, length(e) * vig);
-      } else {
+      } else if (motif < 4.5) {
         // ── noir：电影（中心柔光 + 很重的暗角） ──
         col += cLine * 0.035 * (1.0 - smoothstep(0.0, 0.9, length(e)));
         col *= 1.0 - smoothstep(0.30, 1.25, length(e)) * 0.72;
         col += cAccent * 0.02 * warp * smoothstep(0.7, 1.3, length(e) * vig);
+      } else {
+        // ── flat：纯色 —— **什么母题都不画**（BACKLOG 1-46，设计 token 的承载风格） ──
+        //   用户 2026-10-25 原话：「网格直接去掉」。高级感靠排版/线宽三档/弹簧，不靠背景。
+        //   上面的"中心浅、四角压暗"就是全部；这里只把四角再轻收一点，给画面一个**边界**
+        //   （不是网格！是一道连续的渐变 —— 没有它，整片像"还没擦干净的黑板"）。
+        col *= 1.0 - smoothstep(0.55, 1.35, length(e)) * 0.22;
       }
 
       fragColor = vec4(col, 1.0);

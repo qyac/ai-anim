@@ -177,7 +177,13 @@ async function boot() {
       task.narrationData = null;
     }
   }
-  const scale = clampInt(Number(q.get('scale') ?? task.scale ?? 1), 1, 4);
+  /**
+   * 分辨率倍率：1 = 1080p，2 = 真 4K。**也接受 0.5 / 0.25**（草稿档 `--draft` 用它，BACKLOG 1-44）：
+   * 半分辨率渲染，GPU 填充只有 1/4，用来审节奏与信息密度；**不是成片**。
+   * 下限取 0.25 是因为再小字就认不出来了（Layer2D 的画布按 scale 缩放，0.5 时字号实际只有一半像素）。
+   */
+  const scaleRaw = Number(q.get('scale') ?? task.scale ?? 1);
+  const scale = Math.min(4, Math.max(0.25, Number.isFinite(scaleRaw) && scaleRaw > 0 ? scaleRaw : 1));
   const width = Number(q.get('w') ?? task.width ?? 1920);
   const height = Number(q.get('h') ?? task.height ?? 1080);
   const fps = Number(q.get('fps') ?? task.fps ?? 60);
@@ -510,7 +516,13 @@ const api = {
       preview: opts.preview ?? false,
       seeked: true,
     });
-    return { samples: r.samples, errors: r.errors };
+    // 自适应采样的**结论**跟着回来：子帧数只是结果，"为什么停在这里"才是有用的信息
+    // （docs/HANDOFF-spectrum-friction.md §1 抱怨的正是"引擎从不解释自己"）。
+    return {
+      samples: r.samples, errors: r.errors,
+      reason: engine.lastSampleReason, maxSamples: engine.lastMaxSamples,
+      cappedBy: engine.lastCappedBy,
+    };
   },
 
   /**
@@ -519,7 +531,7 @@ const api = {
    */
   async still(t, opts = {}) {
     const r = await api.frame(t, opts);
-    return { png: api.png(), samples: r.samples, errors: r.errors };
+    return { png: api.png(), samples: r.samples, errors: r.errors, reason: r.reason };
   },
 
   /** 当前帧（或指定时刻）的 RGBA 像素，自下而上（WebGL 原生顺序），**显示空间（已 sRGB 编码）**。 */
@@ -1150,16 +1162,24 @@ const api = {
     const blocks = [];
     const focusRects = [];
     const ids = [];
+    /**
+     * 「主体区 0 块字」那一条读数要用的两个量（见 `src/layout.js` 的 `countNonTextDraws()`）：
+     *   · `paint` = 这一段的绘制账（次数，没有坐标）；
+     *   · `textDrawn` = 这一帧场景有没有提交自己的 2D 图层（= 文字层那次合成要减掉）。
+     * 与 focus 同一个口径：交叠期同时画着两段时取**第一段**的那一份。
+     */
+    let paint = null;
+    let textDrawn = false;
     // 这一帧的时刻：引擎渲染完会把 t 记在 lastT 上（check 是离屏渲染，clock 一直停在 0）。
     const t = Number.isFinite(engine.lastT) ? engine.lastT : 0;
     const list = o.id
       ? engine.timeline.filter((i) => i.id === o.id)
       : engine.timeline.filter((i) => (clock >= i.start && clock < i.end) || i._lastPaint);
     for (const it of list) {
-      const paint = it._lastPaint ?? null;
-      if (!paint) continue;
+      const book = it._lastPaint ?? null;
+      if (!book) continue;
       ids.push(it.id);
-      const mine = (paint.blocks ?? []).map((b) => ({ ...b }));
+      const mine = (book.blocks ?? []).map((b) => ({ ...b }));
       // 宽度实测：必须在**这一段自己的** TextKit 上量（字体栈 / 字距缓存都在实例里）
       const tk = it._layer?.typekit;
       if (tk?.measure) {
@@ -1170,11 +1190,13 @@ const api = {
       }
       blocks.push(...mine);
       if (it.focus) focusRects.push(it.focus);
+      if (!paint) { paint = book; textDrawn = !!it._layer?._uploaded; }
     }
     // 交叠期两段同时在画：焦点取第一段声明的那份（引擎的顺序 = 时间线顺序）
     const verdict = layoutVerdict({
       id: ids[0] ?? '', t: t, blocks, focus: focusRects[0] ?? null, W, H,
       limits: layoutLimits(engine.style?.layout),
+      paint, textLayerDrawn: textDrawn,
     });
     // 返回整份 verdict（**含真实的 t**）：CLI 直接把它 push 进采样数组。
     // 曾返回过 { id, t: clock, verdict } —— CLI 那边照着旧字段名读，报告里全是 undefined。

@@ -280,3 +280,109 @@ export const SCENES = [
 
 离线回归：`node tools/test-say.mjs` §9（正常锚定 / 词名写错 / approx 降级 / >3 抛 /
 亲和三取向 / 跨句锚，共 34 项判据）。
+
+## 7. 响度归一化：`anim mix --target`（**默认关**）—— ✅ 已落地
+
+`anim mix` 从第一天起**只报响度、不归一化**（`scripts/lib/media.mjs` 顶部那条纪律）。
+这一节记的是「显式开口子」之后的用法：**不传 `--target` 时一个字节都不变**，
+传了才走两遍式 loudnorm 并打印 `before → after`。
+
+### 7.1 为什么必须「显式」，而不是默认归一化
+
+让默认路径也归一化，等于**把所有已交付片子的音轨重新编码一遍** —— `tasks/<任务>/audio/<任务>-mix.mp3`
+被 `task.config.mjs` 直接引用，是要跟着成片一起交付的东西：多一代有损、读数变、老片子全部重出。
+所以取舍是：**默认保持原样，把「贴靶子」变成一条要人开口的命令**。
+
+这条约束有回归钉着：`tools/test-mix-loudnorm.mjs` ④ 用同一份夹具混两次，断言 mp3 **逐字节相同**，
+并且返回值里 `target === null`、`after === null`、`normalized === false`。
+
+### 7.2 命令
+
+```sh
+# 只报数字（默认；与改动前完全一样）
+node scripts/anim.mjs mix <任务>
+
+# 贴平台靶子（−14 LUFS / −1 dBTP / LRA 11）
+node scripts/anim.mjs mix <任务> --target streaming
+
+# 投展 / 送广播那一组（−23 LUFS / −2 dBTP / LRA 15）
+node scripts/anim.mjs mix <任务> --target cinema
+
+# 只把整合响度贴到 −16，真峰仍取 −1（数字写法的常用形态）
+node scripts/anim.mjs mix <任务> --target -16
+
+# 顺带改 LRA（只在开了 target 时才有意义；单独给 --lra 会直接抛错）
+node scripts/anim.mjs mix <任务> --target cinema --lra 8
+
+# ⚠ 先写到 out/_staging/ 试一遍，别一上来就覆写已交付的音轨
+node scripts/anim.mjs mix <任务> --target streaming --out out/_staging/x-mix.mp3
+```
+
+输出长这样（数字是《把信号拆开》真跑出来的）：
+
+```
+  归一化前 -21.2 LUFS / -2.99 dBTP / LRA 6.4  （靶子 -14 LUFS / -1 dBTP / LRA 11）
+  · 归一化计划：两遍 loudnorm，但线性放不下：线性要提 7.23 dB ⇒ 真峰 -2.99 → 4.24 dBTP，
+    超过上限 -1 —— 这一遍会压动态换响度（音乐会被推来推去）
+  · 归一化：-21.2 LUFS / -2.99 dBTP → -14.4 LUFS / -1.20 dBTP（两遍 loudnorm，dynamic）
+    靶子 -14 LUFS / -1 dBTP / LRA 11 → ✓ 达标：达标（-14 LUFS / -1 dBTP）
+```
+
+`--target` 接受四种写法：`streaming` / `cinema` / `off`（显式关）/ 一个数字（= 整合响度贴到它，
+真峰与 LRA 仍取 streaming 那一组）。写错**直接抛**，不会静默回落到默认靶子；靶子超出 loudnorm
+的合法范围（如 `i = -3`）也在进 ffmpeg 之前就拦住。
+
+### 7.3 为什么是**两遍式**、为什么坚持 `linear=true`
+
+loudnorm 的第一遍是**测量**（`-f null -`，只读不写），第二遍才用第一遍的 `measured_*` 算增益。
+不带 `measured_*` 就只能边看边压 —— 那是**压动态换响度**，口播 + 音乐床的片子会听到
+「音乐被推来推去」。`linear=true` 时它只乘一个**常数增益**，动态一点不动。
+
+但 `linear=true` 只是**请求**。下面这些边界都在 `planLoudnorm()` 里显式分支、日志里点名
+（**没有静默路径**），而且每一条都是量出来的：
+
+| 情况 | 实际走哪条 | 日志怎么说 |
+|---|---|---|
+| 增益放得进真峰余量、`measured_LRA ≤ LRA`、且 `measured_LRA > 0` | 两遍 + **linear** | `· 归一化：… （两遍 loudnorm，linear）` |
+| 增益放不进真峰余量（例：−21.2 → −14 要提 7.2 dB，真峰只有 −3 dBTP） | ffmpeg 自己退回 **dynamic** | 计划里先预告「会压动态换响度」，实际走了 dynamic 再报一次 |
+| `measured_LRA = 0`（恒定电平：纯测试音、压得很平的床） | 也退回 **dynamic** | 明说「这段没有可测的动态，效果与常数增益相同」，**不是**「动态被削了」 |
+| 读数不完整（真峰 / LRA / 门限拿不到，或门限是 −70 那个「没量到」哨兵值） | 退回**单遍** | 明说「这一遍是压动态换响度」 |
+| 已经达标（±1 LU 且真峰不超）/ 量不出响度（静音） | **不动音轨** | `· 归一化：跳过 —— …`（带读数与容差） |
+
+> `measured_LRA = 0 → dynamic` 这一条是**量出来的**，不是猜的：同一段 −20 dBFS 正弦、只改
+> `measured_LRA`，0 → dynamic，而 0.001 / 0.01 / 0.1 / 0.5 → 全是 linear。判据钉在
+> `tools/test-mix-loudnorm.mjs` ③。
+
+归一化之后**一定会重新量一遍**（不信 loudnorm 的自报），再用实测读数给「是否达标」的结论 ——
+计划说 linear ≠ 真的没压动态，这件事只能靠重测 + 第二遍打印的 `normalization_type` 一起核。
+
+### 7.4 与 `scripts/master-spectrum-audio.mjs` 的关系
+
+那个脚本是这条命令的**前身**：它把两遍式 loudnorm 手抄了一遍（还多走一趟「写临时文件再 copy 回来」），
+只服务于一支片子。现在 `anim mix --target streaming` 做的是同一件事，而且：
+
+* 靶子来自 `media.mjs` 的 `LOUDNESS_TARGET`（**不抄数字**），换靶子只改一处；
+* 两遍之间的 `measured_*` 直接来自同一次运行的测量，不会出现「量的是 A、压的是 B」；
+* 失败时用临时文件 + 改名落地，原音轨在成功之前一直是完整的那一份。
+
+所以 **`scripts/master-spectrum-audio.mjs` 可以删掉**，等价的一行是：
+
+```sh
+node scripts/anim.mjs mix spectrum --target streaming
+```
+
+（原来那个脚本会先把结果写 `…mastered.mp3` 再 copy 回去；`--target` 直接原地覆写，收尾还会
+重新量一遍、把 `before → after` 与判据一起打出来。⚠ 仓库里另外 5 个 `scripts/make-*-audio.mjs`
+是**配乐床合成器**，不是母带处理 —— 那些不在此列，别混为一谈。）
+
+### 7.5 回归与读数
+
+```sh
+node tools/test-mix-loudnorm.mjs      # 53 项；没有 ffmpeg 时 exit 2（「跳过」，不算通过）
+```
+
+覆盖三件事：① 靶子解析与 `planLoudnorm` 的每条出口；② 合成一段**已知响度**的 997Hz 测试音 →
+归一化 → 再量，落在 ±1 LU 内；③ **默认路径逐字节不变**（同一份输入混两次，mp3 相同）。
+夹具与产物一律写 `os.tmpdir()`，不往仓库里写任何文件。它也挂在 `tools/regress-all.mjs` 的
+`unit:mix-loudnorm` 上（`allowSkip: true`）。
+

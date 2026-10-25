@@ -26,8 +26,10 @@ import { fileURLToPath } from 'node:url';
 
 import {
   LAYOUT_LIMITS, RESERVED_BANDS, resolveFocus, textGroups, focusOverlap,
-  layoutVerdict, layoutReport, layoutSummary,
+  layoutVerdict, layoutReport, layoutSummary, countNonTextDraws, focusNoteOf,
 } from '../src/layout.js';
+import { labelRow } from '../src/kit/layout.js';
+import { TextKit } from '../src/core/text.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -353,6 +355,255 @@ t('阈值默认值就是交接单那三条（主体之外 <= 2；每屏 <= 6 块
   assert.equal(LAYOUT_LIMITS.maxOffSubject, 2);
   assert.equal(LAYOUT_LIMITS.maxBlocks, 6);
   assert.ok(LAYOUT_LIMITS.gap >= 20 && LAYOUT_LIMITS.gap <= 48, 'gap 该在「一行字」的量级');
+});
+
+/* ═══════════ 8. 「主体区 0 块」的读数是哪一种（交接单 F：主体是图形 vs 空屏） */
+
+/**
+ * 造一本"绘制账"—— 形状就是 `gl.paint`（`src/core/gl.js` 的 `beginPaint()`：
+ * `full/any/lines/text/target/other/layer/blocks/markError`）。
+ * 字段的**含义**在 `countNonTextDraws()` 的注释里逐条对着 gl.js 核过：
+ *   · `any`   = 所有真的提交过的绘制（Pass.render / blit / LineBatch.flush）；
+ *   · `full`  = 其中 blend:false 的全屏 Pass（`_notePaint` 里判定）；
+ *   · `lines` = 其中 LineBatch.flush() 的次数；
+ *   · `other` = 画到了别的渲染目标上（引擎内部搬运）；
+ *   · `blocks`= 文字（`noteText` 记录）；`text` 字段**从来没人写过**，别拿它当文字计数。
+ */
+const paintBook = (o = {}) => ({
+  full: o.full ?? 0, any: o.any ?? 0, lines: o.lines ?? 0, text: 0,
+  target: o.target ?? null, other: o.other ?? 0, layer: null,
+  blocks: o.blocks ?? [], markError: !!o.markError,
+});
+
+t('绘制账：非文字绘制 = any − other − 文字层的那一次合成（gl.paint 的真实字段）', () => {
+  // 背景 worldPass（1 次不透明全屏 Pass）+ 波形 lines.flush（1）+ 文字层 comp.draw（1）
+  const book = paintBook({ any: 3, full: 1, lines: 1 });
+  const r = countNonTextDraws(book, { textLayerDrawn: true });
+  assert.equal(r.known, true);
+  assert.equal(r.total, 2, '3 笔里减掉文字层那一次 = 2 笔非文字（背景 + 矢量）');
+  assert.equal(r.lines, 1, '其中 1 笔是矢量批次');
+  assert.equal(r.passes, 1, '另 1 笔是全屏 Pass（背景）');
+  // 同一帧、但场景没提交文字层（一个字都没画）：不减那 1 次
+  assert.equal(countNonTextDraws(book, { textLayerDrawn: false }).total, 3);
+});
+
+t('绘制账：内部搬运（other）不算"画了东西"—— 否则 xform 的段会被误判成有图形', () => {
+  const book = paintBook({ any: 4, other: 2, lines: 1 });
+  assert.equal(countNonTextDraws(book, { textLayerDrawn: true }).total, 1);
+});
+
+t('绘制账：拿不到账 / 错帧卡片 ⇒ known:false（"没判"，不许冒充 0）', () => {
+  assert.equal(countNonTextDraws(null).known, false);
+  assert.equal(countNonTextDraws(undefined).known, false);
+  const bad = countNonTextDraws(paintBook({ any: 5, markError: true }), { textLayerDrawn: true });
+  assert.equal(bad.known, false, '错帧卡片不是"这一段的主体"，读数按没判处理');
+  assert.equal(bad.error, true);
+});
+
+t('主体区 0 块 + 有图形 ⇒ focusNote = graphics（不算"没画东西"）', () => {
+  // 一屏只有一条页脚标注（保留区），主体是方波：focus 里一个字块都没有。
+  // 与《把信号拆开》的每一段同一个形状 —— 这正是交接单 F 说的那一类读数。
+  const v = layoutVerdict({
+    t: 1, focus: { x: 140, y: 330, w: 1640, h: 500 },
+    blocks: [B(128, 985, 21, 420, '波形 2.4 s · LOW / MID / HIGH')],
+    paint: paintBook({ any: 3, full: 1, lines: 1 }), textLayerDrawn: true,
+  });
+  assert.equal(v.blocks, 1);
+  assert.equal(v.inFocus, 0, '主体区里确实 0 块字（这一条原本就没错）');
+  assert.equal(v.focusNote, 'graphics');
+  assert.equal(v.nonTextDraws, 2, '读数里带上"画了几笔非文字"：背景 + 矢量');
+  assert.equal(v.nonTextKnown, true);
+  assert.deepEqual(v.violations, [], '这条改动**不放松任何判据**：它本来就不该超限');
+  // 平移进报告之后字段还在（CLI 只读一层）
+  const row = layoutReport([{ id: 's', samples: [{ t: 1, verdict: v }] }])[0];
+  assert.equal(row.focusNote, 'graphics');
+  assert.equal(row.nonTextDraws, 2);
+});
+
+t('主体区 0 块并且**一笔都没有** ⇒ focusNote = empty（真的像没画东西）', () => {
+  const v = layoutVerdict({
+    t: 1, focus: 'center',
+    blocks: [],
+    paint: paintBook({ any: 1 }), textLayerDrawn: true,   // 只有文字层那一次合成，没有别的
+  });
+  assert.equal(v.inFocus, 0);
+  assert.equal(v.nonTextDraws, 0);
+  assert.equal(v.focusNote, 'empty', '空屏必须与"主体是图形"分开 —— 这才是这一条改动的意义');
+});
+
+t('主体区**有**字块 ⇒ focusNote = text（读数照旧，与图形无关）', () => {
+  const v = layoutVerdict({
+    focus: 'center',
+    blocks: [B(660, 560, 96, 600, '主体')],
+    paint: paintBook({ any: 2 }), textLayerDrawn: true,
+  });
+  assert.equal(v.inFocus, 1);
+  assert.equal(v.focusNote, 'text');
+});
+
+t('没声明 focus ⇒ focusNote = undeclared（这一条谈不上，不是通过）', () => {
+  const v = layoutVerdict({ blocks: [B(660, 560, 96, 600, '主体')] });
+  assert.equal(v.noFocus, true);
+  assert.equal(v.focusNote, 'undeclared');
+  assert.equal(v.nonTextKnown, false, '没传绘制账 ⇒ 这条读数没判');
+});
+
+t('focusNoteOf 的判读表（纯函数）：0 块 + 画了图形 / 空屏 / 没账', () => {
+  assert.equal(focusNoteOf(1, null), 'text', '有字就是 text（不需要账）');
+  assert.equal(focusNoteOf(0, { known: true, total: 3 }), 'graphics');
+  assert.equal(focusNoteOf(0, { known: true, total: 0 }), 'empty');
+  assert.equal(focusNoteOf(0, null), 'unjudged', '拿不到账 = 没判');
+  assert.equal(focusNoteOf(0, { known: false, total: 0 }), 'unjudged');
+});
+
+t('这条读数**不动判据**：maxInFocus / maxOffSubject / maxBlocks 一个都没改', () => {
+  assert.equal(LAYOUT_LIMITS.maxInFocus, 2);
+  assert.equal(LAYOUT_LIMITS.maxOffSubject, 2);
+  assert.equal(LAYOUT_LIMITS.maxBlocks, 6);
+  // 同一屏、同一批字，带上/不带绘制账，判据结果必须**逐字相同**
+  const base = {
+    focus: 'center',
+    blocks: [B(500, 480, 26, 300, '队列'), B(700, 560, 26, 300, 'A'), B(560, 700, 26, 300, 'B')],
+  };
+  const a = layoutVerdict(base);
+  const b = layoutVerdict({ ...base, paint: paintBook({ any: 9, lines: 4 }), textLayerDrawn: true });
+  assert.deepEqual(b.violations, a.violations, '读数变了，判据一个字都不许变');
+  assert.equal(b.inFocus, a.inFocus);
+  assert.equal(b.offSubject, a.offSubject);
+  assert.deepEqual(a.violations.map((v) => v.kind), ['in-focus'], '这个夹具本来就是超限的（3 块 > 2）');
+});
+
+/* ═══════════ 9. labelRow：一次绘制 = 1 块（这才是"标注合并成一行"的关键） */
+
+/**
+ * 假 Canvas2D（照 test-karaoke.mjs 的写法）：`measureText` 每个码元 10px，
+ * `fillText` 全部记下来。用它把"到底真的画了几次"数出来 —— 判据看到的 1 块就是从这里来的。
+ */
+function fakeCanvas() {
+  const rec = { texts: [], depth: 0 };
+  const fake = {
+    font: '', textAlign: '', textBaseline: '', fillStyle: '', globalAlpha: 1,
+    measureText: (s) => ({ width: String(s).length * 10 }),
+    fillText(s, x, y) { rec.texts.push({ s, x, y, alpha: this.globalAlpha, fill: this.fillStyle }); },
+    save() { rec.depth++; }, restore() { rec.depth--; },
+    beginPath() {}, rect() {}, clip() {},
+  };
+  return { fake, rec };
+}
+
+/** 把 TextKit 的记账接到一本假账上（`noteText` 判的就是 `type.gl.paint.layer === type`）。 */
+function withPaint(tk, book) {
+  tk.gl = { paint: { ...book, layer: tk, blocks: book.blocks ?? [] } };
+  return tk.gl.paint;
+}
+
+t('labelRow：三段标签只发**一次** writeLine ⇒ 记账 1 条、念出来是一行', () => {
+  const { fake, rec } = fakeCanvas();
+  const tk = new TextKit(fake);
+  const paint = withPaint(tk, paintBook({}));
+  const w = labelRow(tk, [{ s: 'LOW' }, { s: 'MID' }, { s: 'HIGH' }], 100, 900, { size: 21, family: 'mono' });
+  // 一次绘制：fillText 被逐字调了很多次，但**记账**只有一条（noteText 在整行画完之后记一次）
+  assert.equal(paint.blocks.length, 1, '记账必须是 1 条 —— 否则"合并成一行"对判据完全无效');
+  assert.equal(paint.blocks[0].sample, 'LOW　·　MID　·　HIGH', '记账里的文本就是整行（含分隔符）');
+  assert.equal(rec.depth, 0, 'save/restore 配平');
+  // 几何：返回的宽度 = 三段 + 两个分隔符（每个码元 10px）
+  assert.equal(w, 'LOW　·　MID　·　HIGH'.length * 10, '返回整行宽度（含分隔符）');
+});
+
+t('labelRow：一行 = 判据里的**一块**（各站一处时是四块、"看的地方"超限）', () => {
+  const { fake } = fakeCanvas();
+  const tk = new TextKit(fake);
+  // 真实形状：几个标签**各站在自己的柱子上方**（y 不同，相差 > min(gap, 21×0.8) ⇒ textGroups 不合并）
+  const sep = withPaint(tk, paintBook({}));
+  tk.writeLine('波形', 300, 700, { size: 21 });
+  tk.writeLine('LOW', 1090, 760, { size: 21 });
+  tk.writeLine('MID', 1360, 820, { size: 21 });
+  tk.writeLine('HIGH', 1630, 880, { size: 21 });
+  assert.equal(sep.blocks.length, 4, '分四处写 = 4 条记账');
+  const many = layoutVerdict({ blocks: sep.blocks.map((b) => ({ ...b, w: 60 })) });
+  assert.equal(many.blocks, 4, '各在一处（y 不同）= 4 块');
+  // 主体 = 最大的一块 ∪ focus 里的块；没声明 focus 时主体就是其中一块 ⇒ 其余 3 个是"看的地方"
+  assert.equal(many.offSubject, 3, '主体之外 3 个"看的地方" > 上限 2 —— 交接单 F 卡住的就是这一项');
+  assert.ok(many.violations.some((v) => v.kind === 'off-subject'), '这条判据**照旧会响**（我们没有放松它）');
+
+  // labelRow：一条基线、一条记账
+  const one = withPaint(tk, paintBook({}));
+  labelRow(tk, [{ s: '波形' }, { s: 'LOW' }, { s: 'MID' }, { s: 'HIGH' }], 300, 700, { size: 21 });
+  assert.equal(one.blocks.length, 1, 'labelRow = 1 条记账');
+  const few = layoutVerdict({ blocks: one.blocks.map((b) => ({ ...b, w: 600 })) });
+  assert.equal(few.blocks, 1, '合起来之后判据只数到 1 块');
+  assert.equal(few.offSubject, 0, '合成一行之后"看的地方"归零');
+  assert.deepEqual(few.violations, [], '于是判据 ② 通过 —— 这就是"标注合并成一行"省下的时间');
+});
+
+t('⚠ 说清楚一件事：**同一基线**上的三段标签，判据本来就只算一块（诚实清单）', () => {
+  // textGroups() 是**按 y 单链聚类**（src/layout.js 的 textGroups），横向隔着多远都不影响。
+  // 所以"合并成一行"真正省掉的是：① 记账条数（n 次文字绘制 → 1 次）；
+  // ② 三个标签各站一处（y 不同）时的块数。别把这两件事说成"一字排开就一定三块"。
+  const { fake } = fakeCanvas();
+  const tk = new TextKit(fake);
+  const paint = withPaint(tk, paintBook({}));
+  tk.writeLine('LOW', 1090, 700, { size: 21 });
+  tk.writeLine('MID', 1360, 700, { size: 21 });
+  tk.writeLine('HIGH', 1630, 700, { size: 21 });
+  assert.equal(paint.blocks.length, 3, '记账照样是 3 条（"这块字有多碎"的读数会露出来）');
+  const v = layoutVerdict({ blocks: paint.blocks.map((b) => ({ ...b, w: 60 })) });
+  assert.equal(v.blocks, 1, '同一基线上的三段落判据只算一块 —— 这是既有行为，不是 labelRow 的功劳');
+});
+
+t('labelRow：anchor 居中 / 右对齐按整行宽度算（x 是锚点，不是左边）', () => {
+  const items = [{ s: '波形' }, { s: '2.4 s' }];
+  const W = '波形　·　2.4 s'.length * 10;
+  const at = (anchor) => {
+    const { fake, rec } = fakeCanvas();
+    const tk = new TextKit(fake);
+    const w = labelRow(tk, items, 960, 500, { size: 21, anchor });
+    // 第一个字画在哪 = 整行的起点（TextKit 逐字 fillText，整行偏移由它按 align 摊到每个字）
+    return { w, first: rec.texts[0].x };
+  };
+  const l = at('left'), c = at('center'), r = at('right');
+  assert.equal(l.w, W, '三种锚点的整行宽度必须一样');
+  assert.equal(c.w, W); assert.equal(r.w, W);
+  assert.equal(l.first, 960, 'left：第一段就画在 x');
+  assert.equal(c.first, 960 - W / 2, 'center：整行中心在 x');
+  assert.equal(r.first, 960 - W, 'right：整行右边对齐 x');
+});
+
+t('labelRow：gap 可换；各段颜色按位置生效；空 items 不画也不抛', () => {
+  const { fake, rec } = fakeCanvas();
+  const tk = new TextKit(fake);
+  withPaint(tk, paintBook({}));
+  const w = labelRow(tk, [{ s: 'A' }, { s: 'B' }], 10, 20, { gap: ' | ', size: 30 });
+  assert.equal(w, 'A | B'.length * 10, '换一个分隔符，宽度跟着变');
+  assert.equal(rec.texts[0].s, 'A');
+  // 各段自带颜色 ⇒ 一次绘制里按字符取色（TextKit 的 color 支持数组，按簇下标取）
+  const { fake: f2, rec: r2 } = fakeCanvas();
+  const tk2 = new TextKit(f2);
+  withPaint(tk2, paintBook({}));
+  labelRow(tk2, [{ s: 'LOW', c: 'rgb(1,2,3)' }, { s: 'HIGH', c: 'rgb(4,5,6)' }], 0, 0, { size: 20 });
+  assert.equal(r2.texts[0].fill, 'rgb(1,2,3)', '第一个字用第一段的颜色');
+  assert.equal(r2.texts[r2.texts.length - 1].fill, 'rgb(4,5,6)', '最后一个字用最后一段的颜色');
+  // 空 / 非法输入：不画、返回 0、不抛
+  const { fake: f3, rec: r3 } = fakeCanvas();
+  const tk3 = new TextKit(f3);
+  withPaint(tk3, paintBook({}));
+  assert.equal(labelRow(tk3, [], 0, 0, {}), 0);
+  assert.equal(labelRow(tk3, null, 0, 0, {}), 0);
+  assert.equal(r3.texts.length, 0, '空 items 一笔都不画');
+});
+
+t('接线：CLI 的「主体区 …」读数按 focusNote 分流（三种写法都在，且不放松判据）', () => {
+  // 打印在 scripts/anim.mjs 的 focusReading() —— 它是**纯函数**，但这里不 import 它
+  // （anim.mjs 是 CLI 入口，import 会把它整份跑起来）。所以用两条静态断言钉住它真的接上了、
+  // 且三种分支都在。判据一侧的**行为**由上面 §8 那几条钉着（带/不带绘制账，violations 逐字相同）。
+  assert.ok(new RegExp('主体区 \\$\\{focusReading\\(w\\)}').test(ANIM), 'CLI 那一行必须读 focusReading()');
+  assert.ok(/case 'graphics':/.test(ANIM) && /case 'empty':/.test(ANIM), '三种读数分支都要在');
+  assert.ok(/focusNote: worst.focusNote/.test(read('src/layout.js')), '读数要平铺进 layoutReport（CLI 只读一层）');
+});
+
+t('labelRow 已在 kit 的统一出口里（任务照 docs 写就能 import 到）', () => {
+  assert.ok(/export \{[^}]*labelRow[^}]*\} from '\.\/layout\.js'/.test(read('src/kit/index.js')),
+    'src/kit/index.js 要导出 labelRow');
 });
 
 /* ────────────────────────────────────────────────────────────────── 汇总 */

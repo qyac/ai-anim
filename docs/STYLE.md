@@ -84,7 +84,7 @@ node scripts/anim.mjs still _style-sampler -t 1.8,6,9.6 --style noir
 
 ---
 
-## 3. 五套风格，各自适合讲什么
+## 3. 六套风格，各自适合讲什么
 
 > 下表 `label` / `note` **原样抄自** `src/style/index.js` 的 `STYLES`，一个字没改。
 
@@ -95,6 +95,7 @@ node scripts/anim.mjs still _style-sampler -t 1.8,6,9.6 --style noir
 | `paper` | **纸面 · 反色** | `#f3f0e7` 米白 / `#1b1a17` 墨黑 / `#c8381b` 朱红 | `paper` |
 | `terminal` | **终端 · 磷光** | `#030704` 纯黑 / `#c6ffd9` 淡绿 / `#3dff88` 磷光绿 | `scan` |
 | `noir` | **黑白电影 · 单点琥珀** | `#08080a` 近黑 / `#ffffff` 纯白 / `#ffb020` 琥珀 | `noir` |
+| `flat` | **纯色摄影棚 · 无母题背景**（2026-10-25 新增） | `#0b0c0f` 冷青近黑 / `#f7f4ec` 纸白 / `#ff4d12` 信号橙 | `flat`（**不画母题**） |
 
 **适合讲什么**（`note` 原文）：
 
@@ -123,7 +124,7 @@ node scripts/anim.mjs still _style-sampler -t 1.8,6,9.6 --style noir
 
 ---
 
-## 4. 风格包里有什么：六个字段
+## 4. 风格包里有什么：七个字段
 
 > 这张表**对照 `src/style/index.js` 顶部那张表**写成；"谁读它"一列就是接线点。
 
@@ -134,7 +135,8 @@ node scripts/anim.mjs still _style-sampler -t 1.8,6,9.6 --style noir
 | `post` | 后处理**基线**（泛光/颗粒/暗角/色差…，字段见 `AGENTS.md` §5 与 `docs/ENGINE.md` §8） | `src/core/engine.js` 的 `post` 合并 |
 | `grid` | 版面栅格：`pad` `top` `footerLineY` `footerY` `captionLineY` `captionY` `contentBottom` `captionBand` | `src/kit/bands.js` 的 `bands()` + 字幕层（条带含义见 [`docs/CAPTIONS.md`](./CAPTIONS.md) §4） |
 | `captions` | 字幕样式：`position` `size` `weight` `maxCharsPerLine` `maxLines` `bg` `padX` `padY` `lineHeight` `hold` `fade` `karaoke` `dim` `color` `sungColor` | `src/core/captions.js`。⚠ **`print` 的这一项是 `false`**（这套风格默认不开字幕）；其余四套 = `{ ...DEFAULT_CAPTION_STYLE, 各自的微调 }`（微调值见 §3 末尾） |
-| `motif` | 背景**母题名**：`grid` / `blueprint` / `paper` / `scan` / `noir` | `src/kit/world.js` 的 `worldPass`（`motif: 'auto'` 时读 `ctx.style.motif`） |
+| `motif` | 背景**母题名**：`grid` / `blueprint` / `paper` / `scan` / `noir` / `flat`（纯色，不画母题） | `src/kit/world.js` 的 `worldPass`（`motif: 'auto'` 时读 `ctx.style.motif`） |
+| `tokens` | **设计 token**：字号阶梯 / 线宽三档 / 动效配方 / 边距 / 质感（2026-10-25 起，来自 `src/style/tokens.js`） | `ctx.style.tokens`（场景读它：**写 `size: T.type.hero` 不写 `size: 24`**）。纯被动字段，老任务不变 |
 
 另外两个导出：**`gridFor(style, W, H)`** —— 按逻辑分辨率缩放栅格。`grid` 里的数字都是 **1920×1080 基准**；
 `H === 1080` 时**直接返回原对象**（4K 的 `scale: 2` 也不算，因为引擎的 `W/H` 一直是逻辑像素），

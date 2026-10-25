@@ -91,6 +91,9 @@ const ITEMS = [
   { name: 'say:real-tts', cmd: ['tools/probe-tts-edge.mjs'], allowSkip: true, note: 'B/C 档真 TTS（联网；连不上会「跳过」退出码 2 —— 服务端 403 也算这一类）', timeout: 10 * 60e3 },
   // ⚠ 这一项**会**在没有 ffmpeg 的机器上退出 2（"跳过，不算通过"）—— 所以挂 allowSkip
   { name: 'unit:loudness', cmd: ['tools/test-loudness.mjs'], allowSkip: true, note: '响度数字守门：合成已知响度的测试音、对不上就是函数错了 + **-t 是输入侧选项**与"真的截断"（39 项）' },
+  // `anim mix --target`：**默认关**是硬约束（已交付片子的音轨不能因为这次改动而重新编码），
+  // 所以这里同时钉"开"与"不开"两条路 —— 不开时逐字节相同、开了真的落在靶子上。
+  { name: 'unit:mix-loudnorm', cmd: ['tools/test-mix-loudnorm.mjs'], allowSkip: true, note: 'anim mix --target：靶子解析 / planLoudnorm 六条出口 / 已知响度测试音 ±1 LU / **默认路径逐字节不变**（53 项）' },
   // 1-39：黑场/静帧/音量扫描。纯函数（解析 + 分档）不依赖 ffmpeg；端到端那几条自己跳过并明说"没验"。
   { name: 'unit:media-qa', cmd: ['tools/test-media-qa.mjs'], note: '成片级技术扫描：blackdetect/freezedetect 解析（含片尾只有 start）+ 分档（片头片尾白名单 / 静帧阈值 / 黑场里的静帧去重）+ 真 ffmpeg 夹具（17 项）' },
 

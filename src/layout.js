@@ -34,7 +34,11 @@
  * · 位置与尺寸是**绘制时给的**（`write` / `writeLine` / `karaoke` 的 x/y/size + 实测宽度），
  *   不读像素 —— 所以"一块字被别的元素盖住"这件事这一层**看不出来**；它能判的是
  *   **同一帧里有几块、哪块在主体区里**；
- * · `alpha` 低于 `minAlpha` 的绘制不算（还没揭晓的字不算"占了一屏"）。
+ * · `alpha` 低于 `minAlpha` 的绘制不算（还没揭晓的字不算"占了一屏"）；
+ * · **只数文字**：判据的量全部来自"文字块"。所以"主体区 0 块字"本身**分不清**两种画面 ——
+ *   主体是图形（方波 / 格阵 / 波形，文字只是标注）vs 这一段什么都没画，块数都是 0。
+ *   `layoutVerdict()` 另给一条**读数**（不是判据）：`nonTextDraws` / `focusNote`，
+ *   数据取自同一本绘制账（`gl.paint`，见 `countNonTextDraws()`）。
  *
  * 判据的**接线**：`src/app.js` 的 `layoutAudit()` 负责渲染并取回真实的绘制记录，
  * CLI 的 `anim check` 负责打印 / 进 errs / 进 skipped。判断逻辑一个字都不在浏览器里 ——
@@ -214,6 +218,60 @@ export function textGroups(blocks, o = {}) {
 }
 
 /**
+ * **这一帧画了几笔"不是字"的东西**（读数，不进判据）—— 2026-10-25 加。
+ *
+ * ## 为什么需要它
+ *
+ * 版面守门的读数里有一项「主体区 N 块」。当一段的主体是**图形**（方波 / 格阵 / 波形，
+ * 文字只是标注）时 N 天然是 0 —— 而"主体是图形"和"这一段什么都没画"在读数上**长得一模一样**
+ * （见交接单 F：《把信号拆开》每一段都是这个形状）。判据本身没错（判据 ② 数的是文字块），
+ * 错的是读数没有区分这两件事。
+ *
+ * ## 用哪个量（读 `src/core/gl.js` 的 `_notePaint / beginPaint`，不是猜的）
+ *
+ * `beginPaint()` 给每段开一本账，之后**每一次真的提交绘制**都记一笔：
+ *   · `paint.any`   —— 所有绘制（Pass.render / blit / LineBatch.flush）都 +1；
+ *   · `paint.full`  —— 其中 `blend:false` 的全屏 Pass（判据在 `_notePaint` 里）；
+ *   · `paint.lines` —— 其中 `LineBatch.flush()` 的次数（矢量图形，`offset === 0` 时提前 return，不记）；
+ *   · `paint.other` —— 画到了**别的渲染目标**上的次数（引擎内部搬运：xform / 快照）；
+ *   · `paint.blocks`—— **文字**的记录（`src/core/text.js` 的 `noteText` 压进来的），一条 = 一次画字。
+ * ⚠ `paint.text` 这个字段**从来没有人写过**（beginPaint 里初始化为 0 就再没动过）——
+ *   它不是"文字绘制次数"，别拿它当文字读数；文字只有 `blocks` 这一份。
+ *
+ * 所以：**非文字绘制 = 总绘制 − 内部搬运 − 文字层的合成那一次**。
+ * 文字层自己也是一次绘制（`comp.draw(gl, text, …)` 走的是 Compositor 的全屏 Pass，
+ * `noFull: true`、`blend` 按模式），所以场景画了字就要减掉 1 —— 否则"只写了几行字"的段
+ * 会被算成"画了图形"。
+ *
+ * ## 边界（诚实清单）
+ *
+ * · **没有坐标**：`paint` 只记次数，不记画在哪。所以这是**整帧**的读数，不是"主体区里面"的
+ *   （接口名与打印措辞都按整帧写，别把它读成"主体区里有 N 笔"）；
+ * · 场景若在一帧里 `comp.draw` 了**不止一层**（文字层 + 自己的渐变层），`textLayerDrawn`
+ *   只减得掉 1 次 —— 多出来的那几次会被算成"非文字绘制"。这是已知的近似，读数会偏高；
+ * · 场景 `render` 抛错时画的是**错帧卡片**（引擎画的，不是这一段的主体）⇒ `known: false`，
+ *   整条读数按"没判"处理，不冒充 0。
+ *
+ * @param {any} paint `gl.paint`（引擎在每段 render 前 `beginPaint()` 开的那本账）
+ * @param {{ textLayerDrawn?: boolean }} [o] 这一帧场景有没有提交自己的 2D 图层（= `layer._uploaded`）
+ * @returns {{ known: boolean, total: number, lines: number, full: number, passes: number, error?: boolean }}
+ *   `lines` / `full` 是 `total` 的子集（矢量批次 / 整帧不透明 Pass），只用来把读数说清楚
+ */
+export function countNonTextDraws(paint, o = {}) {
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+  if (!paint || typeof paint !== 'object') return { known: false, total: 0, lines: 0, full: 0, passes: 0 };
+  // 错帧卡片不是"这一段的主体"：读数按没判处理（说 0 就等于说"这一屏是空的"，那是假话）
+  if (paint.markError) return { known: false, total: 0, lines: 0, full: 0, passes: 0, error: true };
+  const any = num(paint.any);
+  const other = num(paint.other);
+  const lines = num(paint.lines);
+  const full = num(paint.full);
+  const composite = o.textLayerDrawn ? 1 : 0;
+  const total = Math.max(0, any - other - composite);
+  return { known: true, total, lines, full, passes: Math.max(0, total - lines) };
+}
+
+/**
  * 一块字在 `focus` 区里重叠了多少（**按重叠面积比它自己的面积**算）。
  *
  * ⚠ 为什么不用"块的中心在不在里面"：主体区边缘那半块字算不算主体，靠中心判定会一刀切；
@@ -249,6 +307,22 @@ function groupsIntersect(a, b) {
   return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 }
 
+/**
+ * 「主体区 0 块字」到底是哪一种（**纯读数**，见 `layoutVerdict()` 的 `focusNote`）。
+ *
+ * 为什么单独一个函数：这句话的**判断**必须能被离线单测钉住 —— 它是"读数不许被读成
+ * 没画东西"的唯一落点，而 CLI 只负责按它换一种措辞打印。
+ *
+ * @param {number} inFocusCount 主体区里的块数
+ * @param {{ known: boolean, total: number }|null} nonText `countNonTextDraws()` 的结果
+ * @returns {'text'|'graphics'|'empty'|'unjudged'}
+ */
+export function focusNoteOf(inFocusCount, nonText) {
+  if (inFocusCount > 0) return 'text';
+  if (!nonText?.known) return 'unjudged';
+  return nonText.total > 0 ? 'graphics' : 'empty';
+}
+
 /** 报告里点一块字的名字：截断 + 去掉换行 */
 function shortOf(g) {
   const s = String(g?.sample ?? '').replace(/\s+/g, ' ').trim();
@@ -267,7 +341,16 @@ function shortOf(g) {
  *
  * 没声明 `focus` ⇒ `noFocus: true`：只有 ① 成立，② **没判**，绝不算通过。
  *
- * @param {{ id?: string, t?: number, blocks?: any[], focus?: any, W?: number, H?: number, limits?: Partial<LayoutLimits> }} o
+ * ## 一条读数（不是判据）：`focusNote`
+ *
+ * 声明了 `focus`、主体区里**一个字块都没有**、但这一帧**画了图形** ⇒ `focusNote: 'graphics'`。
+ * 这是"主体是图形"那类段的正常形状（《把信号拆开》每一段都是），CLI 按它换个说法打印，
+ * 免得「主体区 0 块」被读成"这一段什么都没画"。**它不改变任何判据**：
+ * 判据 ②（`in-focus`）在"主体区 0 块"时本来就**不可能**触发（0 ≤ maxInFocus 恒成立）。
+ *
+ * @param {{ id?: string, t?: number, blocks?: any[], focus?: any, W?: number, H?: number,
+ *   limits?: Partial<LayoutLimits>, paint?: any, textLayerDrawn?: boolean }} o
+ *   `paint` / `textLayerDrawn` 是可选的：给了才有 `nonTextDraws` 那条读数（见 `countNonTextDraws`）
  */
 export function layoutVerdict(o = {}) {
   const limits = { ...LAYOUT_LIMITS, ...(o.limits ?? {}) };
@@ -275,6 +358,8 @@ export function layoutVerdict(o = {}) {
   const H = Number.isFinite(o.H) ? o.H : BASE_H;
   const rect = resolveFocus(o.focus, W, H);
   const blocks = Array.isArray(o.blocks) ? o.blocks : [];
+  /** 这一帧的非文字绘制读数（整帧，不含文字层的合成那一笔） */
+  const nonText = o.paint ? countNonTextDraws(o.paint, { textLayerDrawn: !!o.textLayerDrawn }) : null;
   const groups = textGroups(blocks, { gap: limits.gap, minAlpha: limits.minAlpha });
   /** @type {any[]} */
   const violations = [];
@@ -331,10 +416,13 @@ export function layoutVerdict(o = {}) {
    * 判据 ②（必须声明 focus 才跑）：**主体区里压了几块** —— 这就是"元素互相遮挡、
    * 不知道看哪个"的直接计数（`Rect3` 那种坐在图示上的标签会走这条）。
    */
+  /** 主体区里的块数（声明了 focus 才有意义；没声明时保持 -1 = "没判"） */
+  let inFocusCount = -1;
   if (rect) {
     // 保留区里的字不参与"抢视线"（页眉/说明条/脚注是版式，不是第二个主体）
     const inFocusIdx = groups.map((g, i) => i)
       .filter((i) => ovOf[i]?.inside && !inReservedBand(groups[i], H));
+    inFocusCount = inFocusIdx.length;
     if (inFocusIdx.length > limits.maxInFocus) {
       violations.push({
         kind: 'in-focus',
@@ -373,7 +461,26 @@ export function layoutVerdict(o = {}) {
     focus: rect,
     focusSource: rect?.source ?? null,
     /** 主体区里压着的块数（声明了 focus 才有意义；没声明时是 -1 = "没判"） */
-    inFocus: rect ? (violations.find((v) => v.kind === 'in-focus')?.got ?? 0) : -1,
+    inFocus: inFocusCount,
+    /**
+     * **这一帧画了几笔"不是字"的东西**（整帧；读数，不进判据）。
+     * `known: false` = 拿不到账（没传 `paint`）或那一帧是错帧卡片 —— 这两种都是"没判"，
+     * 不许当成 0（0 的意思是"这一屏真的什么都没有"）。
+     */
+    nonTextDraws: nonText ? nonText.total : 0,
+    nonTextKnown: !!nonText?.known,
+    /** 其中矢量批次 / 整帧不透明 Pass 各几笔（只是把读数说清楚，判据不看） */
+    nonTextLines: nonText ? nonText.lines : 0,
+    nonTextPasses: nonText ? nonText.passes : 0,
+    /**
+     * 「主体区 0 块字」到底是哪一种（见文件头的边界清单）：
+     *   · `'graphics'`     —— 主体区没有字，但这一帧**画了图形**（主体是图形，正常形状）；
+     *   · `'empty'`        —— 主体区没有字，而且**一笔非文字绘制都没有**（真的像没画东西）；
+     *   · `'text'`         —— 主体区里有字块（读数照常）；
+     *   · `'undeclared'`   —— 没声明 focus，这一条谈不上；
+     *   · `'unjudged'`     —— 拿不到绘制账（没传 paint / 错帧卡片）⇒ 没判。
+     */
+    focusNote: rect ? focusNoteOf(inFocusCount, nonText) : 'undeclared',
     /**
      * 主体之外还有几个「看的地方」（判据 ③ 的读数）。
      * ⚠ 它**不依赖 focus**：没声明时主体 = 最大的一块，这条照样算得出来 ——
@@ -427,6 +534,12 @@ export function layoutReport(rows) {
       groups: worst.groups,
       focus: worst.focus,
       inFocus: worst.inFocus,
+      /** 「主体区 0 块字」的那一条读数的判读（见 `layoutVerdict()` 的 `focusNote`） */
+      focusNote: worst.focusNote,
+      nonTextDraws: worst.nonTextDraws,
+      nonTextKnown: worst.nonTextKnown,
+      nonTextLines: worst.nonTextLines,
+      nonTextPasses: worst.nonTextPasses,
       offSubject: worst.offSubject,
       /** 有几帧超限（免得把偶发的一帧说成整段都这样） */
       over,

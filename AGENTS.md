@@ -496,6 +496,8 @@ node scripts/anim.mjs say <任务> [--voice zh-CN-YunxiNeural] [--rate -6%] [--d
 node scripts/anim.mjs mix <任务>          # 旁白摆位 + 给音乐做闪避 → 一条混音轨
 ```
 
+> 贴平台响度靶子要**显式**：`anim mix <任务> --target streaming`（默认只报数字、不动音轨；见 `docs/NARRATION.md` §7）。
+
 写法（`tasks/<任务>/narration.mjs`，**旁白是唯一的时间源**）：
 
 ```js
@@ -589,10 +591,19 @@ node scripts/anim.mjs video <任务>                          # 1080p60，自动
 #   分块每块重启浏览器，天然规避；每块还会 ffprobe 逐块复核。
 node scripts/anim.mjs video <任务> --segments 10
 
+# 睡前排队渲几支（**顺序**跑 —— 4 进程并行实测 6.1 fps，比单进程还慢）。任务名在前、选项在后，
+# 选项原样转发给 video；每支结束响一声、全部结束响三声（--silent 静音）；
+# 某一支失败**不中断**后续，最后汇总并按失败数给退出码。
+node scripts/anim.mjs queue a b --segments 10 --gpu high
+
 # 开渲之前先看要多久（测速 + 预估，不出片）
 # ⚠ 它量的是 `samples=1`，**不是成片走的 auto**。画面主体静止的片子，自适应会一路加到
 #   72 子帧（实测 0.9 fps ⇒ 75 秒的片子要 85 分钟）。要提速就在段上写 `maxSamples: 8`。
 node scripts/anim.mjs video <任务> --dry-run
+
+# 草稿档：半分辨率（960×540）+ samples=1 —— **只用来审节奏与信息密度，不是成片**
+# （定稿去掉 --draft 仍出 1080p60；实测 _calib 60 帧 13.5 → 33.5 fps = 2.5×，配 auto 子帧差距更大）
+node scripts/anim.mjs video <任务> --draft
 
 # 成片验收：从 mp4 里抽帧，与同一时刻重新渲染的帧逐像素比
 # （拼接错位 / 帧数不对 / 色彩空间不一致 / 成片是旧版本 —— 一次全查出来）
