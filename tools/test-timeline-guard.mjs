@@ -210,7 +210,15 @@ check('全部时间线字段都不被当成模板参数（TIMELINE_KEYS 得是�
   if (s.world !== 'auto') throw new Error(`worldPass: true → world 该是 'auto'，实际 ${JSON.stringify(s.world)}`);
 }, false);
 
-// ⑯ 模板参数名合法就展开；**类型不对也接受**（这一层不校验类型，别把它当契约）
+// ⑯ 时间线字段 transition 必须透传到段对象（新默认转场"甩镜"的字段）—— 漏了就静默丢成 undefined
+check("transition 字段从配置档节点透传到段对象（且 'mix' 值保留）", () => {
+  const tl = build([{ type: 'outro', transition: 'mix', dur: 2 }], MUSIC);
+  if (tl[0].transition !== 'mix') throw new Error(`transition 没透传：${JSON.stringify(tl[0].transition)}`);
+  const tl2 = build([{ type: 'outro', transition: 'none', dur: 2 }], MUSIC);
+  if (tl2[0].transition !== 'none') throw new Error(`transition:'none' 没透传：${JSON.stringify(tl2[0].transition)}`);
+}, false);
+
+// ⑰ 模板参数名合法就展开；**类型不对也接受**（这一层不校验类型，别把它当契约）
 check('参数名合法就展开（headline 给字符串也不抛：模板不做类型校验）', () => {
   const tl = build([{ type: 'kinetic', headline: 'x', dur: 2 }], MUSIC);
   if (tl.length !== 1 || tl[0].id !== 'kinetic') throw new Error(`没展开：${JSON.stringify(shape(tl))}`);

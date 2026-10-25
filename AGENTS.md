@@ -231,7 +231,7 @@ export default {
 
 | 类别 | 键 | 说明 |
 |---|---|---|
-| **时间线字段** | `type` `id` `dur` `at` `overlap` `params` `post` `maxSamples` `handlesTransition` `note` `world` `worldPass` `focus` `carry` | 与 `cut(scene, { … })` 的第二个参数同义。⚠ `maxSamples` 是自适应子帧数的**上限**（合法档 8 / 24 / 72 / 216）、**只会往下压** —— 它是**提速**旋钮，**不是"加密采样"**：写 `maxSamples: 64` 会被夹到 24，画面更粗且不报错；拖影要更细就调**小** `--tol`。`world: false` 是合法声明（"这一段我刻意不铺底"，背景守门**不判**它的铺底、但会照常打出读数），别为了骗过 `check` 去画一笔没意义的全屏 Pass。`carry: 'morph'` = 声明这条切缝是跨元素合成的衔接（`anim carry` 判 bare 但对观众成立） |
+| **时间线字段** | `type` `id` `dur` `at` `overlap` `params` `post` `maxSamples` `handlesTransition` `note` `world` `worldPass` `focus` `carry` `transition` | 与 `cut(scene, { … })` 的第二个参数同义。⚠ `maxSamples` 是自适应子帧数的**上限**（合法档 8 / 24 / 72 / 216）、**只会往下压** —— 它是**提速**旋钮，**不是"加密采样"**：写 `maxSamples: 64` 会被夹到 24，画面更粗且不报错；拖影要更细就调**小** `--tol`。`world: false` 是合法声明（"这一段我刻意不铺底"，背景守门**不判**它的铺底、但会照常打出读数），别为了骗过 `check` 去画一笔没意义的全屏 Pass。`carry: 'morph'` = 声明这条切缝是跨元素合成的衔接（`anim carry` 判 bare 但对观众成立）。`transition` = 交叠期转场模式（默认 `push` 甩镜 / `mix` 交叉溶解 / `none` 硬切） |
 | **模板参数** | **其余所有键** | 原样交给 `shot(type, { … })`；也可以显式写在 `params: { … }` 里（`params` 优先）。**没有必需参数**，每个都有默认值 |
 
 三条硬边界：
@@ -299,7 +299,7 @@ export default makeShot('chart', {
 | 一个 **Three.js 镜头**（真网格，第 3 种 3D） | `makeThreeShot(id, { camera, setup, update, overlay, post })`（见 §5.5 ③ 与 `docs/THREE.md`） |
 | 一个现成的整镜头（画面本身） | `shot('chart', { values: [...], title: '…' })`（A 档镜头库 `src/shots/`，也可直接写进时间线） |
 | 只要背景 + 转场 | `makeWorldKit(ctx)` → `wk.openFrame(ctx)` |
-| 按锚点写整行字 | `type.writeLine(text, x, y, { anchor })`（⚠ `type.write` 的 `align` 是**逐字**生效的） |
+| 按锚点写整行字 | `type.writeLine(text, x, y, { anchor })` —— 与 `type.write(…, { align })` **等价**（`align` 自 2026-10-24 起是整行对齐） |
 | 整行淡入 | `fade(f.lt, delay)` → `{ alpha: [0,1], t, staggerDur }` |
 | 面板 / 眉标 / 页脚 / 准星 / 标记 | `panel` `kicker` `footer` `reticle` `marker` |
 | 填充矩形（一条批） | `lines.fillRect(x, y, w, h, [r,g,b,a])` |
@@ -381,7 +381,7 @@ export default {
 | 工具 | 用途 | 关键点 |
 |---|---|---|
 | `lines`（LineBatch） | 矢量图形：线、折线、圆、矩形、填充矩形、刻度 | 颜色是**线性**值 `[r,g,b]` 或 **`[r,g,b,a]`**（`a` 是真半透明叠加），可以 >1 让它发光；`fillRect` 是填充；一次 `flush` 就是一次 draw call；容量 6 万条 |
-| `text` + `type` | 文字排版 | `type.write` 逐字动画；`type.writeLine` **按锚点写整行**（`write` 的 `align` 是逐字生效的，别用它做居中）；`type.karaoke` 逐词同步；`type.wrap` 折行；画完必须 `text.upload()` 再 `comp.draw` |
+| `text` + `type` | 文字排版 | `type.write` 逐字动画；`type.writeLine` **按锚点写整行**（与 `write(…,{align})` 等价，两者都是整行）；`type.karaoke` 逐词同步；`type.wrap` 折行；画完必须 `text.upload()` 再 `comp.draw` |
 | `new Pass(gl, glsl)` | 全屏 shader：背景、扭曲、后处理式效果 | shader 里直接写 `void main(){ fragColor = ...; }`；`GLSL_COMMON` 已提供 `vUv`/`t`/`res`/`FRAG_PX`/调色板常量 `C_INK` `C_SIGNAL`…/噪声/SDF |
 | `comp.draw(gl, 图层, out, opts)` | 叠图层 | `mode: 'normal'\|'add'\|'screen'\|'multiply'\|'max'`；Canvas2D 图层传 `premult: false` |
 
@@ -593,16 +593,26 @@ node scripts/anim.mjs video <任务> --dry-run
 # （拼接错位 / 帧数不对 / 色彩空间不一致 / 成片是旧版本 —— 一次全查出来）
 node scripts/anim.mjs verify <任务>
 
+# 成片**文件自己**的技术读数（纯 ffmpeg，不起浏览器）：解码 / 黑场 / 静帧 / 音量
+# 与 verify 分工：verify 管"画面是不是这一版"，qa 管"这份文件有没有黑闪/冻结/静音"
+# 默认只报读数（片尾压黑、hold 段是设计），--strict 才把 warn 当失败
+node scripts/anim.mjs qa <任务>
+
 # 只看某几段（快，且不会被别人写坏的场景拖累；名字写错直接报错）
 # ⚠ --only 把选中的段**平移到时间轴开头**，所以 -t 是"段内时间"
 node scripts/anim.mjs still <任务> -t 6 --only chart,title
 
-# 改了引擎或重构了场景之后：证明画面**没变**（比人眼看图可靠）
-node scripts/anim.mjs hashes <任务> --every 2 --save     # 存基线
-node scripts/anim.mjs hashes <任务> --baseline           # 逐像素比对
+# 画面基线：它是**变更探测器**，不是"画面永远不许变"（docs/BACKLOG.md §4，2026-10-24 拍板）
+# 改动前先给自己定档：
+#   · 保画面（bug fix / 重构 / 性能）→ --baseline 必须全绿，绿了才证明你没顺手改画面
+#   · 改画面（有意的视觉改进）→ --accept --note "改了什么、为什么"：先落前后对比图，再存基线
+node scripts/anim.mjs hashes <任务> --every 2 --save     # 第一次存基线（已存在会拒绝覆盖）
+node scripts/anim.mjs hashes <任务> --baseline           # 比对：变了 ⇒ 退出码 1 + out/<任务>/hashes-diff.png
+node scripts/anim.mjs hashes <任务> --accept --note "…"  # 有意改画面：看对比图 → 确认 → 存新基线
 
 # 忘了某个镜头模板的参数与默认值 —— 写场景、写配置档都用它（这条命令本来就有，见 §1）
 node scripts/anim.mjs shots [名字]
+node scripts/anim.mjs shots --use 转场                    # 按用途筛（use / energy / avoid）
 
 # 抖动体检：整片的 post.shake 是"平滑手持"还是"逐帧白噪声（振动）"（有问题退出码 1）
 node scripts/anim.mjs shake <任务> [--from 0 --to 48] [--json]     # 见 §5 的"抖动怎么给才对"
@@ -658,7 +668,7 @@ node scripts/anim.mjs check <任务>
 | 文字全不见 | 忘了 `text.clear()`；或忘了 `text.upload()` / `comp.draw`；或把 `text` 用成了引擎的而不是 `ctx.text` |
 | 文字是方框 | 任务字体没加载完就渲了；`task.fonts` 的路径要相对任务目录，且字体文件要真的存在 |
 | "整行淡入"一上来就是终值 | 曾经是引擎 bug（`alpha` 只在 `stagger>0` 时参与动画），**已修**；用 `probe-alpha` 复核 |
-| 整行居中/右对齐偏了 | `type.write` 的 `align` 是**逐字**生效的；用 `type.writeLine(..., { anchor })` |
+| 整行居中/右对齐偏了 | 2026-10-24 之前是引擎 bug（`write` 的 `align` 逐字生效，整行会往右排、右边被裁）；**已修**（`align` 现在是整行对齐）—— 若还偏，查自己是不是手算了一个 `x - w/2` 又叠加了一次 |
 | 上下颠倒 | Canvas2D 图层不用自己翻 Y，引擎在合成器里翻了 |
 | 预览对、导出暗 | 历史上是导出缺 sRGB 编码（已修）。自己写读回时别用 `readLinearPixels()` 存图 |
 | 预览对、导出不对 | 用了 `Math.random` / 逐帧累积状态 / 用 `Math.floor(t*60)` 抖帧（`check` 会扫出前三种） |
@@ -722,7 +732,8 @@ node scripts/anim.mjs check <任务>
    例如 `node scripts/anim.mjs still <任务> -t 6 --only chart,title`）
 3. 有音乐的片子：镜头切割点对齐在拍上（`dur: { beat: n }`）
 4. `video` 出片成功 —— **CLI 会用 ffprobe 复核产物**（帧数不符就报错并删废文件，分块模式逐块复核）；
-   想再确认一遍就 `node scripts/anim.mjs verify <任务>`
+   想再确认一遍就 `node scripts/anim.mjs verify <任务>`；再跑一遍 `node scripts/anim.mjs qa <任务>`
+   （文件的解码/黑场/静帧/音量读数 —— 切点处的短暂黑闪只有它会扫出来）
 5. 段与段之间没有黑隙（`check` 会报「空档」），最后一段结尾有淡出或明确收尾
 6. 代表某个团队/项目对外发声的片子：`tasks/<任务>/FACTS.md` 逐句标了出处
    （模板见 `docs/FACTS-TEMPLATE.md`），并列出「刻意没写的东西及原因」
@@ -787,7 +798,7 @@ node tools/test-cam-math.mjs / test-say.mjs / test-karaoke.mjs / test-timeline-g
 
 # ④ 出片之后
 node scripts/anim.mjs verify <任务>             # 抽帧 vs 重渲（拼接/帧数/色彩）
-node scripts/anim.mjs hashes <任务> --baseline  # 画面没变
+node scripts/anim.mjs hashes <任务> --baseline  # 变更探测器（变了 ⇒ 对比图 + 退出码 1）
 node tools/regress-all.mjs [--only smoke]       # 整份回归（日志 out/_regress/）
 ```
 

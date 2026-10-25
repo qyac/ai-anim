@@ -393,18 +393,25 @@ if (Math.floor(f.lt * 2) % 2 === 0) type.write('█', W * 0.12 + type.measure(li
 });
 ```
 
-### 3.3 居中 / 右对齐的正确做法：`writeLine` 的锚点
+### 3.3 居中 / 右对齐：`align` 与 `writeLine` 的锚点（同一件事）
 
-`write` 是逐字 `fillText(cl, x + X[i], y)`，`align` 对**每个字**都生效 ——
-`align: 'center'` 会让每个字各自居中、整行跑偏，`align: 'right'` 会让整行向右溢出一个行宽。
-按锚点写整行用它（内部先 `measure()` 再偏移，并强制 `align: 'left'`，所以能和逐字动画一起用）：
+`write` 是逐字 `fillText(cl, x + X[i], y)`。**2026-10-24 之前**它把 `align` 原样交给 Canvas2D，
+而 `textAlign` 对每个字都生效 —— `align: 'center'` 会让每个字各自居中、整行往右排
+（`kinetic` 的「都是时间的函数」实测右边被切掉 109px），`align: 'right'` 会让整行向右溢出一个行宽。
+**那个 bug 已经修了**：现在 `write` 内部先量整行宽度、再按 `align` 偏一次，两种写法完全等价：
 
 ```js
 const style = { size: 96, weight: 800, family: 'sans' };
+// 下面两行落点逐字节相同，用哪个都行（anchor 这个词更贴"这一行摆在哪"）
+type.write('标题', W / 2, H * 0.45, { ...style, align: 'center', color: css(P.bone),
+  stagger: 0.08, from: 'up', t: f.lt });
 type.writeLine('标题', W / 2, H * 0.45, { ...style, anchor: 'center', color: css(P.bone),
-  stagger: 0.08, from: 'up', t: f.lt });                       // 返回这一行的宽度（含 tracking）
+  stagger: 0.08, from: 'up', t: f.lt });                        // 返回这一行的宽度（含 tracking）
 type.writeLine('右下角读数', W - 90, H - 90, { anchor: 'right', size: 34, family: 'mono' });
 ```
+
+⚠ **不要再自己算 `x - measure(t)/2`**：那是修好之前的手工绕法，现在会**再偏一次**。
+判据：`node tools/test-text-align.mjs`（量到像素，不需要 GPU）。
 
 （`src/kit/layout.js` 的 `put()` 是同一个函数的转发，老代码不用改。）
 

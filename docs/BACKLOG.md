@@ -67,6 +67,43 @@
 > **验收**：`hashes demo` / `hashes beat --baseline` 各 **11/11 max 0**（老片子逐像素没变）；
 > `tools/regress-all.mjs --only unit` **23/23**；成片 `check` **skipped 无 / 版面守门无 ⚠ / motion.json 11 条断言全过**。
 
+> **2026-10-24 · 拆解 `Ebony-Vinyl/EAC-design-world`，四条一次收掉（1-39 ~ 1-42）** ——
+> 那个项目和我们做的是同一件事的两半（它把 HTML/CSS 逐帧 seek，我们把 GLSL 逐帧算），
+> 拆解报告在 [`REFERENCE-eac-design-world.md`](REFERENCE-eac-design-world.md)（AGPL-3.0：代码一行不抄，只借思路与口径）。
+> 本轮落地的四件：**`anim qa`**（成片级黑场/静帧/音量扫描，纯 ffmpeg）、
+> **`anim subs` 的 ASS 转义**、**`type.write` 的 `blur` 通道**（+ `title.blur`）、
+> **11 个模板的 `use/energy/avoid`**（+ `anim shots --use`）。逐条证据见 §4。
+
+> **2026-10-24 ·「基线不再冻结引擎」落地后，第一批被这条原则锁住的改进（解禁后的首批收账）** ——
+> 用户拍板「修改引擎不需要保证老片子画面不变」之后，把那些"为了不改 demo/beat 画面而没做"的事逐个收掉：
+>
+> ① **修好 `type.write` 的 `align`**（BACKLOG 0-3 那个"不修"条目）。修法是让 `align` 按**整行**对齐
+>    （内部量整行宽再偏一次，逐字 `fillText` 时归 `left`），`write({align})` 与 `writeLine({anchor})` 从此等价。
+>    修前 `kinetic` 的「都是时间的函数」7 字实测 x 875..2029，右边 109px 被切；修后居中、不出画。
+>    同步改了对齐语义的文档（ENGINE/COOKBOOK/AGENTS），新增几何量具 `tools/test-text-align.mjs`（13 项）。
+>
+> ② **补齐 `public/fonts/` 缺失的 4 个字体**。`Archivo / IBM Plex Mono / Cormorant Garamond`
+>    的 `@font-face` 声明一直在，但 `.woff2` 一个都不在仓库 → 全引擎拉丁字回退微软雅黑、等宽回退
+>    Consolas，「换风格连字体一起换」这条支柱失效（审计原话）。现在真文件到位（都 OFL，THIRD-PARTY 登记）。
+>    已交付的 fidus / sodium 拉丁字形随之变化（中文、布局、配色未变），基线已 `--accept --note` 更新。
+>
+> ③ **顺手抓到并修了一个真 bug：`hashes --accept` 会把基线采样密度悄悄缩水**。没写 `--every` 时
+>    `--accept` 回落到默认 4 帧，而基线通常是 11 帧 —— 一次 accept 就砍掉 64% 的检查点，且不报错。
+>    修法：`--accept` 沿用基线自己那批采样时刻（实测演示了 0-3 与字体两次 accept 后 demo 只剩 4 帧）。
+>    守门 `tools/test-hashes-policy.mjs` 新增 1 项。
+>
+> ④ **`grainScale` 默认改 `'auto'`**：1080p 走 `screen`（老行为逐像素不变），`--scale 2+` 自动 `design`
+>    （4K 颗粒不会细一半，这是确定的缺陷）。显式 `screen` / `design` 仍钉死。结论：AgX 当全局默认**不做**
+>    —— 实测 sodium 深色主题会被 AgX 去饱和 14% 而无死白可救，AgX 只该给白底/高光多的风格。
+>
+> ⑤ **交叠期转场默认从交叉溶解改成甩镜**（`transitionPass`）。溶解把两屏字叠一起会糊；
+>    甩镜沿摄影机方向把旧帧推出、前半程透明度就到 0。作者可显式 `transition: 'mix'`（溶解）/
+>    `'none'`（硬切）。`transition` 进 TIMELINE_KEYS / cut / configToCut / build 四接。
+>    **本轮没做 1-1（几何自检）**：核实它卡的不是基线冻结，而是"没有任务 import `src/kit/blocks.js`"
+>    （sodium 里的 "blocks" 只是 changelog 文字不是引用）——直接接进 `check` 仍是永远绿的假覆盖。
+>    要做必须**先做一个夹具任务**（用 blocks.js 建一个"被铺面=朝镜头面"的可判场景），是另一档工作量，
+>    留给下一轮单独做。其余盘点的条目（tonemap 全局默认 / dither tpdf / bloomKaris 全局开）经实测**都不该一刀切改默认**。
+
 ---
 
 ## 0. 拍板区（2026-10-17 0-6 落地后**已空**，2026-10-18 重新开了三条 —— 其余待办仍进 §1 / §2 / §3）
@@ -165,6 +202,20 @@ D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loud
 | ~~1-36~~ | **已完成（2026-10-17）**：`src/kit/carry.js` 落地（六个纯函数 + 三个判据常量）+ `tools/test-carry.mjs`（33 项）+ index.js 再导出 + regress-all 登记，见 §4 | | |
 | ~~1-37~~ | **夹具半完成（2026-10-17）**：`tasks/_carry-lab/` 落地（六个 carry 函数各一段真画 + rhythm 标定段，**看图验收 9/9 合格**，挂回归 `check:_carry-lab`）。**剩下**：把 stills 升级成「六帧 + 速度曲线」接片图（`anim gallery` / tools 脚本）+ 把速度谱升级成【我方实测】 | 夹具上直接加：每个动作出 6 个时刻（进场景中点前后各三）→ `writeContactSheet` 拼 + 速度曲线（数值微分 hop/morphRect 即可） | 同上 §5（速度谱出处表） |
 | ~~1-38~~ | **已完成（2026-10-17）**：`anim rhythm` 量具落地 —— `rhythmSegments()` 纯函数（`src/timeline.js`）+ CLI 子命令（降采样帧差 → 静段区间表）；标定样本 `tasks/_carry-lab` 的 rhythm 段量出 hold 16.50→17.50s。**关键发现**：hold 段必须 `return { grain: 0, dither: 'off' }`（默认 grain 与 dither 种子来自帧号、暗部 sRGB 放大 ~6.4/255，不关就永远量不出死静）——已写进 MOTION.md 与 DIAGNOSIS §1.9c | | 同上 §3 |
+
+### 1.E 参考拆解 EAC design world（2026-10-24，**按性价比排序**）
+
+> 来源：[`REFERENCE-eac-design-world.md`](REFERENCE-eac-design-world.md)（对 `Ebony-Vinyl/EAC-design-world` 的逐文件拆解，
+> 钉 `cde9fa6` / v0.5.0）。那个项目和我们是同一件事的两半（它把 HTML/CSS 逐帧 seek，我们把 GLSL 逐帧算），
+> **许可证 AGPL-3.0：代码一行不抄**，只借思路、阈值口径与文档格式；它 vendor 的 Shotcraft 配方是 Apache-2.0，可改写。
+> 第 1、2 条不引入画面变化（纯工具 / 纯文本），先做；第 3 条动引擎的文字通道，要过 `hashes` 基线。
+
+| # | 事 | 从哪接着做 | 出处 |
+|---|---|---|---|
+| ~~1-39~~ | **已完成（2026-10-24）**：`anim qa <任务>` 成片级技术扫描 —— 解码校验 + `blackdetect` + `freezedetect` + `volumedetect`，纯 ffmpeg（不起 Vite / 不起 Chrome）。判据拆成纯函数在 `scripts/lib/media.mjs`：`parseDetectIntervals()`（含"片尾只有 start"的开口区间）/ `classifyMediaScan()`（片头 0.5s、片尾 1.2s 白名单；静帧 ≥3s 才警；落在黑场里的静帧去重）/ `scanMediaFile()`。默认只报读数、`--strict` 才 gate；`--json` / `--no-decode` 都明说"没验"。验收见 §4 | | |
+| ~~1-40~~ | **已完成（2026-10-24）**：`anim subs` 的 ASS 文本转义（`assText()`：反斜杠后插 U+2060、花括号转义、控制字符剔除、换行收成 `\N`）+ `assTime()` 向上取整（顺带修掉 `1.999 → .100` 的三位百分秒坏值）。纯函数导出后由 `tools/test-subs.mjs` 覆盖（含"cmdSubs 真的接了 assText"的接线自检）。验收见 §4 | | |
+| ~~1-41~~ | **已完成（2026-10-24）**：`type.write` 的 `blur` 通道（数值=常量 / 数组=随缓动收敛，与 `alpha` 同构；Canvas2D `c.filter`，`blurPx < 0.05` 时**完全不碰 filter**）+ `title` 模板的 `blur` 参数（默认 0）。目视夹具 `tasks/_blur-lab/`（blur 0 / 20 / 20 三段）；`hashes demo` 与 `hashes beat --baseline` 各 11/11 max 0。验收见 §4 | | |
+| ~~1-42~~ | **已完成（2026-10-24）**：11 个镜头模板补 `meta.use` / `energy` / `avoid`（`SHOT_ENERGY` 五档），`listShots()` 原样带出、`shotsCatalog()` 进 `--json`、`anim shots` 打印并支持 `--use <词>`（`filterShots()`，匹配面 = 名 / summary / use / energy / avoid）。`tools/test-shots.mjs` 124 → **129 项**。验收见 §4 | | |
 
 ---
 
@@ -265,7 +316,7 @@ D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loud
 | **用户拍板不做（2026-10-16 深夜 · 待办复核）** —— 以下五条是**用户明确决定不做**的，别再翻出来 | 第十二轮 |
 | 0-1 `tasks/nekohome` 的 `disp()/dcss()/dscale()` 颜色绕行**不回改**；只在 `_kit.js` 顶部把注释更正为"历史绕行补丁，不是设计要求"（**已改**） | 第十二轮 |
 | 0-2 `sodium` 12 句 / `optifine` 3 句**画面文字逐字复述旁白不返工**（已交付；复述是观感打折，不是错误） | 第十二轮 |
-| 0-3 `kinetic` 模板"居中长行顶出右边"**不修**（修它会改 `demo` 的画面，要重存 hashes 基线） | 第十二轮 |
+| 0-3 `kinetic` 模板"居中长行顶出右边"**已修（2026-10-24）** —— 把它写成"不修"的理由（"修它会改 demo 的画面，要重存 hashes 基线"）在基线策略改版后作废。真正的修法是让 `type.write` 的 `align` 按整行对齐（详见 §0 批注 ①），`kinetic` 的「都是时间的函数」从被截 109px 变成完整居中 | 原第十二轮"不修" → **2026-10-24 落地** |
 | 0-4 / 2-2 `tasks/nekoseek` **不立项**（前置分析留在 `tasks/nekoseek/ANALYSIS.md`；它仍不是任务） | 第十二轮 |
 | 0-7②③ 钠差评后续的两支样片（60–90 秒单主题 / 「一页一图」最小样张）**不做**（① 版面守门已落地） | 第十二轮 |
 | 磁盘：`out/` 的 `*.parts/` 等中间产物已清（7 个任务、释放 29.4 GB）—— §3 的表已换成清理后的读数 | 第十二轮 |
@@ -280,6 +331,8 @@ D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loud
 | **1-17 词锚定时间线** | **2026-10-17**：`scripts/lib/narration-anchors.mjs` 新增（纯函数 `resolveNarration`）——`narration.mjs` 句上写 `on: { line?, word, edge?, affinity? }`、段上写 `reveal: { at: { line, word, edge } }`，解出段内 cue/internal 直接喂 `solveTiming`（它零改动、段内偏移照旧跟 stretch 乘）。**左右亲和显式化**（'left'→停顿全归前词 / 'right'→全归后 / 默认对半 / 数字按比例，取向写进 anchors.json 不许静默）；词名写错**抛错并列出该句全部可用词**；每段锚点（on+reveal）≤3、第一句带 on、往回锚（环）、affinity 写错全抛；**降级**：被锚句 approx/无 words → 退回显式秒并进 `anchors.json.degraded`（check 1.8 再报一遍"改词不会自动重排"）。`say` 接线在合成完之后、solveTiming 之前；无锚点全哑（§8.7 两遍日志一致判据钉住）；有锚点写 `audio/anchors.json`、无锚点主动删旧文件。验收：`tools/test-say.mjs` 新增 §9 共 34 项 → **112/112**（原 78 零回归）；`docs/NARRATION.md` 新增 §6（写法/亲和表/降级/≤3 锚/诚实边界）。**边界**：第一次 TTS 不出词级时间戳 ⇒ 锚点全部降级回秒（say 与 check 都会明说） |
 | **1-18 check 加画面语义断言** | **2026-10-17**：`tasks/<任务>/motion.json` 声明四种断言——`before(A,B)`（纯静态：B.start ≥ A.end）、`appearsBy(段,t)`（段头+0.05 与段头+t 两帧差分 changedRatio ≥ 0.0015）、`keepsMoving(段,maxStaticSec)`（段内每 0.5s 相邻帧对、最长连续静超标命中）、`noEdgeContent(段)`（15%/50%/85% 三点、四边 3% 带内**文字块** bbox 压边；第一版不判矢量——边界已写进 MOTION.md §5）。判据纯函数在 `src/timeline.js`（`planMotionAsserts`/`edgeSafeHits`/`motionVerdict`，既有导出零改动），页面侧 `__anim.motionAudit`（相邻对复用帧省一半渲染、异常记 error 不中断），cmdCheck 接线（文件缺 → skipped"没判 ≠ 通过"、解析坏 → 静态 errs；命中默认 warn、--strict 才 gate；--quick 只跑 appearsBy 并明说其余没跑）。**两条元设计照抄 hyperframes**：持久性感知（单点超限下一采样恢复 → info 不 gate）与空≠干净（未声明/missing/页面行缺失全进 skipped）。**真渲染验收**：demo 写契约示例断言组 → 完整档 3 过 1 命中（`noEdgeContent chart` 3/3 点压右边——footer 贴边，断言不是永远绿的证明）、quick 档 2 帧 / 完整档 21 帧 0.8s。测试 `tools/test-motion-assert.mjs` **21/21**（挂 `unit:motion-assert`）；`regress-all --only unit` **23/23**；`docs/MOTION.md` 新增 §5 |
 | **0-6 后处理新参数用起来（A/B 标定落地）** | **2026-10-17**：`_post-lab` 夹具补 grainScale 两段（10 → 12 段），重建 `out/_postlab/` 实测（上轮清盘被删）：三批 `still` 12 帧 + 两个量具重跑 + grain 4K 栅格量化（`out/_postlab/grain-probe.mjs`，一次性脚本）+ 视觉子代理并排目检 ×2。**结论写进 `docs/ENGINE.md` §8 四个参数行**：① `shoulder 0.60` 实测**只压暗、不增加高光层次**（1.0→245、2.0 仍并白，目检并白起点反而早一级）—— 要层次必须换算子；② AgX+exp0.75 层次最好（目检并白起点第 9 级 vs 现状第 6 级、多约 3 级）但**去饱和最狠**（保饱和排序 现状 > ACES > AgX；橙 253,253,120 → AgX 237,218,151 / ACES 248,241,131），ACES+exp0.85 是折中；③ bloomKaris **单点读数几乎无差**（极差 ≤2/255）但**并排目检有轻微可见差别**（ON 白芯略小略暗、光晕收窄、晕带暖粉偏移；均无方块伪影；帧间跳动需连续帧验）—— 推翻旧记录「没测出可见差别」；④ grainScale 4K 实测：`design` lag1=+0.51（2×2 物理像素、与 1080p 同大小）、`screen` lag1≈-0.05（单物理像素、细一半），两者 std 一致（0.0593/0.0594，强度相同只有栅格不同）；**4K 成片或可能下变换回 1080p 观看时用 `design`**；⑤ dither rpdf/tpdf 单帧确无差别（级数 17→18、各级差 ≤2）—— 确认旧结论。视觉报告顺带纠正 briefing 笔误（ab-visual 实为 7 行）。产物：`out/_postlab/`（ab-visual / ab2-visual / grain-ab 三张对比图 + 12 帧） |
+| **1.E 四条（EAC design world 拆解的第一批落地）** | **2026-10-24**：`docs/REFERENCE-eac-design-world.md`（拆解）+ 四件落地 —— ① **`anim qa`** 成片级技术扫描（`scripts/lib/media.mjs` 的 `parseDetectIntervals` / `classifyMediaScan` / `scanMediaFile` + CLI，`tools/test-media-qa.mjs` **17 项**）；② **`cmdSubs` 的 ASS 转义**（`assText()` / `assTime()`，`tools/test-subs.mjs` **11 项**）；③ **`type.write` 的 `blur` 通道** + `title.blur` + 目视夹具 `tasks/_blur-lab/`（`check` 通过）；④ **11 个模板的 `use/energy/avoid`** + `filterShots()` + `anim shots --use`。**验收**：`hashes demo` / `hashes beat --baseline` 各 **11/11 max 0**（blur 默认 0 时完全不碰 filter，老片子逐像素不变）；`tools/test-shots.mjs` **129/129**（原 124）；`qa beat --file out/beat/beat.mp4` 真跑（4.0s / 240 帧 / 0 错 0 警 / 音量 -12.4 dB）；坏片夹具（1s 黑 + 4s 死静）两条全被点名、`--strict` 退出码 1、`--json` 结构可解析。**过程中抓到的三件事**：`positional()` 只按"-"前缀过滤、不认识 flag 的值（`shots --use 转场` 把 `转场` 当成了模板名）；ffmpeg 在文件结束时常漏打 `freeze_end`（开口区间必须按总时长收口，否则"整片后半段全静"反而算不出时长）；黑场天然也是静帧（不去重会一条黑场报三条，读数淹掉判据） |
+| **基线不再冻结引擎（2026-10-24 用户拍板）** | 用户原话：「引擎修改还会检查老片子有没有破坏…这样不就会导致原地踏步吗」。改法：`hashes` 从"必须逐像素不变"改成**变更探测器** —— `--save` 在基线已存在时**拒绝覆盖**（堵住"改完顺手重存"）；`--baseline` 变了就落 `out/<任务>/hashes-diff.png`（左=基线、右=现在）并退出 1；`--accept --note "…"` 确认这是有意的改动，原因写进基线 `notes`（下次比对失败会打出来）。**判据本身没放松**（`negligible()` 不动：>16 的像素为 0 且 mean < 0.002），放松的是**流程**：有意的变化要被看见、被说明，而不是被"改回去"。实测（`_blur-lab`）：blur 20→34 让 1/4 帧变红（max 109 / >16 0.106%）→ 出对比图 → `--accept` → 绿 + note 落盘。文档同步：`AGENTS.md` §7（两种改动档）、`ENGINE.md` §14.7、`DIAGNOSIS.md` §1.6 |
 
 ```sh
 node tools/test-layout.mjs                     # 31 项通过（纯函数，不需要 GPU）

@@ -152,11 +152,13 @@
 | `✗ N/M 个时刻与成片不一致。最可能的原因：…`（含 `判据 mean<18`）<br>`scripts/anim.mjs:2419` `:2423`（`cmdVerify`） | `verify`：成片抽帧 vs 同一时刻重渲，逐像素差超阈值 | 报错块里列了 5 个候选原因（成片是旧版本 / 拼接错位 / 子帧数不同 / 色彩空间 / 跨会话不确定），按顺序排除；`--tol 6` 可收紧 |
 | `✓ N 个时刻（按帧号对齐）全部与重新渲染的结果一致（成片可信）`<br>`scripts/anim.mjs:2432` | `verify` 通过 | 无事。这是"成片可信"的机械证据 |
 | `这个成片本身就有问题，先修它：`<br>`scripts/anim.mjs:2319`（`cmdVerify`） | 成片连 ffprobe 都过不了 | 重渲；或按列出的 reasons 修（`文件是 0 字节` / `moov atom not found` / `没有视频流`） |
-| `与基线比对：out/<任务>/hashes.json（N 帧，W×H×s）`<br>`scripts/anim.mjs:1649` | `hashes --baseline` 的开头 | 无事（说明行） |
-| `✗ N/M 帧与基线不一致（逐像素差异超出噪声范围）` + 行内 `✗ 变了  max … mean … >16 …% >32 …%`<br>`scripts/anim.mjs:1665` `:1663` | 重构后画面**真的**变了 | 判据是 `negligible()`：`>16 的像素为 0 且 mean < 0.002`（`scripts/anim.mjs:1749`）。变了就 diff 到具体段：`hashes <任务> --only <段>` |
-| `✓ N 帧全部与基线一致（画面没有被改动）`<br>`scripts/anim.mjs:1666` | 重构没动画面 | 无事 —— 这是"证明画面没变"的正确方式（比人眼看图可靠） |
-| `没有基线文件 out/…。先跑一次 --save。`<br>`scripts/anim.mjs:1647` | `--baseline` 但还没存过基线 | `node scripts/anim.mjs hashes <任务> --every 2 --save`（重构**之前**跑） |
-| `基线装不下：已经攒到 NMB（上限 380MB）…→ 采样放稀：--every X`<br>`scripts/anim.mjs:1702`（`cmdHashes`） | 基线是单个 JSON，顶到 V8 字符串上限 | 照提示放稀采样（`--every`），或改用 `--times` 只挑每段中间时刻 |
+| `与基线比对：out/<任务>/hashes.json（N 帧，W×H×s）` + `  上一次接受：<时间>  <note>`<br>`scripts/anim.mjs` 的 `cmdHashes` | `hashes --baseline` / `--accept` 的开头。第二行是**审计轨迹**：上一次基线为什么被接受过 | 无事（说明行）。看到"上一次接受"要知道：这一帧的基准本身就是某次有意改动后的样子 |
+| `✗ N/M 帧与基线不一致（逐像素差异超出噪声范围）` + 行内 `✗ 变了  max … mean … >16 …% >32 …%`<br>`cmdHashes` | 画面和基线不同。它只回答"**变了没有**"，不回答"该不该变" | 先看紧跟的 `前后对比图`，再二选一：有意改的 → `--accept --note "…"`；不该变的 → 改回去。判据仍是 `negligible()`（`>16` 的像素为 0 且 mean < 0.002） |
+| `  前后对比图：out/<任务>/hashes-diff.png（每行左 = 基线、右 = 现在）`<br>`cmdHashes` 的 `writeHashesDiffSheet()` | 有帧变了时自动生成（最多 8 行，只列变了的那几帧）——**接受前的审查入口** | 用 Read 工具打开那张图看；确认改动是你想要的那一处，再 `--accept` |
+| `--accept 必须带 --note "这次画面为什么该变"`<br>`cmdHashes` | 想接受一次视觉改动但没写原因 | 补 `--note`。接受是**决定不是例行公事** —— 原因是留给下一个看到基线失败的人（和未来的你）的 |
+| `基线已经存在：…` + `· 有意改了画面：--accept --note` + `· 只是重存一遍：--force`<br>`cmdHashes` | `--save` 时基线已存在 —— 防止"改完顺手重存"绕过比对 | 有意改 → `--accept --note "…"`；确实只想重存 → `--force`（会在 notes 里留一条，不推荐） |
+| `✓ N 帧全部与基线一致（画面没有被改动）`<br>`cmdHashes` | 保画面的改动（重构 / 性能）证明成功 | 无事。⚠ 反过来：如果你这次是**有意改画面**，基线全绿说明你没改到（或忘了 `--accept`） |
+| `没有基线文件 out/…。先跑一次 --save。` / `基线装不下：已经攒到 NMB（上限 380MB）…→ 采样放稀：--every X`<br>`cmdHashes` | 第一次比对；或基线是单个 JSON、顶到 V8 字符串上限 | 前者先 `--save`；后者照提示放稀采样（`--every`）或改用 `--times` |
 | `✗ 有 N 个时刻在两种渲染顺序下不一致 —— 引擎里有跨帧状态（见 docs/history/IMPROVEMENTS-1-3.md 第二轮 P1-2「同一时刻、从不同起点开渲结果不同」）`<br>`scripts/anim.mjs:1804`（`cmdProbe`） | `probe`：正着渲一遍、倒着渲一遍，同一 t 指纹不同 | 引擎里藏了跨帧状态（渲染目标残留 / 惰性编译 / 缓冲没清）。需要定位序列差异时用 `determinism`。⚠ 这条信息以前指向已归档的 `docs/IMPROVEMENTS.md`，**2026-10-16 起改成真路径**（BACKLOG 头部 ⑨） |
 | `✓ 渲染顺序不影响结果（同一 t 是纯函数）`<br>`scripts/anim.mjs:1787` | `probe` 通过 | 无事 |
 | `✗ 存在跨帧依赖 —— 见上面"⚠ … 不同"的那几行：那就是根因所在。` + `第一个分叉在第 N 帧（t=…）`<br>`scripts/anim.mjs:1902` `:1871`（`cmdDeterminism`） | `determinism`：顺向 / 反向 / 单次 seek 三种序列不一致 | 看被点名的那一帧的 `samples / lastErrors / post / a` 哪一项不同 —— 那就是根因。这是 P1-2 的定位实验，别当成"偶发" |
@@ -363,12 +365,29 @@
 | `⚠ 第 N 条的 id "x" 与前面重复 → 自动改名为 nK（--resolve 时按新的来）` / `⚠ 第 N 条没有 id → 自动补一个 nK` / `⚠ 第 N 条的 at=… 不是 ≥0 的秒数 → 按"没有时刻"处理`<br>`scripts/anim.mjs` 的 `parseNotesJson()`（回写时打） | 评论表能修的小毛病：它**自动修**并把改动打出来 | 无；`--resolve` 按改名后的 id |
 | `node scripts/anim.mjs shots --json`（输出是 JSON）：`shotsCatalog()` 的载荷 —— 每个模板的 `params` / `spec.requires` / `spec.outputs`<br>`scripts/anim.mjs` 的 `cmdShots()` / `shotsCatalog()`（契约：`docs/ENGINE.md` §14.9） | 机器可读的参数表（**不用人读**）：它是 `check` 的依赖前置校验与外部工具读取模板契约的输入 | 人要看参数用 `node scripts/anim.mjs shots <名字>`；要看某个模板"需要什么前置"就用 `--json`（`check` 的提示行也在教你这条） |
 
+### 1.17 成片级技术扫描（`anim qa`，1-39；出处 `docs/REFERENCE-eac-design-world.md` §3）
+
+> 这一条命令**不渲染**、不起 Vite：它只读 `out/<任务>/<任务>.mp4`（或 `--file`）。
+> 与 `verify` 的分工：`verify` 管"画面是不是这一版"，`qa` 管"这份文件有没有黑闪/冻结/静音"。
+> ⚠ 默认**只报读数**（片尾压黑、hold 段是设计），`--strict` 才把 warn 当失败。
+> 实测成本 **≈ 2× 片长**（13.9s 的片子 26s，含三条 ffmpeg：解码 + 画面扫描 + 音量）。
+
+| 输出词 | 含义（什么情况下会看到它） | 修法 |
+|---|---|---|
+| `成片技术扫描 <rel>  1920×1080 @60.00fps  12.345s  740 帧` + `  判据：黑场 ≥0.25s（pix_th 0.10）· 静帧 ≥1s（-50dB） · 片头 0.5s / 片尾 1.2s 的黑算设计 · 静帧超过 3s 才警`<br>`scripts/anim.mjs` 的 `cmdQa()` | 扫描头：文件基本盘 + **这一轮用的阈值**（阈值来自 `--head` / `--tail` / `--freeze`，打印出来是让你能判断那条读数该不该当问题） | 无（读路径） |
+| `✗ 解码失败：…` + 结论 `失败`（退出码 1）<br>`scripts/lib/media.mjs` 的 `scanMediaFile()`（`-xerror`）/ `classifyMediaScan()` | 成片**本身坏了**（半截流 / 坏帧）。`video` 的 ffprobe 复核只查帧数，查不出"能读出帧数但解不干净"的文件 | 重渲那一段或整片（`video` 会自己删废文件）；同一块反复坏就查磁盘与 `out/` 是否被别的进程碰过（`docs/DIAGNOSIS.md` §1.5） |
+| `⚠ 第 X.XXs 起黑场 Y.YYs（到 Z.ZZs）—— 切点黑闪，或这一段没画东西`<br>`classifyMediaScan()`（`blackdetect` 区间 + 片头/片尾白名单） | 中段有 ≥0.25s 的黑。**这正是 `check` 三点采样（15/50/85%）会漏掉的那一类** —— 三个采样点之间的一小段黑 | `node scripts/anim.mjs still <任务> -t <X+0.1>` **出图看**；这一段大概率漏了铺整帧背景（`cut(shot, { world: 'auto' })`），或两段之间有空档。查该段 `check` 的背景守门 |
+| `⚠ 第 X.XXs 起静帧 Y.YYs（到 Z.ZZs） —— 超过 3s，先确认不是忘了推进`<br>`classifyMediaScan()`（`freezedetect n=-50dB:d=1`，阈值 `--freeze`） | 画面**连续 3 秒以上完全不动**。多数是我们自己的 hold（合法），但超过 3s 值得看一眼是不是场景忘了用 `f.lt` / 摄影机停了 | 确认是设计就放宽（`qa <任务> --freeze 6`）或在 `motion.json` 里用 `keepsMoving` 明确声明；不是设计就查那一段的时间驱动 |
+| `· 片头淡入 …（< --head 0.5s，算设计）` / `· 片尾淡出 …（收尾压黑）` / `· 第 X.XXs 起静帧 … —— hold 段正常`<br>`classifyMediaScan()` 的 info 档 | **合法的**黑与静：片头淡入、`outro` 的收尾压黑、hold 段。它们进读数段而不是警告段 | 无。⚠ 读到 info **不等于**"验过整片"——它只是"这一条不是问题" |
+| `⚠ 音轨几乎静音（峰值 -xx.x dB）—— 混音或旁白没接上？` / `· 音量贴满刻度（峰值 -0.0x dB）—— 平台/有损转码会削顶`<br>`classifyMediaScan()`（`volumedetect` 的 `mean_volume` / `max_volume`） | 成片音轨峰值 ≤ -60 dB（等于没有声音）或 ≥ -0.1 dB（顶到 0）。⚠ 它量的是**采样峰值**，不是真峰 —— 真峰（dBTP）与 LUFS 用 `anim mix` / `check` 的响度那一栏 | 静音：查 `task.config.mjs` 的 `audio` 与 `anim mix`；顶满：混音降一档（`docs/BACKLOG.md`「音频响度数字守门」那一行） |
+| `结论：通过（0 错 / N 警 / M 条读数）（…；--no-decode：解码这一条没验）` + `  （警告默认不改退出码；要当门用加 --strict）`<br>`cmdQa()` | 收尾结论。**默认退出码只由 error 决定**（与 `check` 同一条纪律）；`--strict` 时 warn 也变失败。`--no-decode` 会明说"解码没验"（空 ≠ 干净） | 要当交付门：`node scripts/anim.mjs qa <任务> --strict`（`AGENTS.md` §10.4） |
+
 ---
 
 ## 2. 退出码语义：哪个命令非零代表什么
 
-**只有下面这些命令会自己置非零退出码**（`grep 'process.exitCode = ' scripts/anim.mjs` 一共 12 处，
-落在 9 个命令里）：
+**只有下面这些命令会自己置非零退出码**（`grep -n 'process.exitCode' scripts/anim.mjs` 自己数一遍 ——
+别抄这里的数字，它会随命令增加而漂）：
 
 | 命令 | 非零条件 | 证据（函数名，稳） |
 |---|---|---|
@@ -379,12 +398,13 @@
 | `determinism` | 三种序列里有分叉（跨帧依赖） | `cmdDeterminism` 的 `if (!bad) … else` |
 | `probe-alpha` | ①–④ / ⑤⑥ / ⑦⑧⑨ 任一组 FAIL | `cmdProbeAlpha` 的三段 `if (!(c1 && …))` |
 | `verify` | 有时刻与成片不一致 | `cmdVerify` 的 `if (bad)` |
+| `qa` | 有 **error**（解码失败）；加 `--strict` 时有一条 warn 也算失败。**默认 warn 不改退出码**（片尾压黑 / hold 段是设计） | `cmdQa` 的两处 `process.exitCode = verdict.errors.length …`（含 `--json` 分支） |
 | `video` / `shot` | 场景抛异常 / 帧数不足 / 产物验收不通过 / 渲染期改了源文件 / **`--nf-stop` 扫到非有限值** —— 一律 `die()`（退出码 1）并**删掉产物** | `cmdVideo` 里那几处 `die(`（含 `nfStopped` 那条） |
 | `shake` | 有 notice（振动 / 偏毛 / 收尾还在晃 / 峰值超档） | `cmdShake` 的 `if (st.notices.length)` |
 | `say` | **有句子最终没合成出来** ⇒ `warnExitCode()` 置 1（`scripts/lib/say.mjs`，**不改 CLI 那个文件**：`scripts/anim.mjs` 收尾是 `process.exit(process.exitCode ?? 0)`）；返回值里另有 `ok:false` / `failed[]` 给调用方 | `scripts/lib/say.mjs` 的 `warnExitCode()` + `runSay()` 的失败分支 |
 
-（判据：`grep -n 'process.exitCode = 1' scripts/anim.mjs` —— 写表时一共 12 处，落在上面这 9 个 `anim.mjs` 命令里；
-`say` 那一处走 `scripts/lib/say.mjs`。其余命令不会自己置非零。）
+（判据：`grep -n 'process.exitCode' scripts/anim.mjs` 自己数 —— 落在上面这些 `anim.mjs` 命令里；
+`say` 那一处走 `scripts/lib/say.mjs`。其余命令不会自己置非零。**别抄具体条数**，每加一个命令它就变。）
 
 **不会自己置非零退出码的（⚠ 这是"空 ≠ 干净"的高发区）**：
 

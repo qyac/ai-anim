@@ -731,7 +731,7 @@ comp.draw(gl, text, ctx.out, { premult: false });   // ④ 叠到场景上
 | `italic` | `false` | |
 | `family` | `'sans'` | `'sans'` / `'mono'` / `'serif'`，或任意 CSS 字体栈字符串 |
 | `tracking` | `0` | 额外字距（px/字），可为负 |
-| `align` | `'left'` | ⚠ **逐字生效**（Canvas2D 的 textAlign 对每个 `fillText` 都生效）。多字想按中心/右对齐请用 `writeLine(..., { anchor })` |
+| `align` | `'left'` | **整行对齐**：`x` 是这一行的左沿 / 中心 / 右沿。与 `writeLine(..., { anchor })` 同义、画面逐字节相同。见下面 §3.4 的说明（2026-10-24 修正，之前是逐字生效的） |
 | `baseline` | `'alphabetic'` | Canvas2D 的 textBaseline |
 
 `FAMILIES`：`sans` = `'Archivo', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif`；`mono` = `'IBM Plex Mono', 'Sarasa Mono SC', 'Consolas', monospace`；`serif` = `'Cormorant Garamond', 'Noto Serif SC', 'Songti SC', serif`。网页字体从 `/fonts/fonts.css` 加载，缺失时静默回退系统字体。
@@ -755,6 +755,7 @@ comp.draw(gl, text, ctx.out, { premult: false });   // ④ 叠到场景上
 |---|---|---|
 | `color` | `'#fff'`（内部 `css([1,1,1])`） | CSS 颜色字符串，或**字符串数组**（按 `i % len` 循环，一个标题里混色很方便） |
 | `alpha` | 无 | **两种写法语义不同**：`[a0, a1]`（数组）= 随 `t` 插值（`{ alpha: [0, 1], t: f.lt, staggerDur: 1 }` 就是干净的整行淡入，**必须配 `t`**）；`0.6`（数值）= **常量不透明度**，与 `t` 无关 —— 想要固定透明度就直接写数值，别为了"保险"写成 `[0.6, 0.6]`（那反而引入对 `t` 的依赖） |
+| `blur` | 无 | **1-41 新增，与 `alpha` 同构**：`[b0, b1]`（数组，px）= 随进场进度从 b0 收到 b1（"从虚焦里浮出来"）；数值 = **常量虚焦**。实现是 Canvas2D 的 `ctx.filter = 'blur(Npx)'`，逐字设置、画完立刻复位；**`blurPx < 0.05` 时完全不碰 filter**（不传 = 老画面逐字节不变）。⚠ 它跟**位移共用缓动 `e`**（不是线性 `k`）—— 分开缓动会出现"位移到位了、字还糊着"。`title` 模板的 `blur` 参数就是它的用法示例 |
 | `stagger` | `0` | 每个字延迟多少秒。`> 0` 启用逐字错开 |
 | `staggerDur` | `0.45` | 每个字**自己**的动画时长（秒） |
 | `from` | `'none'` | `'up'` / `'down'` / `'left'` / `'right'` / `'scale'` / `'none'` |
@@ -764,7 +765,7 @@ comp.draw(gl, text, ctx.out, { premult: false });   // ④ 叠到场景上
 
 语义细节（都是代码事实，不是约定）：
 
-- 第 i 个字的进度 `k = sat((t - i*stagger) / staggerDur)`；**只有 `stagger > 0` 或 `alpha` 是数组时才走这条公式**，否则 `k = 1`（整串立即出现）。
+- 第 i 个字的进度 `k = sat((t - i*stagger) / staggerDur)`；**只有 `stagger > 0` 或 `alpha` / `blur` 是数组时才走这条公式**，否则 `k = 1`（整串立即出现）。
   > 两个历史坑，现在都修好了（`docs/history/IMPROVEMENTS-1-3.md` P1-3 → `docs/history/IMPROVEMENTS-1-3.md` P0-1）：
   > ① 以前条件是 `stagger > 0`，于是 `stagger: 0` + `alpha: [0,1]` 的"整行淡入"取不到起始值、整行直接以终值出现（两个任务的 `_kit.js` 只好写 `stagger: 1e-4` 绕过）；
   > ② 后来把**数值型** `alpha` 也当成"要动画"，于是 `alpha: 0.5` 配缺省的 `t = 0` 取到 `k = 0` —— 而 `k <= 0` 是 `continue`，**整个字形不画**（不是画成透明）。症状是"一整块字凭空消失、其余画面完全正常"，`check` 的亮度统计看不出来（tasks/beast 的字典大格与兽语卡就是这么没的）。
@@ -773,14 +774,23 @@ comp.draw(gl, text, ctx.out, { premult: false });   // ④ 叠到场景上
 - `from !== 'none'` 时**一定会**额外乘 `globalAlpha = e`，也就是逐字入场自带淡入；`from: 'none'` + `stagger > 0` 则是「逐字硬出现」。
 - `from: 'up'` 是「从下方浮上来」：`dy = (1-e) * dist`（y 向下，所以正数是往下偏）。
 - 空格与 `\n` 会被跳过不画（但位置仍然占了），所以用 `slice(0, n)` 做打字机不会跳位。
-- ⚠ `align` 是**逐字**生效的（`write` 内部对每个簇调用 `fillText(cl, x + X[i], y)`，textAlign 对每次调用都算）。
-  所以 `align: 'center'` 会让**每个字各自居中**，多字字符串整体跑偏。
-  要按中心/右对齐请用下面的 `writeLine()`（或自己 `measure()` 再减一半）。
+- ✅ `align` 是**整行**对齐的（`x` = 左沿 / 中心 / 右沿），与 `writeLine(..., { anchor })` 等价。
+
+  > **这一条在 2026-10-24 之前是反的**，值得记一笔（BACKLOG 0-3）：`write` 内部对每个簇
+  > 调用 `fillText(cl, x + X[i], y)`，而 Canvas2D 的 `textAlign` 对**每次调用**都生效，
+  > 所以当时 `align: 'center'` 是**每个字各自居中**（整行从 x 往右排）、`'right'` 是
+  > 整行向右溢出一个行宽。文档把它写成"引擎特性"（"别用 align，用 writeLine"），
+  > 于是 `src/shots/` 里 5 个模板的多字行**一直被裁**（`kinetic` 的「都是时间的函数」
+  > 实测 x 875..2029，右边 109px 出画）。没修的理由是「修它会改 `demo` 的画面、
+  > 要重存 `hashes` 基线」—— 那条理由在基线策略改版后作废。
+  > 现在两种写法都按整行算，`writeLine` 只是语义更清楚的一层转发。
+  > 判据：`node tools/test-text-align.mjs`（几何量到像素，不需要 GPU）。
 
 #### `writeLine(text, x, y, { anchor: 'left'|'center'|'right', ...opts })` → 这一行的宽度
 
 按锚点写一行：`anchor: 'center'` 时 `x` 是整行中心，`'right'` 时 `x` 是右边缘。
-内部先 `measure()` 量宽度再偏移，并强制 `align: 'left'`，所以**锚点与逐字动画可以一起用**。
+**与 `write(..., { align })` 完全等价**（内部就是转发），保留它是因为"锚点"这个词比"对齐"
+更贴这件事，而已经写了它的任务代码不用改。锚点与逐字动画可以一起用。
 
 ```js
 type.writeLine('中文标题', 960, 400, { anchor: 'center', size: 120, weight: 800, color: css(P.bone) });
@@ -975,7 +985,7 @@ render(ctx) {
 | `halation` | number | `0.25` | 光晕强度（偏红、更宽、只吃极亮处），0 = 关 | 胶片感、暖高光 |
 | `ca` | number | `0` | 色差强度：0 = 无，0.5 明显，1 = 很夸张。**半径越大分离越多** | 甩镜/冲击：`0.9 * energy` |
 | `grain` | number | `0.035` | 颗粒**幅度**（显示空间，暗部更明显），0 = 干净 | 胶片感 0.02–0.05 |
-| `grainScale` | `'screen'\|'design'` | `'screen'` | 颗粒撒在哪个栅格上：`'screen'` = 物理像素（4K 下颗粒比 1080p 细一半），`'design'` = 逻辑分辨率（**跨分辨率观感一致**，`--scale 2` 出 4K 时颗粒大小不变）。颗粒和抖动共用这个栅格。**4K 实测（2026-10-17）**：`screen` 颗粒 lag-1 自相关 ≈ -0.05（单物理像素）、`design` ≈ +0.51（2×2 物理像素、与 1080p 同大小），两者幅度 std 一致（0.0594 / 0.0593 —— 只有栅格不同、强度相同）；目检确认 `design` 颗粒明显更粗且密度一致，4K 成片下变换回 1080p 后颗粒感仍保留 | 要出 4K 成片时用 `'design'` |
+| `grainScale` | `'screen'\|'design'\|'auto'` | `'auto'` | 颗粒撒在哪个栅格上：`'screen'` = 物理像素、`'design'` = 逻辑分辨率（**跨分辨率观感一致**）。颗粒和抖动共用这个栅格。**默认 `'auto'`（2026-10-24 改）**：`--scale 1` → `screen`（老行为，逐像素不变）、`--scale 2+` → `design`。理由：`screen` 在 4K 下颗粒**细一半**是确定的缺陷，而 1080p 下两种栅格完全相同（逻辑像素 = 物理像素），所以一刀刀改成 design 只会让基线无谓地变一遍。**4K 实测（2026-10-17）**：`screen` 颗粒 lag-1 自相关 ≈ -0.05（单物理像素）、`design` ≈ +0.51（2×2 物理像素、与 1080p 同大小），两者幅度 std 一致（0.0594 / 0.0593 —— 只有栅格不同、强度相同）；目检确认 `design` 颗粒明显更粗且密度一致，4K 成片下变换回 1080p 后颗粒感仍保留。⚠ 显式写 `'screen'` 就**钉死**老行为（4K 出片会细一半，知道自己在做什么才这么写） | 一般不用写（auto 是对的）；要复现某次 4K 的旧观感才显式写 `'screen'` |
 | `vignette` | number | `0.35` | 暗角**深度**：0 = 无，1 = 四角全黑 | 0.28（纸面）～0.45（暗调） |
 | `saturation` | number | `1` | 1 = 不变，0 = 灰度，>1 = 更艳 | 0.96 印刷感，1.05+ 冲击 |
 | `contrast` | number | `1` | 围绕中灰 `0.18` 缩放：1 = 不变，>1 更硬 | 1.04 印刷感 |
@@ -1321,7 +1331,7 @@ result = mean(render(subT) for each subT)
 | `shots [名字]` | 列出镜头模板（A 档 `src/shots/`）与参数；给名字则打该模板的**全部参数与默认值** | `--json`（机器可读的参数表，字段契约见 §14.9） |
 | `check [task]` | 静态扫描禁止写法 + 逐段试渲染中间帧 + **单子帧 vs 多子帧比对**（全黑/过曝/两条路径不一致/段内亮度不均/漏铺背景/NaN·Inf 都会报） | `--only id,id`、`--quick`（只采 50% 一个点、只跑单子帧）、`--sheet` |
 | `verify <task>` | **成片验收**：从 mp4 抽帧，与同一 t 重新渲染的帧按**帧号**逐像素比（拼接错位/帧数不对/色彩空间不一致/成片是旧版本） | `--file x.mp4`、`--from 1`（成片在任务时间轴上的起点）、`--samples 1`、`--tol 18` |
-| `hashes <task>` | 画面指纹：`--save` 存基线、`--baseline` 与基线逐像素比（重构后证明"画面没变"的唯一机械证据） | `--every 2`（每 2 秒一帧；默认取 0/25%/50%/75%）、`--times 1,2.5`、`--only` |
+| `hashes <task>` | 画面**变更探测器**：`--save` 存基线（已存在时拒绝覆盖）、`--baseline` 与基线逐像素比（变了 ⇒ 退出码 1，并落 `out/<任务>/hashes-diff.png` 前后对比图）、`--accept --note "…"` 有意改画面（确认后存新基线，原因进 `notes`） | `--every 2`（每 2 秒一帧；默认取 0/25%/50%/75%）、`--times 1,2.5`、`--only`、`--force` |
 | `probe <task>` | 按给定顺序渲一串时刻，比粗指纹 ⇒ **渲染顺序会不会改变结果** | `--times 4,12` |
 | `diff <task>` | 同一时刻渲两次，差了多少（与 `probe` 互补） | `--times 12` |
 | `audit <task>` | 每个**交叠段**在交叠期到底画了什么（背景守门：有没有整帧覆盖） | `--debug` |
@@ -1624,7 +1634,7 @@ export default shot('chart', {
 
 | 名字 | 画什么 | 参数（默认值） |
 |---|---|---|
-| `title` | 大标题入场：眉标逐字打出 → 主标题逐字上浮 → 副标淡入 → 右下角读数 | `id` `eyebrow` `title` `sub` `readout`（默认的眉标/主标题/副标各有一句示例文案；`readout: true`） |
+| `title` | 大标题入场：眉标逐字打出 → 主标题逐字上浮 → 副标淡入 → 右下角读数 | `id` `eyebrow` `title` `sub` `readout` `blur`（默认的眉标/主标题/副标各有一句示例文案；`readout: true`；`blur: 0` = 不糊，18 左右是"从虚焦里浮出来"——1-41） |
 | `chart` | 图表：坐标轴 + 逐条生长的柱子（内部排线、"到顶弹一下"）+ 扫描线 + 跟读的读数 | `id` `values`（12 个数）`title` `sub` `footer` `peak`（`0.95`，判"最高"的阈值：≥ peak 的柱子用信号色） |
 | `kinetic` | 动态大字 + GLSL 背景（域扭曲 fbm）+ 左下角计数器阵列 + 四角取景框 | `id` `headline`（**正好两行**大字）`sub` `cellCols`（`8`）`cellRows`（`5`）`cellSeed`（`31`） |
 | `whip` | **转场镜头**：把上一帧（`ctx.under`）揉成一团甩走 + 斜向速度线 | `id` `streaks`（`26`）`dir`（`[1, 0.12]`，uv 空间的甩镜方向） |
@@ -1703,14 +1713,17 @@ timeline: seq([
 - **只放"反复出现、与具体片子无关"的整镜头。** 某一支片子特有的视觉母题（fidus 的准星、nekohome 的窗口边框）
   留在那个任务的 `scenes/_kit.js` 里。全新视觉（raymarch 晶格、燃烧的引线）仍然要手写场景 —— 这是 A 档，不是 DSL。
 - **模板里的绘制代码是从已经出过片的场景逐字搬过来的**（`tasks/demo/scenes/`、`tasks/beat/scenes/`），
-  所以那两个任务的画面不该变。**动模板里的任何数值或绘制顺序之前先跑一次 `hashes` 存基线，改完再比一次**：
+  所以这两个任务的画面默认是"模板与手写场景等价"的机械判据。**动模板之前先给自己定档**（2026-10-24 起）：
+  保画面的改动（重构 / 性能）跑 `--baseline` 必须全绿；有意的视觉改进走 `--accept --note`（先出前后对比图）：
 
   ```sh
   node scripts/anim.mjs hashes demo --baseline     # 与基线逐像素比：没有像素差 > 16/255，且平均差 < 0.002
   node scripts/anim.mjs hashes beat --baseline
+  node scripts/anim.mjs hashes demo --accept --note "title 模板的入场改成 18px 虚焦收敛"   # 有意改画面
   ```
 
-  这两条命令是"模板与手写场景等价"的机械判据 —— 比人眼看图可靠。
+  基线是**变更探测器**，不是"画面永远不许变"（理由与拍板记录见 [`BACKLOG.md`](BACKLOG.md) §4）：
+  有意改的时候它先落 `out/demo/hashes-diff.png`（左=改动前、右=改动后），确认后才更新基线。
 
 ### 14.8 直接写进时间线（B 档 / 配置档）
 
@@ -1763,7 +1776,10 @@ node scripts/anim.mjs shots chart --json    # 只给一个模板（同样是这�
           "default": [0.18, 0.34, 0.27], "required": false }
       ],
       "requires": [],
-      "outputs": { "visual": "full-frame", "handlesTransition": false }
+      "outputs": { "visual": "full-frame", "handlesTransition": false },
+      "use": "一屏一组可比的量（3–8 根柱），让观众看出谁高谁低",
+      "energy": "中",
+      "avoid": "超过 8 个值、或需要精确读小数时改 counter；没有出处的数字不要画"
     }
   ]
 }
@@ -1784,6 +1800,9 @@ node scripts/anim.mjs shots chart --json    # 只给一个模板（同样是这�
 | `params[].required` | boolean | **没有默认值**（不传时模板拿到 `undefined`）。此时 `default` 恒为 `null` —— JSON 里没有 `undefined`，由 `required` 区分 |
 | `shots[].requires` | string[] | **1-21 新增**：依赖令牌（取值见 `requireTokens`）。`[]` = 明确声明"不需要外部输入" |
 | `shots[].outputs` | object | **1-21 新增**：`{ visual: 'full-frame' \| 'transition', handlesTransition: boolean }`。`visual` 的值域见 `src/shots/index.js` 的 `SHOT_VISUALS`；`handlesTransition` 与场景对象上那个字段必须一致（`tools/test-shots.mjs` §9 断言） |
+| `shots[].use` | string | **1-42 新增**（可选键）：什么时候该用它，一句话。来源是模板的 `meta.use`（见 §14.2） |
+| `shots[].energy` | string | **1-42 新增**（可选键）：能量档位，取值见 `src/shots/index.js` 的 `SHOT_ENERGY`（低 / 中低 / 中 / 中高 / 高） |
+| `shots[].avoid` | string | **1-42 新增**（可选键）：什么时候**别**用它。`avoid` 与 `use` 一样进 `filterShots()` 的检索面 |
 
 三条**读法**（与字段名一样是契约的一部分）：
 
@@ -1807,6 +1826,10 @@ node scripts/anim.mjs shots chart --json    # 只给一个模板（同样是这�
    **第 1 段 / `--only` 之后 ⇒ 没有"上一段"可比，进 `skipped`**（不许说成"满足"）；
    交叠了但没声明 `handlesTransition` ⇒ 引擎会再叠一次交叉溶解，报一行警告。
    （2026-10-16 接线，BACKLOG 头部 ②；离线单测 `tools/test-timeline-audit.mjs`（19 项）。）
+4. **`use` / `energy` / `avoid` 是"选片依据"，不是门**（1-42）：它们只被 `anim shots` 的打印与
+   `filterShots()` 消费，**不进任何 gate、不影响画面**。缺这三个键的模板照常可用 ——
+   与第 2 条同一条读法（"没有 ≠ 空"）。`energy` 的取值范围是 `SHOT_ENERGY`（只许加档，不许改档名），
+   由 `tools/test-shots.mjs` §2.5 断言。
 
 - **确定性**：载荷只来自 `listShots()`，不含时间戳 / 随机 / 环境信息 ⇒ 同一份 `src/shots/`
   永远得到同一个字符串，可以直接 `diff`、可以当基线存。
