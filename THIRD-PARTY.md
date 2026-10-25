@@ -13,7 +13,7 @@
 
 ## 1. 字体
 
-仓库自带 **7 个 `.woff2` 文件**，全部为 **SIL Open Font License 1.1（OFL-1.1）**，
+仓库自带 **10 个 `.woff2` 文件**，全部为 **SIL Open Font License 1.1（OFL-1.1）**，
 许可证全文见 [`LICENSES/OFL-1.1.txt`](./LICENSES/OFL-1.1.txt)。
 
 下列「字体名 / 版本 / 版权行」不是从文件名猜的，而是**从每个 `.woff2` 的 `name` 表里逐条读出来的**
@@ -23,7 +23,11 @@
 | 文件 | 字体名（nameID 4） | 版本（nameID 5） | 版权行（nameID 0） | 许可证 URL（nameID 14） | 许可 |
 |---|---|---|---|---|---|
 | `public/fonts/Manrope-600.woff2` | Manrope ExtraLight SemiBold（Typographic Family: Manrope） | `Version 4.504` | `Copyright 2019 The Manrope Project Authors (https://github.com/sharanda/manrope)` | `http://scripts.sil.org/OFL` | OFL-1.1 |
-| `tasks/_calib/fonts/BrandFont.woff2` | 同上（**改名副本**，见下方⚠） | `Version 4.504` | 同上 | `http://scripts.sil.org/OFL` | OFL-1.1 |
+| `public/fonts/Archivo-var.woff2` | Archivo SemiBold（可变字重 `wght` 100–900） | `Version 2.001` | `Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)` | `http://scripts.sil.org/OFL` | OFL-1.1 |
+| `public/fonts/IBMPlexMono-Regular.woff2` | IBM Plex Mono Regular | `Version 2.3` | `Copyright 2017 IBM Corp. All rights reserved.` | `http://scripts.sil.org/OFL` | OFL-1.1 |
+| `public/fonts/IBMPlexMono-SemiBold.woff2` | IBM Plex Mono SemiBold | `Version 2.3` | `Copyright 2017 IBM Corp. All rights reserved.` | `http://scripts.sil.org/OFL` | OFL-1.1 |
+| `public/fonts/CormorantGaramond-var.woff2` | Cormorant Garamond Light（可变字重 `wght` 300–700） | `Version 4.001` | `Copyright 2015 The Cormorant Project Authors (github.com/CatharsisFonts/Cormorant)` | `https://openfontlicense.org` | OFL-1.1 |
+| `tasks/_calib/fonts/BrandFont.woff2` | 同 Manrope（**改名副本**，见下方⚠） | `Version 4.504` | 同上 | `http://scripts.sil.org/OFL` | OFL-1.1 |
 | `tasks/promo/fonts/inter-latin-400.woff2` | Inter Regular | `Version 4.001;git-66647c0bb` | `Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)` | `https://openfontlicense.org` | OFL-1.1 |
 | `tasks/promo/fonts/inter-latin-600.woff2` | Inter SemiBold | `Version 4.001;git-66647c0bb` | `Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)` | `https://openfontlicense.org` | OFL-1.1 |
 | `tasks/promo/fonts/inter-latin-800.woff2` | Inter ExtraBold | `Version 4.001;git-66647c0bb` | `Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)` | `https://openfontlicense.org` | OFL-1.1 |
@@ -43,10 +47,21 @@
   （`F7AC6258DA20AB7541939B59851155753D1D24F1B30CBCB949077A3FAA3D1593`，两者均 14 172 字节）。
   它只是把文件改了个名字用作标定夹具，**字体内部的自述信息一个字都没动**（`name` 表仍写着 Manrope）。
   按 OFL-1.1 的措辞，文件名不是「面向用户呈现的主字体名」，所以这不涉及 Reserved Font Name。
-- `public/fonts/fonts.css` 里另有 **3 条 `@font-face` 声明（Archivo、IBM Plex Mono、
-  Cormorant Garamond）指向的文件并不在仓库里**。这些声明是给使用者自备字体用的占位：
-  文件不存在时浏览器会直接忽略该规则，回退到系统字体。**它们不构成本仓库分发的第三方内容。**
-  `public/fonts/` 目录里实际随仓库分发的只有 `fonts.css` 与 `Manrope-600.woff2` 两个文件。
+- **`public/fonts/` 下那三个 `Archivo` / `IBM Plex Mono` / `Cormorant Garamond` 文件是 2026-10-24 补进仓库的。**
+  在那之前 `public/fonts/fonts.css` **声明了这三条 `@font-face`、但文件并不存在** ——
+  浏览器会静默忽略这种规则，于是全引擎的拉丁字回退到微软雅黑、等宽回退到 Consolas，
+  「换风格连字体一起换」这条支柱实际不生效（`docs/history/IMPROVEMENTS-4-5.md` §1.3 的审计结论）。
+  现在它们是真的文件了，来源与字节数见下表；中文字体仍然走系统字体（这是**刻意的选择**，不是缺失，
+  见 `src/style/index.js` 的 SONG / KAI / ENG 与 `tools/test-style.mjs` 的字体断言）。
+
+  | 新增文件 | 字节 | 来源 |
+  |---|---|---|
+  | `Archivo-var.woff2` | 34 928 | `@fontsource-variable/archivo`（latin 子集，可变字重） |
+  | `IBMPlexMono-Regular.woff2` | 14 708 | `@fontsource/ibm-plex-mono@5.3.0`（latin 子集） |
+  | `IBMPlexMono-SemiBold.woff2` | 15 620 | `@fontsource/ibm-plex-mono@5.3.0`（latin 子集） |
+  | `CormorantGaramond-var.woff2` | 37 640 | `@fontsource-variable/cormorant-garamond`（latin 子集，可变字重） |
+
+  四者均为 **OFL-1.1、未修改字形**（只做了码位子集化，与下面 `tasks/promo/fonts/` 那 6 个同例）。
 
 ### 1.1 OFL-1.1 对本仓库的实际要求
 
