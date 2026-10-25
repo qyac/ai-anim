@@ -62,9 +62,12 @@ const TIMELINE_KEYS = new Set([
   // 不加进这张表它就会被当成模板参数，"参数名拼错"抛出去（正是这张表存在的理由）。
   'focus',
   // 连贯声明（carry 审计，BACKLOG 1-34 / docs/REFERENCE-onetake.md §2.3①）：
-  // 取值 morph = 跨元素合成的衔接（量具判 bare，但对观众成立）、
+  // 取值 morph = 跨元素合成的衔接（量具判 bare、但对观众成立）、
   // anchor = 刻意锚定、any = 交给量具（不豁免不预设）。
   'carry',
+  // 交叠期的转场模式（2026-10-24）：默认 push（甩镜）、显式 mix = 交叉溶解、
+  // none = 不处理（硬切）。配置档节点上也能写 —— 不加进这张表它会被当成模板参数。
+  'transition',
 ]);
 
 /**
@@ -75,7 +78,7 @@ const TIMELINE_KEYS = new Set([
  * 而不是静默吃默认值画出一张看起来正常的图（`docs/history/IMPROVEMENTS-1-3.md` 那类 bug 的通用解法）。
  */
 function configToCut(node, where) {
-  const { type, id, dur, at, overlap, params, post, maxSamples, handlesTransition, note, world, worldPass, focus, carry, ...rest } = node;
+  const { type, id, dur, at, overlap, params, post, maxSamples, handlesTransition, note, world, worldPass, focus, carry, transition, ...rest } = node;
   const tparams = { ...rest, ...(params ?? {}) };
   if (id != null) tparams.id = id;          // ⚠ 不能写成 tparams.id = id：undefined 会盖掉模板默认段名
   let scene;
@@ -101,6 +104,7 @@ function configToCut(node, where) {
     world: worldPass ? 'auto' : world,
     focus,
     carry,
+    transition,
   };
 }
 
@@ -138,6 +142,8 @@ export function cut(scene, opts = {}) {
     // 连贯声明（carry 审计）：段对象上声明这条缝的衔接方式（'morph' | 'anchor' | 'any'），
     // 场景对象上声明的那份由 planCarryBoundaries 自己读（it.carry ?? scene.carry）。
     carry: opts.carry,
+    // 交叠期的转场模式（2026-10-24 起默认为 'push' 甩镜）：'mix' = 交叉溶解、'none' = 硬切。
+    transition: opts.transition,
   };
 }
 
@@ -278,6 +284,9 @@ export function build(plan, music = {}) {
       world: c.world,
       // 连贯声明（carry 审计，BACKLOG 1-34）：搬运到段上，`planCarryBoundaries()` 读它。
       carry: c.carry,
+      // 交叠期转场模式（2026-10-24）：默认 'push'（甩镜），'mix' / 'none' 显式退回。
+      // 搬到段上，`composite()` 的默认转场逻辑读它（等于把配置档节点的 transition 带到引擎）。
+      transition: c.transition,
     });
     return start + dur;
   };

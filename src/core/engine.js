@@ -23,6 +23,8 @@ import { makeNarration, makeNarrationReader } from './narration.js';
 import { makeCaptionLayer, resolveCaptionStyle } from './captions.js';
 import { SILENT } from './audio.js';
 import * as U from './util.js';
+// 交叠期的默认转场（甩镜）。`transitions.js` 只依赖 gl/util，不会再反向依赖 engine —— 无环。
+import { transitionPass, cameraDir } from './trans.js';
 
 /** @typedef {import('./post.js').PostParams} PostParams */
 
@@ -570,9 +572,34 @@ export class Engine {
         outTex = rt;
       }
 
+      /**
+       * 交叠期怎么处理「上一段那一帧」。
+       *
+       * **2026-10-24 起默认改成「甩走」**（`transitionPass`），不再交叉溶解。
+       *
+       * 为什么要改：交叉溶解把**两张完整的图**叠在一起 —— 文字量大的画面里两屏字互相
+       * 透过去，观众看到的是"糊成一片"，而不是"镜头切过去了"。`trans.js` 的配方注释里
+       * 早就写着「文字量大的画面不要用交叉溶解」（NekoHome 那支 48 秒片子上验证过），
+       * 但它一直是**要作者自己记得写** `handlesTransition: true` 才生效 ——
+       * 忘了写就静默退回交叉溶解。这条与「漏了 openFrame 就纯黑」是同一类毛病：
+       * 默认行为不该是最差的那个。
+       *
+       * 现在的默认：上一段沿**摄影机方向加速甩出去**（带方向拖尾、在前半程就把透明度
+       * 收到 0，所以不会两屏字长时间叠着）。作者仍然可以：
+       *   · `handlesTransition: true` → 完全自己做（`makeTransitionKit` 那套）；
+       *   · 想要老的溶解 → 段上写 `transition: 'mix'`（`cut()` 或配置档节点的 `transition`）。
+       *
+       * 换句话说：**旧行为从"默认"降级成"显式选项"，新行为成为默认。**
+       */
+      // 优先级：段对象（`cut` 的 opts / 配置档节点）> 场景对象（`export default { transition }`）
+      const transMode = item.transition ?? item._scene?.transition ?? 'push';
       if (k > 0 && !scene.handlesTransition && under) {
-        this.comp.mixTo(this.gl, under, outTex, tin, this.mixRT);
-        outTex = this.mixRT;
+        if (transMode === 'mix') {
+          this.comp.mixTo(this.gl, under, outTex, tin, this.mixRT);
+          outTex = this.mixRT;
+        } else if (transMode !== 'none') {
+          outTex = this._pushTransition(outTex, under, tin, t, subDt);
+        }
       }
       under = outTex;
     }
@@ -770,6 +797,48 @@ export class Engine {
    * 越界处采样会夹到边缘，所以背景色会被"拉丝"。想避免就把变换控制在画面内，
    * 或者让场景多画一圈余量（推荐：余量按 scale/位移量算）。
    */
+  /**
+   * 交叠期的**甩镜**转场：把上一段那一帧沿摄影机方向加速推出去，本段从反方向压进来。
+   *
+   * 与交叉溶解的区别（这是它取代溶解成为默认的原因）：溶解是「两张图叠在一起」，
+   * 文字量大的画面里两屏字互相透过去 ⇒ 观众看到"糊"；甩镜是「镜头没停，画面被带走了」
+   * ⇒ 同一时刻只有一屏字是清楚的。透明度在前半程就收到 0，所以不会长时间双影。
+   *
+   * 实现上只需要**一次全屏合成**：
+   *   1. 先把本段的帧拷进 `mixRT`（`blitBack` 不读自己写自己，安全）；
+   *   2. 再把 `under`（上一段）用 `transitionPass` 以 `blend: true` **叠上去** ——
+   *      shader 里位置随 k 加速外移、带方向拖尾、alpha 随 k 收到 0。
+   *
+   * ⚠ `blitBack` 与 `transitionPass` 都是引擎内部的搬运：记账（`gl.paint`）要摘掉，
+   *   否则「这一段到底画了东西没有」会被这次拷贝污染（与 `_snapshot` 同一条理由）。
+   *
+   * @param {any} outTex 本段已经画好的帧
+   * @param {any} under 上一段的帧
+   * @param {number} k 入场进度（0→1）
+   * @param {number} t 整片时间
+   * @param {number} dt 子帧步长
+   * @returns {any} 合成后的帧（仍是 `mixRT`）
+   */
+  _pushTransition(outTex, under, k, t, dt) {
+    const gl = this.gl;
+    const keepPaint = gl.paint;
+    gl.paint = null;
+    try {
+      this.comp.blitBack(gl, outTex, this.mixRT);
+      if (!this._push) {
+        this._push = transitionPass(gl, { key: 'engine_push' });
+      }
+      const u = this._push.u;
+      u.under.value = { tex: /** @type {any} */ (under).tex ?? under, __tex: true };
+      u.k.value = U.sat(k);
+      u.dir.value = cameraDir(t, dt);
+      this._push.render(gl, this.mixRT, t, dt);
+    } finally {
+      gl.paint = keepPaint;
+    }
+    return this.mixRT;
+  }
+
   _xformPass() {
     if (!this._xform) {
       this._xform = new Pass(this.gl, /* glsl */ `
