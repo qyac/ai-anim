@@ -115,6 +115,9 @@ waveShot.meta = {
     + '没有音乐分析结果时 `music` 为空、画面会黑。'
     + '读的是整片时间 `f.t`，不是段内时间。'
     + 'beat 那个任务的段名是 `intro`，所以那边写 `shot(\'wave\', { id: \'intro\' })`。',
+  use: '讲声音/节奏本身，要让观众"看见拍子"',
+  energy: '中',
+  avoid: '任务没配 audio（会黑）；旁白为主、音乐很弱的段落',
   params: [
     { name: 'id', type: 'string', desc: '段名（--only / HUD / 报错里用它）' },
     { name: 'label', type: 'string', desc: '左上角那行等宽小字' },

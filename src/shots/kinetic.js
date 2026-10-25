@@ -135,6 +135,9 @@ kineticShot.meta = {
     + '从 (60,60) 起算 —— 所以 cellCols/cellRows 调大就会铺满整个下半屏。'
     + '每个格子的相位来自 cellSeed 的确定性随机（绝不要换成 Math.random）。',
   // ⚠ params 的 name 集合必须与 DEFAULTS 的键集合**完全相等**（tools/test-shots.mjs 会断言）
+  use: '一句短结论要砸出来（每行 ≤6 字），当全片最响的一拍',
+  energy: '高',
+  avoid: '长句、需要读懂的信息；它吃满整屏，不能和别的模板叠在同一段',
   params: [
     { name: 'id', type: 'string', desc: '段名（HUD / --only / 报错里用它）' },
     { name: 'headline', type: 'string[2]', desc: '两行大字，正好两个元素' },

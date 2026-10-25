@@ -162,6 +162,9 @@ chartShot.meta = {
     + '既不需要时间线的 world，也不能和别的模板叠在同一段。'
     + 'values 改长度后 `sub` 里的 "n = 12" 不会跟着变（它是纯文本参数）；'
     + '`peak` 是判"最高那根"的阈值（上信号色 + 顶端小帽用信号色）。',
+  use: '一屏一组可比的量（3–8 根柱），让观众看出谁高谁低',
+  energy: '中',
+  avoid: '超过 8 个值、或需要精确读小数时改 counter；没有出处的数字不要画',
   params: [
     { name: 'id', type: 'string', desc: '段名（出现在 HUD、--only、报错里）' },
     { name: 'values', type: 'number[]', desc: '每根柱子的值（0..1；默认 12 个，与 demo 一致）' },

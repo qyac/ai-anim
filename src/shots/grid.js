@@ -126,6 +126,9 @@ gridShot.meta = {
     + '⚠ 原文注释写「24×12 的格子」，但代码实际是 `cols = 32`：**32 才是出过片的那个值**，'
     + '`DEFAULTS.cols` 保持 32（`rows` 才是 12）。'
     + '读的是段内时间 `f.lt`。',
+  use: '展示多路信号/频段的整体形态 —— 看整块，不读单值',
+  energy: '中高',
+  avoid: '要读单个数值时；无音频的任务',
   params: [
     { name: 'id', type: 'string', desc: '段名（--only / HUD / 报错里用它）' },
     { name: 'label', type: 'string', desc: '左上角那行等宽小字' },

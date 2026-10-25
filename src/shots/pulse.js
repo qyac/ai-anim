@@ -94,6 +94,9 @@ pulseShot.meta = {
     + '标题下面那行副标（`N 拍 · M kick · K snare`）是**从音频分析结果算出来的**'
     + '（`music.beats` / `music.kicks` / `music.snares` 的长度），不是参数 —— 换音乐它自己会变。'
     + '读的是段内时间 `f.lt`。',
+  use: '强调节拍或周期性（心跳、脉冲、每一拍）',
+  energy: '中低',
+  avoid: '没有音乐的片子；需要精确读数时',
   params: [
     { name: 'id', type: 'string', desc: '段名（--only / HUD / 报错里用它）' },
     { name: 'title', type: 'string', desc: '底部那行标题' },

@@ -88,6 +88,9 @@ outroShot.meta = {
     + 'signature 只写文字，末尾那个闪烁的光标（█ / 空格，按 Math.floor(t*2) % 2 交替）是代码加的，不要写进参数里。'
     + '这一段自己铺了整帧背景（gl.clear 到 P.ink），没有别的底。',
   // ⚠ params 的 name 集合必须与 DEFAULTS 的键集合**完全相等**（tools/test-shots.mjs 会断言）
+  use: '全片收尾：落标题、签名，最后压黑',
+  energy: '低',
+  avoid: '中段使用；后面还有信息要讲时',
   params: [
     { name: 'id', type: 'string', desc: '段名（HUD / --only / 报错里用它）' },
     { name: 'title', type: 'string', desc: '主标题（按字放大落位）' },

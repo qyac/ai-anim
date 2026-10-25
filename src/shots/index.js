@@ -94,6 +94,19 @@ export const SHOT_REQUIRES = {
 export const SHOT_VISUALS = ['full-frame', 'transition'];
 
 /**
+ * 镜头模板的**能量档位**（`meta.energy` 的取值范围，`anim shots --use` 按它筛）。
+ *
+ * 为什么要有这个字段（BACKLOG 1-42，来源见 `docs/REFERENCE-eac-design-world.md` §5）：
+ * `anim shots` 以前只有一句 `summary` ——"这个模板长什么样"。但选镜头时真正要回答的是
+ * 另外两个问题：**这一拍该有多响**（能量）与**什么时候不该用它**（`avoid`）。
+ * 外部项目的 124 篇配方把这两栏写成了固定格式（`use` / `energy` / `avoid`），
+ * 我们照这个形状把 11 个模板补齐 —— 只加元数据，画面零变化。
+ *
+ * ⚠ 词表只许**加**不许改：`--use 低` 这类查询依赖它。
+ */
+export const SHOT_ENERGY = ['低', '中低', '中', '中高', '高'];
+
+/**
  * 模板名 → 工厂函数。
  * 键就是 `shot('名字', {...})` 里的名字（B 档的 `{ type: '名字' }` 分发也会读这张表）。
  */
@@ -178,7 +191,11 @@ export function shot(name, opts = {}) {
  * `requires` / `outputs` 来自模板的 `spec`（BACKLOG 1-21）：**没有 spec 的模板，
  * 这两个键在返回的对象里根本不出现**（"缺字段 ≠ 不需要"，见 `docs/ENGINE.md` §14.9）。
  *
+ * `use` / `energy` / `avoid` 来自 `meta`（BACKLOG 1-42）：同样"有才加键"。它们是
+ * `anim shots --use <词>` 的检索面 —— 选镜头时先回答"这一拍多响、什么时候别用"。
+ *
  * @returns {{ name: string, summary: string, notes: string,
+ *             use?: string, energy?: string, avoid?: string,
  *             params: { name: string, type: string, desc: string, default: any }[],
  *             requires?: string[], outputs?: any }[]}
  */
@@ -199,6 +216,27 @@ export function listShots() {
       // ⚠ 用"有 spec 才加键"而不是"没有就给个空数组"：后者会把"还没声明过"伪装成
       //   "声明了、不需要任何东西" —— 那正是 §14.9 第 2 条读法要防的那种静默失真。
       ...(spec ? { requires: spec.requires ?? [], outputs: spec.outputs ?? null } : {}),
+      ...(typeof meta.use === 'string' && meta.use.trim() ? { use: meta.use } : {}),
+      ...(typeof meta.energy === 'string' && meta.energy.trim() ? { energy: meta.energy } : {}),
+      ...(typeof meta.avoid === 'string' && meta.avoid.trim() ? { avoid: meta.avoid } : {}),
     };
   });
+}
+
+/**
+ * 按用途筛镜头（`anim shots --use <词>` 的实现，纯函数、可单测）。
+ *
+ * 匹配面：模板名 / summary / `use` / `energy` / `avoid`，大小写不敏感、子串匹配。
+ * 为什么把 `avoid` 也放进来：搜"字幕"时，一个"**别**用它做字幕"的说明同样是有效答案
+ * （查的人往往分不清"我要什么"和"我该躲什么"）。
+ *
+ * @param {ReturnType<typeof listShots>} list
+ * @param {string} query
+ * @returns {ReturnType<typeof listShots>}
+ */
+export function filterShots(list, query) {
+  const q = String(query ?? '').trim().toLowerCase();
+  if (!q) return list;
+  return (list ?? []).filter((s) => [s.name, s.summary, s.use, s.energy, s.avoid]
+    .filter(Boolean).join(' ').toLowerCase().includes(q));
 }

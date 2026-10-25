@@ -197,6 +197,9 @@ quoteShot.meta = {
     + '背景是本模板自带的整帧 Pass（key shot_quote_bg），所以它自己铺满整帧，'
     + '不需要时间线的 world，也不能和别的模板叠在同一段。',
   // ⚠ params 的 name 集合必须与 DEFAULTS 的键集合**完全相等**（tools/test-shots.mjs 会断言）
+  use: '引用一句话（人物 / 文档 / 结论），需要出处署名',
+  energy: '低',
+  avoid: '引文超过约 4 行；把旁白原句逐字抄进画面（lint-narration-dup 会点名）',
   params: [
     { name: 'id', type: 'string', desc: '段名（HUD / --only / 报错里用它）' },
     { name: 'label', type: 'string', desc: '左上眉标（等宽小字，逐字打出；空串则不画）' },

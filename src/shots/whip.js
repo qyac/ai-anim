@@ -118,6 +118,9 @@ whipShot.meta = {
     + '每帧都会被 dir 覆盖，改它没有效果。'
     + '⚠ 自己声明了 handlesTransition，所以不要再让引擎做交叉溶解（会两屏叠一起）。',
   // ⚠ params 的 name 集合必须与 DEFAULTS 的键集合**完全相等**（tools/test-shots.mjs 会断言）
+  use: '两段之间要速度感：把上一段的成帧甩走（必须和上一段交叠）',
+  energy: '高',
+  avoid: '文字多的切点（甩动的字会糊成一片）；不能单独当一段画面',
   params: [
     { name: 'id', type: 'string', desc: '段名（HUD / --only / 报错里用它）' },
     { name: 'streaks', type: 'number', desc: '斜向速度线的条数' },

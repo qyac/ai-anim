@@ -206,6 +206,9 @@ compareShot.meta = {
     + '要它安静就减行数，或者别把这段塞进"一屏只让观众看一件事"的位置。'
     + '背景是本模板自带的整帧 Pass（key shot_compare_bg），不需要时间线的 world。',
   // ⚠ params 的 name 集合必须与 DEFAULTS 的键集合**完全相等**（tools/test-shots.mjs 会断言）
+  use: '2–4 个指标、两组值的对比（前后 / 方案 A vs B）',
+  energy: '中低',
+  avoid: '超过 4 行会挤；只有一组值时用 counter 或 chart',
   params: [
     { name: 'id', type: 'string', desc: '段名（HUD / --only / 报错里用它）' },
     { name: 'title', type: 'string', desc: '左上主标题（逐字入场）' },

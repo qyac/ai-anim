@@ -271,6 +271,39 @@ async function main() {
     check(`${name}：params 名字集合 == defaults 键集合`, keysOk, keysWhy);
   }
 
+  /* ---------------- §2.5 用途元数据（1-42） ---------------- */
+  console.log('\n§2.5 用途元数据（use / energy / avoid，1-42）');
+  const ENERGY = Array.isArray(M.SHOT_ENERGY) ? M.SHOT_ENERGY : null;
+  check('SHOT_ENERGY 是五档且有序（低→高）', !!ENERGY && ENERGY.join('/') === '低/中低/中/中高/高',
+    ENERGY ? `实际：${ENERGY.join('/')}` : '没有导出 SHOT_ENERGY');
+
+  const metaProblems = [];
+  for (const name of TEMPLATES) {
+    const meta = M.SHOTS?.[name]?.meta ?? {};
+    const entry = byName.get(name);
+    if (typeof meta.use !== 'string' || !meta.use.trim()) metaProblems.push(`${name}: meta.use 是空的`);
+    if (typeof meta.avoid !== 'string' || !meta.avoid.trim()) metaProblems.push(`${name}: meta.avoid 是空的（"什么时候别用"和"什么时候用"一样重要）`);
+    if (!ENERGY || !ENERGY.includes(meta.energy)) metaProblems.push(`${name}: meta.energy=${JSON.stringify(meta.energy)} 不在词表里`);
+    if (entry?.use !== meta.use || entry?.energy !== meta.energy || entry?.avoid !== meta.avoid) {
+      metaProblems.push(`${name}: listShots() 没有原样带出 use/energy/avoid`);
+    }
+  }
+  check(`${TEMPLATES.length} 个模板都有 use / energy（词表内）/ avoid，且 listShots() 原样带出`,
+    metaProblems.length === 0, metaProblems.slice(0, 5).join('；'));
+
+  const f = M.filterShots;
+  check('filterShots：空查询返回全部（不给 --use 时列表一条不少）',
+    typeof f === 'function' && f(listed, '').length === listed.length && f(listed, '   ').length === listed.length,
+    typeof f === 'function' ? '长度不对' : '没有导出 filterShots');
+  check('filterShots：按 use / energy / avoid 都搜得到（三个字段都进了检索面）',
+    typeof f === 'function'
+      && f(listed, '转场').some((s) => s.name === 'whip')
+      && f(listed, '中低').some((s) => s.energy === '中低')
+      && f(listed, '署名').some((s) => s.name === 'quote'),
+    '匹配面漏了 use / energy / avoid 之一');
+  check('filterShots：搜不到时返回空数组（不是"不过滤"）',
+    typeof f === 'function' && f(listed, 'zzz-没有这个用途').length === 0);
+
   // ENGINE.md §14.1：「listShots() 的默认值就是从 .defaults 取的 —— 唯一来源」。
   // 这条把那个承诺变成断言：CLI 打印的默认值必须真的等于工厂里用的默认值。
   const jam = [];

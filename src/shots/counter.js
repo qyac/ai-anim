@@ -183,6 +183,9 @@ counterShot.meta = {
     + '⚠ 这个模板画的是"算出来的数"：写任务时画面上的数字要有出处（docs/FACTS-TEMPLATE.md ★）。'
     + '背景是本模板自带的整帧 Pass（key shot_counter_bg），不需要时间线的 world。',
   // ⚠ params 的 name 集合必须与 DEFAULTS 的键集合**完全相等**（tools/test-shots.mjs 会断言）
+  use: '一个数字从 A 滚到 B，让这个读数当画面主角',
+  energy: '中',
+  avoid: '多个数字并列；数字没有出处（先登记 FACTS.md）',
   params: [
     { name: 'id', type: 'string', desc: '段名（HUD / --only / 报错里用它）' },
     { name: 'from', type: 'number', desc: '起始值（滚动从这里开始）' },
