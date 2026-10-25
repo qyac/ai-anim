@@ -116,9 +116,17 @@
 | P-1 | **字幕层要不要做厚** —— 离线回归（连渲 3 帧字幕应不同）+ 完整 CJK 断行（避尾 / 悬挂 / 中西间距）+ 字幕与画面标注的冲突检测 | 约 2–3 天 | 复盘 §3.A-1 / A-3 / A-4 |
 | P-2 | **3D 舞台要不要进 src/kit/** —— 房间 / 长桌 / 座位参数化，seats[].facing 由参数给（堵住「靠背朝错」这类 bug） | 约 2–3 天 | 复盘 §3.B-1 |
 | P-3 | **--segments 块级失效值不值得做** —— 改一段只重渲一块；这轮那种返工从 81 分钟降到 ~15 分钟 | 约 2–3 天 | 复盘 §3.C-2 |
+| P-4 | **自适应运动模糊的收敛判据要不要改** —— 静止画面上它一路加到 72 子帧（实测 0.9 fps），根因是 `makeShot` 让摄影机抖动跟着**子帧时间**走。三条候选修法（排除 shake / 加"停滞熔断" / 让 `perf` 报子帧分布） | 约半天–1 天 | [HANDOFF-spectrum-friction.md](HANDOFF-spectrum-friction.md) §1 |
+| P-5 | **`anim mix` 要不要加显式 `--target -14`** —— 现在只报不归一化（立场正确），但没有官方"怎么贴靶子"的做法，每支新片子都要自己写一个脚本 | 约半天 | [同 §5](HANDOFF-spectrum-friction.md) |
 
 另有 7 条半天以内、**不需要拍板**的改进列在复盘 §3（A-2 旁白表加载失败要可见 / C-1 dry-run 按档预估 /
 D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loudnorm / E-1 out/.render-lock）。
+
+> **2026-10-25 · 《把信号拆开》（`tasks/spectrum`）做完之后的摩擦点** ——
+> 那一轮**没改引擎**，摩擦全在"用法 / 默认值 / 报错时机"。逐条带复现命令与根因（已核到代码）：
+> [`docs/HANDOFF-spectrum-friction.md`](HANDOFF-spectrum-friction.md)。
+> 上面 P-4 / P-5 是其中**需要拍板**的两条；其余（渲染卡死要用 `--segments`、`--only` 平移、
+> 片段没音轨、focus 对图形主体不友好、标注可以合并成一行）已在 §1 各自条目里登记或直接进文档。
 
 ---
 
@@ -321,58 +329,3 @@ D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loud
 | 0-7②③ 钠差评后续的两支样片（60–90 秒单主题 / 「一页一图」最小样张）**不做**（① 版面守门已落地） | 第十二轮 |
 | 磁盘：`out/` 的 `*.parts/` 等中间产物已清（7 个任务、释放 29.4 GB）—— §3 的表已换成清理后的读数 | 第十二轮 |
 | **0-5 镜头库加模板**（`quote` / `counter` / `compare`；8 → 11 个） | **2026-10-16**：`src/shots/{quote,counter,compare}.js` + `index.js` 登记 + `tools/test-shots.mjs`（手写的模板集合、`typeOk()` 新增 `object[]`、一条把 `quote` 当"不存在的模板名"的夹具改成 `quote2`）+ 10 处文档/注释。**验收**：`tools/test-shots.mjs` **124/124**；`hashes demo` / `hashes beat --baseline` 各 **11/11 max 0**（老片子逐像素没变）；夹具 `tasks/_shots-lab/` 6 段 `check` 通过、逐帧出图看过（出图当场抓出三处画面问题：居中引文的最长行顶出屏幕、`counter` 长读数几乎占满、`compare` 两行版行距 270px 空掉一大片 —— 三条都已修并复验） |
-| **1.B-26 `anim cuts`**（切点两侧 ±1.5s 出接触表） | **2026-10-16**：`scripts/anim.mjs` 新增 `cmdCuts`，`writeContactSheet` 向后兼容地多出 `samples`/`shutter`/`marks`（`check --sheet` 行为不变）；配套两条流程纪律进 `AGENTS.md` §10.12。验收：`anim cuts _shots-lab` 真跑（6 段 5 个切点，产物 5 张接触表）+ 出图看过；顺带修掉一个**既有 bug**：`check <任务> --sheet` **不带值**时 `opt('sheet')` 返回 undefined ⇒ `path.resolve(ROOT, undefined)` 直接崩（AGENTS.md 里那条用法一直没被跑过；现在缺值走默认路径、`--sheet --quick` 也不会把下一个 flag 当成值）。同轮还修了三处"接线自检"把**注释首行**当切片锚的脆弱写法（改成锚 `async function writeContactSheet`）|
-| **1.B-25 并发子代理的 brief 模板** | **2026-10-16**：`docs/SCENE-BRIEF-TEMPLATE.md` 新增 §10（349 → 453 行，`git diff --numstat` = 104/0 纯新增）；三条要点各带 `REFERENCE-video-use.md` 的行号出处 |
-| **1.B-27 运动规则表 + 3 个 kit 函数** | **2026-10-16**：`docs/MOTION.md`（12 条规则 + 四级证据分级）、`src/kit/motion.js`（`nudgeCurve` / `waterfallStagger` / `waterfallOver` / `glowPeakCap`）、`tools/test-motion.mjs`（42 项，已挂 `unit:motion`）。⚠ 数值是外部项目 hyperframes 的**经验值、我方未实测**；**留下的一半**（三个上限未接进守门）记成 §1.B-33 |
-| **第二轮清磁盘** | **2026-10-16**：`out/` 27.6 → 25.9 GB（释放 1.77 GB）；`_postlab` 的两个读数脚本搬进 `tools/` |
-| **1.D-34 / 1.D-35 前半 / 1.D-36（onetake 拆解的第一批落地）** | **2026-10-17**：`docs/REFERENCE-onetake.md`（拆解报告）+ 三件落地 —— ① `anim carry` 连贯度 oracle（判据纯函数 `planCarryBoundaries` / `classifyCarry` / `summarizeCarry` 在 `src/timeline.js`，块匹配在 CLI 页面侧，**默认只报读数、--strict 才 gate**；`cut(..., { carry })` 声明接线进 TIMELINE_KEYS/cut/build 三处）；② `check` 的「节奏（静态）」腿（`rhythmStats()` CoV，零渲染；单段进 skipped）；③ `src/kit/carry.js`（`morphRect/iris/zoomThrough/hop/gather/operatorCam` 六个纯函数 + 三个判据常量，只 import `core/util.js`，NaN 当场抛）。**验收**：`tools/test-carry.mjs` **33 项**（挂 `unit:carry`）；`regress-all --only unit` **22/22**；`hashes demo` / `beat` 基线各 **11/11 逐像素不变**；`anim carry` 实测 demo **0.50**（title→chart、chart→kinetic 两个硬切 bare —— 真实诊断：这三段各画各的世界）/ beat **1.00**（共享背景让硬切两侧 74–97% 配对）。**过程中抓到的**：lint-doc-facts 把注释里的 `'morph'/'anchor'/'any'` 字符串当 TIMELINE_KEYS 数了（守门按口径工作，改注释措辞）；`gather` 第一版端点不精确（行程抖动在 k=1 不归零，收拢收不齐 —— 抖动乘 `sin(πk)` 窗修掉）；`operatorCam` 的 rest 归零漏出 `-0`（显式 `env > 0` 分支修掉）。**留下**：1-37（动作图册）、1-38（静帧占比） |
-| **两个引擎 bug（字幕纹理只上传一次 + 折行避头标点）** | **2026-10-18**：见本文件头部那段。① 字幕纹理只上传一次（`_drawCaptions` 走 `layer.clear()`）；② `TextKit.wrap()` 避头标点。验收：`hashes demo/beat` 各 11/11 max 0、`regress-all --only unit` 23/23、成片 `check` 全绿（版面守门无 ⚠、motion.json 11/11） |
-| **0-8 R8/RG8 回读（1-7 ⓐ）** | **2026-10-17**：`src/core/gl.js` 的 `RT` 新增 `format: 'r8' / 'rg8'`（不传 = 与之前逐字节相同的 RGBA8）；`readNV12()` 的两个平面改成 R8/RG8，按 `RED`/`RG` 回读（`PACK_ALIGNMENT` 钉 1），**紧凑化循环与两个中转缓冲删除**。验收：`tools/probe-r8.mjs` 新增并全绿（32×8 与 13×5 两种宽度、R8+RG8 逐字节 max 0；ANGLE / AMD / D3D11）；`probe-nv12` 全绿（max 1、>1 占 0.00%）；`_calib` 720 帧背靠背 **47.8s（15.1 fps）→ 44.5s（16.2 fps）= 1.07×**（三次 44.3–44.6s）；`verify _calib` **8/8**（mean 0.00–3.19）；`hashes demo` / `hashes beat --baseline` 各 **11/11 max 0**；`regress-all --only unit` 通过。数据在 `PERF.md` §5.2/§5.4a/§5.6 |
-| **1-17 词锚定时间线** | **2026-10-17**：`scripts/lib/narration-anchors.mjs` 新增（纯函数 `resolveNarration`）——`narration.mjs` 句上写 `on: { line?, word, edge?, affinity? }`、段上写 `reveal: { at: { line, word, edge } }`，解出段内 cue/internal 直接喂 `solveTiming`（它零改动、段内偏移照旧跟 stretch 乘）。**左右亲和显式化**（'left'→停顿全归前词 / 'right'→全归后 / 默认对半 / 数字按比例，取向写进 anchors.json 不许静默）；词名写错**抛错并列出该句全部可用词**；每段锚点（on+reveal）≤3、第一句带 on、往回锚（环）、affinity 写错全抛；**降级**：被锚句 approx/无 words → 退回显式秒并进 `anchors.json.degraded`（check 1.8 再报一遍"改词不会自动重排"）。`say` 接线在合成完之后、solveTiming 之前；无锚点全哑（§8.7 两遍日志一致判据钉住）；有锚点写 `audio/anchors.json`、无锚点主动删旧文件。验收：`tools/test-say.mjs` 新增 §9 共 34 项 → **112/112**（原 78 零回归）；`docs/NARRATION.md` 新增 §6（写法/亲和表/降级/≤3 锚/诚实边界）。**边界**：第一次 TTS 不出词级时间戳 ⇒ 锚点全部降级回秒（say 与 check 都会明说） |
-| **1-18 check 加画面语义断言** | **2026-10-17**：`tasks/<任务>/motion.json` 声明四种断言——`before(A,B)`（纯静态：B.start ≥ A.end）、`appearsBy(段,t)`（段头+0.05 与段头+t 两帧差分 changedRatio ≥ 0.0015）、`keepsMoving(段,maxStaticSec)`（段内每 0.5s 相邻帧对、最长连续静超标命中）、`noEdgeContent(段)`（15%/50%/85% 三点、四边 3% 带内**文字块** bbox 压边；第一版不判矢量——边界已写进 MOTION.md §5）。判据纯函数在 `src/timeline.js`（`planMotionAsserts`/`edgeSafeHits`/`motionVerdict`，既有导出零改动），页面侧 `__anim.motionAudit`（相邻对复用帧省一半渲染、异常记 error 不中断），cmdCheck 接线（文件缺 → skipped"没判 ≠ 通过"、解析坏 → 静态 errs；命中默认 warn、--strict 才 gate；--quick 只跑 appearsBy 并明说其余没跑）。**两条元设计照抄 hyperframes**：持久性感知（单点超限下一采样恢复 → info 不 gate）与空≠干净（未声明/missing/页面行缺失全进 skipped）。**真渲染验收**：demo 写契约示例断言组 → 完整档 3 过 1 命中（`noEdgeContent chart` 3/3 点压右边——footer 贴边，断言不是永远绿的证明）、quick 档 2 帧 / 完整档 21 帧 0.8s。测试 `tools/test-motion-assert.mjs` **21/21**（挂 `unit:motion-assert`）；`regress-all --only unit` **23/23**；`docs/MOTION.md` 新增 §5 |
-| **0-6 后处理新参数用起来（A/B 标定落地）** | **2026-10-17**：`_post-lab` 夹具补 grainScale 两段（10 → 12 段），重建 `out/_postlab/` 实测（上轮清盘被删）：三批 `still` 12 帧 + 两个量具重跑 + grain 4K 栅格量化（`out/_postlab/grain-probe.mjs`，一次性脚本）+ 视觉子代理并排目检 ×2。**结论写进 `docs/ENGINE.md` §8 四个参数行**：① `shoulder 0.60` 实测**只压暗、不增加高光层次**（1.0→245、2.0 仍并白，目检并白起点反而早一级）—— 要层次必须换算子；② AgX+exp0.75 层次最好（目检并白起点第 9 级 vs 现状第 6 级、多约 3 级）但**去饱和最狠**（保饱和排序 现状 > ACES > AgX；橙 253,253,120 → AgX 237,218,151 / ACES 248,241,131），ACES+exp0.85 是折中；③ bloomKaris **单点读数几乎无差**（极差 ≤2/255）但**并排目检有轻微可见差别**（ON 白芯略小略暗、光晕收窄、晕带暖粉偏移；均无方块伪影；帧间跳动需连续帧验）—— 推翻旧记录「没测出可见差别」；④ grainScale 4K 实测：`design` lag1=+0.51（2×2 物理像素、与 1080p 同大小）、`screen` lag1≈-0.05（单物理像素、细一半），两者 std 一致（0.0593/0.0594，强度相同只有栅格不同）；**4K 成片或可能下变换回 1080p 观看时用 `design`**；⑤ dither rpdf/tpdf 单帧确无差别（级数 17→18、各级差 ≤2）—— 确认旧结论。视觉报告顺带纠正 briefing 笔误（ab-visual 实为 7 行）。产物：`out/_postlab/`（ab-visual / ab2-visual / grain-ab 三张对比图 + 12 帧） |
-| **1.E 四条（EAC design world 拆解的第一批落地）** | **2026-10-24**：`docs/REFERENCE-eac-design-world.md`（拆解）+ 四件落地 —— ① **`anim qa`** 成片级技术扫描（`scripts/lib/media.mjs` 的 `parseDetectIntervals` / `classifyMediaScan` / `scanMediaFile` + CLI，`tools/test-media-qa.mjs` **17 项**）；② **`cmdSubs` 的 ASS 转义**（`assText()` / `assTime()`，`tools/test-subs.mjs` **11 项**）；③ **`type.write` 的 `blur` 通道** + `title.blur` + 目视夹具 `tasks/_blur-lab/`（`check` 通过）；④ **11 个模板的 `use/energy/avoid`** + `filterShots()` + `anim shots --use`。**验收**：`hashes demo` / `hashes beat --baseline` 各 **11/11 max 0**（blur 默认 0 时完全不碰 filter，老片子逐像素不变）；`tools/test-shots.mjs` **129/129**（原 124）；`qa beat --file out/beat/beat.mp4` 真跑（4.0s / 240 帧 / 0 错 0 警 / 音量 -12.4 dB）；坏片夹具（1s 黑 + 4s 死静）两条全被点名、`--strict` 退出码 1、`--json` 结构可解析。**过程中抓到的三件事**：`positional()` 只按"-"前缀过滤、不认识 flag 的值（`shots --use 转场` 把 `转场` 当成了模板名）；ffmpeg 在文件结束时常漏打 `freeze_end`（开口区间必须按总时长收口，否则"整片后半段全静"反而算不出时长）；黑场天然也是静帧（不去重会一条黑场报三条，读数淹掉判据） |
-| **基线不再冻结引擎（2026-10-24 用户拍板）** | 用户原话：「引擎修改还会检查老片子有没有破坏…这样不就会导致原地踏步吗」。改法：`hashes` 从"必须逐像素不变"改成**变更探测器** —— `--save` 在基线已存在时**拒绝覆盖**（堵住"改完顺手重存"）；`--baseline` 变了就落 `out/<任务>/hashes-diff.png`（左=基线、右=现在）并退出 1；`--accept --note "…"` 确认这是有意的改动，原因写进基线 `notes`（下次比对失败会打出来）。**判据本身没放松**（`negligible()` 不动：>16 的像素为 0 且 mean < 0.002），放松的是**流程**：有意的变化要被看见、被说明，而不是被"改回去"。实测（`_blur-lab`）：blur 20→34 让 1/4 帧变红（max 109 / >16 0.106%）→ 出对比图 → `--accept` → 绿 + note 落盘。文档同步：`AGENTS.md` §7（两种改动档）、`ENGINE.md` §14.7、`DIAGNOSIS.md` §1.6 |
-
-```sh
-node tools/test-layout.mjs                     # 31 项通过（纯函数，不需要 GPU）
-node scripts/anim.mjs check sodium --strict    # 三条批评全部点名（见下表），退出码 1
-node scripts/anim.mjs check sodium             # 默认只 warn：退出码 0（回归清单不被染红）
-node scripts/anim.mjs hashes demo --baseline   # 11/11 max 0（判据不动画面）
-node scripts/anim.mjs hashes beat --baseline   # 11/11 max 0
-node tools/regress-all.mjs --only unit         # 含新增的 unit:layout
-```
-
-`check sodium --strict` 的「✗ 为什么红（12 条）」逐条对上三条外部批评：
-
-| 观众的原话 | 判据输出 |
-|---|---|
-| 「不如纯看字幕了 / 不明所以」 | `[旁白复述] 12 句旁白被逐字写进画面`（43 句里 28%） |
-| 「元素相互遮挡，不知道要看哪个主体」 | `[版面守门] glass：一屏 9 块文字（上限 6）；主体之外还有 7 个「看的地方」（上限 2）` |
-| 「一屏的东西太多 / 建议做成 PPT」 | `⚠ 版面守门：11/12 段一屏的东西太多`（cull 8 块 / threads 8 块 / vram 7 块） |
-
-⚠ 一条**没验**：`版面守门·主体声明（focus）` —— 钠 12 段都没声明主体，判据 ③ 在它身上跑不了。
-这是**设计的**（12 段都能一眼看出主体，补 `focus` 是"下一支怎么写"）；`skipped` 里点名了它。
-
----
-
-### 第十轮的验收证据（都能重跑）
-
-```sh
-node scripts/anim.mjs check _config-lab            # ✓ 含 world:false 那一栏的读数 + 「依赖 under」1/1
-node scripts/anim.mjs check _config-lab --only whip # ✓ under 审计正确报「没判」并进 skipped（退出码仍 0）
-node scripts/anim.mjs audit _config-lab             # 两个采样时刻 + world=self 一栏 + handlesTransition=Y
-node scripts/anim.mjs check demo --quick            # ✓（修掉"窗后中点"那个假报之后）
-node scripts/anim.mjs hashes demo --baseline        # 11/11 max 0（引擎侧改动没有动画面）
-node scripts/anim.mjs hashes beat --baseline        # 11/11 max 0
-node tools/regress-all.mjs --only unit              # 14/14（含新增的 unit:timeline-audit）
-node tools/test-timeline-audit.mjs                  # 26 项
-node tools/test-loudness.mjs                        # 39 项（新增 ⑦：-t 的位置与真截断）
-node tools/test-fabricated-numbers.mjs              # 183 项（原 139）
-node tools/regress-all.mjs                          # 整份：**48 通过 + 1 跳过（环境）+ 0 真失败**
-```
-
-整份 `regress-all`（**49 项**）**这一轮真跑了两遍**：第一次是 **47/48、真失败 1** —— 那 1 项就是
-`say:real-tts`（edge-tts 服务端全线 403 ⇒ 探针崩成 TypeError）。修掉探针 + 给回归器加
-`SKIP(没跑)` 之后，这一项**正确报成"跳过（没验）"**，不再是"失败"。
-⚠ 按 §1 的口径：**"跳过"要写出来，不能读成"通过"** —— 真 TTS 这条路这一轮**没有验过**。
