@@ -51,7 +51,7 @@
 // 免得同一个默认值在两处各写一份（见 CAPTIONS_BASE 的注释）。
 import { DEFAULT_CAPTION_STYLE } from '../core/captions.js';
 import { scaleGrid } from '../core/util.js';
-import { tokensWith } from './tokens.js';
+import { tokensWith, scaleTokens, PORTRAIT_TYPE_SCALE } from './tokens.js';
 
 /** 默认字体栈（与 `src/core/text.js` 的 `FAMILIES` 一致；风格包只写要覆盖的那几个）。 */
 const SANS = "'Archivo', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif";
@@ -102,6 +102,31 @@ const GRID_BASE = {
    * 把那一带让出来（关掉模板的 readout / 页脚，或用 `assertInBand()` 核对）。
    */
   captionBand: [40, 104],
+};
+
+/**
+ * 竖屏（1080×1920）的栅格基准（BACKLOG 1-52）。
+ *
+ * 为什么不能靠"把横屏栅格按高缩放"：横屏的基准是 1920×1080，按 `H/1080` 缩放竖屏
+ * （H=1920）会得到 ×1.777 —— `pad` 变成 213、`footerY` 变成 1809（已经压在 B 站底部 UI 上）。
+ * 竖屏的短边是**宽**，所以它必须是**一套独立的值**，再按 `W/1080` 缩放。
+ *
+ * 四条取值理由（都能在 `docs/LAYOUT.md` 与 B 站竖屏规范里对上）：
+ *   · `pad: 88` —— 1080 宽的 8.1%，比横屏的 6.25% 略宽：窄画幅两侧再贴边就"挤"；
+ *   · **字幕带在 61%–70% 高度**（`captionBand: [1180, 1344]`）—— 竖屏的字幕惯例位置，
+ *     同时留出底部 30%（B 站竖屏的进度条 + 作者/推荐位大约占 1800–1920）；
+ *   · `contentBottom: 1112` —— 正文不许越过字幕带上沿，否则字幕会压在图上；
+ *   · `footerY: 1622` —— 页脚在字幕带下方、但在 B 站 UI（≈1750）之上。
+ */
+const GRID_PORTRAIT = {
+  pad: 88,
+  top: 104,
+  footerLineY: 1580,
+  footerY: 1622,
+  captionLineY: 1412,
+  captionY: 1448,
+  contentBottom: 1112,
+  captionBand: [1180, 1344],
 };
 
 /**
@@ -159,6 +184,8 @@ export const STYLES = {
     motif: 'blueprint',
     grid: { ...GRID_BASE },
     captions: { ...CAPTIONS_BASE, size: 42, bg: 0.44 },
+    // 工程图的口吻偏"密"：字号整体收一档，标注留得住细节（token 覆盖见 docs/STYLE.md）
+    tokens: { type: { hero: 120, h1: 88, h2: 52, body: 38 } },
   },
 
   /* ------------------------------------------------------------------ 纸面（反色） */
@@ -186,6 +213,8 @@ export const STYLES = {
     motif: 'paper',
     grid: { ...GRID_BASE, pad: 140 },
     captions: { ...CAPTIONS_BASE, size: 46, bg: 0.0, dim: 0.5 },
+    // 纸面是"读"的介质：正文更大、标注更松（宋体的字面比黑体小，要给回来）
+    tokens: { type: { hero: 128, h1: 92, h2: 54, body: 42, label: 26 } },
   },
 
   /* ------------------------------------------------------------------ 终端 / 磷光 */
@@ -214,6 +243,8 @@ export const STYLES = {
     //   （模板的 readout/签名/footer 都是硬编码的），风格能改的是字幕的**样式**（字号/底衬/颜色），
     //   改位置就得同时改版式 —— 那是手写场景的事。`tools/test-style.mjs` 有断言盯着这一条。
     captions: { ...CAPTIONS_BASE, size: 40, bg: 0.62, weight: 500 },
+    // 等宽字的字面窄，整套阶梯收一档；错峰更快（终端是"刷屏"的节奏，不是排版）
+    tokens: { type: { hero: 112, h1: 84, h2: 48, body: 36, label: 24, mono: 22 }, motion: { stagger: 0.05 } },
   },
 
   /* ------------------------------------------------------------------ 纯色摄影棚（设计 token 的承载风格） */
@@ -255,6 +286,8 @@ export const STYLES = {
     motif: 'noir',
     grid: { ...GRID_BASE, pad: 160, top: 110 },   // ← 同上：不要改 captionBand
     captions: { ...CAPTIONS_BASE, size: 44, weight: 500, bg: 0.34 },
+    // 电影感 = 更少、更大的字：hero 放大一档、主体字更重（一屏仍然只有一个 hero）
+    tokens: { type: { hero: 152, h1: 104, h2: 58, body: 42, label: 26 }, weight: { hero: 900 } },
   },
 };
 
@@ -310,6 +343,11 @@ export function resolveStyle(spec = {}) {
     fonts: { ...(pack.fonts ?? {}), ...(over.fonts ?? {}) },
     post: { ...(pack.post ?? {}), ...(over.post ?? {}) },
     grid: { ...GRID_BASE, ...(pack.grid ?? {}), ...(over.grid ?? {}) },
+    /**
+     * 竖屏栅格（BACKLOG 1-52）：`H > W` 时由 `fitStyleToFrame()` 换成它。
+     * 风格可以覆盖（`gridPortrait`），默认 = `GRID_PORTRAIT`（1080×1920 基准）。
+     */
+    gridPortrait: { ...GRID_PORTRAIT, ...(pack.gridPortrait ?? {}), ...(over.gridPortrait ?? {}) },
     captions: caps,
     /**
      * 设计 token（`src/style/tokens.js`）：字号阶梯 / 线宽三档 / 动效配方 / 边距 / 质感。
@@ -335,7 +373,48 @@ export function resolveStyle(spec = {}) {
  * @param {number} W @param {number} H 逻辑分辨率
  */
 export function gridFor(style, W, H) {
-  return scaleGrid(style?.grid ?? GRID_BASE, H / 1080);
+  const portrait = H > W * 1.05;
+  const base = portrait
+    ? (style?.gridPortrait ?? GRID_PORTRAIT)
+    : (style?.grid ?? GRID_BASE);
+  return scaleGrid(base, (portrait ? W : H) / 1080);
 }
 
-export { GRID_BASE, CAPTIONS_BASE, SANS, MONO, SERIF };
+/**
+ * 把一份风格**适配到实际画幅**（BACKLOG 1-52 的入口，引擎在 `load()` 时调一次）。
+ *
+ * 横屏（`H <= W * 1.05`）：**原样返回同一个对象** —— 老任务一个像素都不变，
+ * 连引用都不换（`hashes --baseline` 才可能全绿）。
+ *
+ * 竖屏（`H > W * 1.05`）三件事：
+ *   ① **栅格换成竖屏那一套**，再按 `W/1080` 缩放（短边是宽，不是高）；
+ *   ② **字号阶梯 ×1.35**（`PORTRAIT_TYPE_SCALE`）—— 语义字号跟着走，`type.write` 不用改；
+ *   ③ **字幕换成竖屏参数**：字号 ×1.35、每行 12 字、`position: 'bottom'`（在带内往上叠），
+ *      避开 B 站竖屏底部 UI（进度条 + 作者位 ≈ 1800–1920）。
+ *
+ * @param {any} style `resolveStyle()` 的结果（可以为 null）
+ * @param {number} W @param {number} H 逻辑分辨率
+ */
+export function fitStyleToFrame(style, W = 1920, H = 1080) {
+  if (!style) return style;
+  if (!(H > W * 1.05)) return style;
+  const k = W / 1080;
+  const caps = style.captions
+    ? {
+      ...style.captions,
+      size: Math.round((style.captions.size ?? 44) * PORTRAIT_TYPE_SCALE),
+      maxCharsPerLine: Math.min(style.captions.maxCharsPerLine ?? 16, 12),
+      position: 'bottom',
+    }
+    : style.captions;
+  return {
+    ...style,
+    /** 这份风格已经按竖屏适配过（kit / 场景想看时读它） */
+    portrait: true,
+    grid: scaleGrid(style.gridPortrait ?? GRID_PORTRAIT, k),
+    tokens: scaleTokens(style.tokens, PORTRAIT_TYPE_SCALE),
+    captions: caps,
+  };
+}
+
+export { GRID_BASE, GRID_PORTRAIT, CAPTIONS_BASE, SANS, MONO, SERIF };

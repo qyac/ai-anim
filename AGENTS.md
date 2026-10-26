@@ -381,7 +381,7 @@ export default {
 | 工具 | 用途 | 关键点 |
 |---|---|---|
 | `lines`（LineBatch） | 矢量图形：线、折线、圆、矩形、填充矩形、刻度 | 颜色是**线性**值 `[r,g,b]` 或 **`[r,g,b,a]`**（`a` 是真半透明叠加），可以 >1 让它发光；`fillRect` 是填充；一次 `flush` 就是一次 draw call；容量 6 万条 |
-| `text` + `type` | 文字排版 | `type.write` 逐字动画；`type.writeLine` **按锚点写整行**（与 `write(…,{align})` 等价，两者都是整行）；`type.karaoke` 逐词同步；`type.wrap` 折行；画完必须 `text.upload()` 再 `comp.draw` |
+| `text` + `type` | 文字排版 | `type.write` 逐字动画；`size` 可写**语义字号** `'hero'/'h1'/'h2'/'body'/'label'/'mono'`（按风格取值、写错抛；规则见 `docs/STYLE.md` §4.1）；`type.writeLine` **按锚点写整行**（与 `write(…,{align})` 等价，两者都是整行）；`type.karaoke` 逐词同步；`type.wrap` 折行；画完必须 `text.upload()` 再 `comp.draw` |
 | `new Pass(gl, glsl)` | 全屏 shader：背景、扭曲、后处理式效果 | shader 里直接写 `void main(){ fragColor = ...; }`；`GLSL_COMMON` 已提供 `vUv`/`t`/`res`/`FRAG_PX`/调色板常量 `C_INK` `C_SIGNAL`…/噪声/SDF |
 | `comp.draw(gl, 图层, out, opts)` | 叠图层 | `mode: 'normal'\|'add'\|'screen'\|'multiply'\|'max'`；Canvas2D 图层传 `premult: false` |
 
@@ -586,6 +586,8 @@ node scripts/anim.mjs video <任务>                          # 1080p60，自动
 
 # 长片子分块渲染（`--segments` 后面是**目标块时长（秒）**；已渲好的块会跳过，改一个镜头不用整片重来）
 # 切点只落在段边界、且避开转场交叠 —— 每块都是完整的镜头
+# 2026-10-26 起是**块级**判断（BACKLOG 1-45）：只改 tasks/ 下的场景 ⇒ 只重渲它所在的那一块；
+# 改了 src/（引擎）或渲染参数 ⇒ 整批重渲。判据与实测见 docs/BACKLOG.md 1-45。
 # ⚠ 长时间单进程推流**会中途卡死**（实测 spectrum 跑到 1260/4550 帧后 12 分钟无进度、
 #   推流积压涨到 382MB，进程还活着但不推进）。**超过 30 秒的片子默认就加 --segments** ——
 #   分块每块重启浏览器，天然规避；每块还会 ffprobe 逐块复核。
@@ -660,6 +662,16 @@ ffmpeg 用 `-pix_fmt nv12` 直接吃 —— 瓶颈与验收数字见 `docs/PERF.
 **真 4K 可用**：`node scripts/anim.mjs video <任务> --scale 2`（或任务里写 `scale: 2`）。
 scale 接受 1..4；场景写法不用改，只要 shader 里别拿物理像素当逻辑像素用。
 （历史上 `--scale 2` 曾被 CLI 拒绝，因为 `LineBatch` 顶点着色器用物理分辨率换算裁剪空间导致矢量在 4K 下消失 —— 已修，见 `docs/history/STATUS-rounds-1-6.md` §6.3。）
+
+**竖屏（1080×1920）也可以直接出**：任务里写 `width: 1080, height: 1920` 即可 —— 引擎在 `load()` 里自动换栅格（`GRID_PORTRAIT`，按**短边=宽**缩放）并把字号阶梯 ×1.35，
+场景不用改一行。字幕自动抬到 61%–70% 高度（避开 B 站底部 UI）。写竖屏场景前读
+`docs/LAYOUT.md` §6.5（实测标定：判据**不需要放宽**，但正文不许越过 `contentBottom`、
+标注要合并成一行）；回归 `node tools/test-portrait.mjs`。
+
+**编码器不可用会自动兜底**：默认 `libx264`，出片前会探一次"这台 ffmpeg 到底有没有它" ——
+Windows 上最常见的 **LGPL 构建没有 libx264**（`--disable-libx264`），硬写默认值的结果是 ffmpeg
+打一行 `Unrecognized option 'x264-params'` 就退出。现在自动退到 `h264_mf` / `libopenh264` 并打一行警告；
+要原配方（crf16 + tune grain）就装 GPL 构建，或用 `--vcodec` / `ANIM_VCODEC` 指定。
 
 ---
 

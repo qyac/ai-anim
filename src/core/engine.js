@@ -25,6 +25,9 @@ import { SILENT } from './audio.js';
 import * as U from './util.js';
 // 交叠期的默认转场（甩镜）。`transitions.js` 只依赖 gl/util，不会再反向依赖 engine —— 无环。
 import { transitionPass, cameraDir } from './trans.js';
+// 画幅适配（竖屏，BACKLOG 1-52）：栅格与字号阶梯要按实际 W/H 换一套。
+// 依赖方向是 core → style 的唯一一处，且只用一个纯函数（`style/index.js` 不反向 import 引擎）。
+import { fitStyleToFrame } from '../style/index.js';
 // 自适应子帧的**判据**（误差分位 / 停滞熔断 / 档位）在纯函数模块里，见文件头
 import {
   BASE_SAMPLES, MAX_SAMPLES, DEFAULT_TOL,
@@ -213,7 +216,7 @@ export class Engine {
      * 颜色（`style.palette`）不在这里合并：`P` 必须在 `new Engine()` 之前定好
      * （`Post` 构造时就把调色板常量注进 shader 源码了），所以 `src/app.js` 负责合成。
      */
-    this.style = spec.styleResolved ?? spec.style ?? null;
+    this.style = fitStyleToFrame(spec.styleResolved ?? spec.style ?? null, this.gl.w, this.gl.h);
 
     /**
      * 字幕层：`task.captions` 打开时建。
@@ -325,27 +328,38 @@ export class Engine {
   }
 
   /**
-   * 把风格包的字体栈注入每一个 Canvas2D 图层（HUD / 字幕 / 每段自己的图层）。
+   * 把风格包里**与图层有关**的两样东西注入每一个 Canvas2D 图层（HUD / 字幕 / 每段自己的图层）：
    *
-   * 为什么值得单列一个方法：模板与场景里写的都是**逻辑名**（`family: 'sans'`），
-   * 真正的字体栈在 `TextKit.families` 上。所以换风格时"全片连标题带字幕一起换字体"
-   * 只需要改这一处映射 —— 8 个镜头模板一行都不用动。
+   *   ① **字体栈**：模板与场景里写的都是逻辑名（`family: 'sans'`），真正的字体栈在
+   *      `TextKit.families` 上。换风格时"全片连标题带字幕一起换字体"只改这一处映射 ——
+   *      11 个镜头模板一行都不用动。
+   *   ② **设计 token**（`src/style/tokens.js`）：`type.write('…', x, y, { size: 'hero' })`
+   *      里的语义字号要按这套风格取值（noir 的 hero 与 print 的不是一个数）。
+   *      `null` = 没有风格包 ⇒ 回落到 `TOKENS`，老任务一个像素都不变。
    *
    * ⚠ 一段的图层可能在 `load()` 之后才建（`--only`、懒加载），所以 HUD 与字幕层
-   * 每次都要重刷；`import` 进来的老任务没写 `style.fonts` 时这里是空操作（零像素变化）。
+   * 每次都要重刷；`import` 进来的老任务没写 `style.fonts` 时字体那一路是空操作。
    */
   applyStyleFonts() {
     const fonts = this.style?.fonts;
-    if (!fonts || !Object.keys(fonts).length) return this;
-    this.hud2d?.type?.setFamilies?.(fonts);
-    this.cap2d?.type?.setFamilies?.(fonts);
-    for (const it of this.timeline) it._layer?.type?.setFamilies?.(fonts);
+    const tokens = this.style?.tokens ?? null;
+    const layers = [this.hud2d, this.cap2d, ...this.timeline.map((it) => it._layer)];
+    for (const layer of layers) {
+      const text = layer?.type;
+      if (!text) continue;
+      if (fonts && Object.keys(fonts).length) text.setFamilies?.(fonts);
+      text.setTokens?.(tokens);
+    }
     return this;
   }
 
-  /** 风格栅格按实际分辨率缩放后的版本（风格里的数字都是 1920×1080 基准）。 */
+  /**
+   * 风格栅格（**已经是实际分辨率下的版本**）：`load()` 里 `fitStyleToFrame()` 按画幅
+   * 换过栅格与字号阶梯 —— 横屏原样、竖屏换成 1080×1920 那一套再按短边缩放。
+   * 所以这里不再二次缩放（以前按 `H/1080` 缩放，竖屏会得到 ×1.777 的页边距）。
+   */
   _scaledGrid() {
-    return U.scaleGrid(this.style?.grid, this.gl.h / 1080);
+    return this.style?.grid ?? null;
   }
 
   /** 检查时间线本身的问题（重叠顺序、空档、越界）。 */
@@ -795,6 +809,17 @@ export class Engine {
          * （有运动就一定超阈值 ⇒ 继续加到 24），这正是我们要的方向：**宁可多一档，不要漏拖影**。
          */
         const half = BASE_SAMPLES >> 1;
+        /**
+         * ⚠ `newRT` 是**加性**累加的目标，必须先清零（2026-10-25 修）。
+         *
+         * 下面这条 `addSamples` 是加法混合（`acc.blendFn = 'add'`），而 `newRT` 在两帧之间
+         * 不会自己变干净 —— 以前它只在 `while` 循环里（新一级开始前）被清过，**第一级从来没清**。
+         * 于是第 N 次自适应渲染的"前半段"= 本次 4 个子帧 + 上一帧留下的残影：
+         *   · 残影亮 ⇒ 整帧越渲越亮（demo 的 `check` 报「多子帧比单帧亮 1.98×」正是它）；
+         *   · 残影暗 ⇒ 整帧偏暗。
+         * 这类"同一帧渲两次不一样"的错误在静止画面上最刺眼，而它不报错。
+         */
+        this.gl.clear(this.newRT, [0, 0, 0], 0);
         addSamples(0, half, this.newRT);
         addSamples(half, BASE_SAMPLES, this.sumRT);
         done = BASE_SAMPLES;
@@ -810,15 +835,29 @@ export class Engine {
           const err0 = this._sampleError(half, half);
           hist.push({ err: err0 });
           this.lastErrors.push(err0);
-          // 把前半并进总和 ⇒ sumRT = 完整的 8 个子帧
-          acc.u.src.value = { tex: this.newRT.tex, __tex: true };
-          acc.render(this.gl, this.sumRT, t, 1 / this.fps);
-          this._groupA = BASE_SAMPLES;
-          this._groupB = BASE_SAMPLES;
           verdict = samplingVerdict(hist, { tol, maxSamples, samples: done });
           // 第一级的"停"只有一个合法解释：两半一致 = 这一帧是静止的
           if (verdict.stop && verdict.reason === 'tol') verdict = { ...verdict, reason: 'static' };
         }
+        /**
+         * ⚠ **前半段必须并进总和 —— 包括「一级到底」那条捷径**（2026-10-25 修）。
+         *
+         * 第一级把 8 个子帧拆成两半：前半先在 `newRT` 里（为了算"两半一致吗"），
+         * 后半直接进 `sumRT`。合并这一行以前写在 `else` 分支里，于是
+         * **`maxSamples: 8` 的段永远不合并**：`sumRT` 只有后半 4 个子帧，而下面的除数
+         * 仍是 `done = 8` ⇒ `avgRT = 4 帧之和 / 8` = 一半的光。
+         *
+         * 症状是在**显示空间**上暗 0.73×（线性 0.5 → sRGB ≈ 0.73），而不是"看不出来"：
+         * `check` 报「单子帧与多子帧亮度差了 0.73×」，而 `maxSamples: 8` 正是 HANDOFF
+         * 里那个"提速旋钮"（spectrum 全片都写着它）⇒ **凡是给段写了 maxSamples: 8 的片子，
+         * 成片都比预览暗 27%**。搬运：`docs/HANDOFF-spectrum-friction.md` §1 的绕法用了它。
+         *
+         * 除数与累加数必须始终一致，这是 `copyOver(1/n)` 那条注释的同一条纪律。
+         */
+        acc.u.src.value = { tex: this.newRT.tex, __tex: true };
+        acc.render(this.gl, this.sumRT, t, 1 / this.fps);
+        this._groupA = BASE_SAMPLES;
+        this._groupB = BASE_SAMPLES;
         while (!verdict.stop && done < maxSamples) {
           const from = done, to = Math.min(maxSamples, done * 3);
           this.gl.clear(this.newRT, [0, 0, 0], 0);

@@ -11,6 +11,7 @@
  */
 
 import { css, clamp, sat, lerp } from './util.js';
+import { resolveTypeSize } from '../style/tokens.js';
 
 /** 字素簇切分（中文、emoji、组合字符都按「一个字」算）。 */
 function segment(text) {
@@ -67,7 +68,11 @@ function splitWords(line) {
   return out;
 }
 
-/** @typedef {{ size?: number, weight?: number|string, italic?: boolean, family?: string, tracking?: number, align?: CanvasTextAlign, baseline?: CanvasTextBaseline }} TypeStyle */
+/**
+ * @typedef {{ size?: number|string, weight?: number|string, italic?: boolean, family?: string, tracking?: number, align?: CanvasTextAlign, baseline?: CanvasTextBaseline }} TypeStyle
+ * `size` 除了像素数，还接受**语义字号**（`'hero' / 'h1' / 'h2' / 'body' / 'label' / 'mono'`）：
+ * 取值来自这套风格的 `ctx.style.tokens.type`（`src/style/tokens.js`），写错直接抛。
+ */
 
 /** 字体栈：字体缺失时静默回退，不会糊成方框。 */
 export const FAMILIES = {
@@ -132,6 +137,32 @@ export class TextKit {
      * 不设风格包时它就是 `FAMILIES`，与从前逐像素一致。
      */
     this.families = FAMILIES;
+    /**
+     * 这套风格的**设计 token**（`src/style/tokens.js`）：`size: 'hero'` 这类语义字号从这里取像素。
+     * `null` = 没有风格包（老任务）⇒ 回落到 `TOKENS`，行为与从前逐像素一致。
+     * @type {{ type?: Record<string, number> }|null}
+     */
+    this.tokens = null;
+  }
+
+  /**
+   * 换上这套风格的设计 token（引擎在 `applyStyleFonts()` 里下发，一层一份）。
+   * @param {{ type?: Record<string, number> }|null|undefined} tokens
+   */
+  setTokens(tokens) {
+    this.tokens = tokens ?? null;
+    return this;
+  }
+
+  /**
+   * 把 `size` 归一成像素数：语义字号（`'hero'`）→ 这套 token 里的值；数字原样返回。
+   * 返回值与入参相同（数字 / undefined）时**原样返回同一个对象**，避免每帧多建一个 style。
+   * @param {TypeStyle} [style]
+   * @returns {TypeStyle}
+   */
+  withSize(style = {}) {
+    const size = resolveTypeSize(style.size, this.tokens);
+    return size === style.size ? style : { ...style, size };
   }
 
   /**
@@ -198,6 +229,7 @@ export class TextKit {
 
   /** 整串宽度（含 tracking）。 */
   measure(text, style = {}) {
+    style = this.withSize(style);
     this.font(style);
     const tracking = style.tracking ?? 0;
     const key = `${this._key}|${text}`;
@@ -215,6 +247,7 @@ export class TextKit {
    * 直接用 fillText 整串画一遍得到的就是字体自己的字距，不需要我们插值。
    */
   layout(text, style = {}) {
+    style = this.withSize(style);
     this.font(style);
     const tracking = style.tracking ?? 0;
     const key = `${this._key}|${text}`;
@@ -259,7 +292,8 @@ export class TextKit {
    */
   write(text, x, y, opts = {}) {
     const c = this.ctx;
-    const style = opts;
+    // 语义字号（`size: 'hero'`）在这里归一成像素；opts 的其余字段（stagger/t/alpha…）原样用
+    const style = this.withSize(opts);
     /**
      * ⚠⚠ **`align` 的语义（2026-10-24 修正，BACKLOG 0-3 的真正修法）**
      *
@@ -440,7 +474,7 @@ export class TextKit {
    */
   karaoke(text, words, x, y, t, opts = {}) {
     const c = this.ctx;
-    const style = opts;
+    const style = this.withSize(opts);
     this.font(style);
     const { clusters, cum } = this.layout(text, style);
 
@@ -509,6 +543,7 @@ export class TextKit {
 
   /** 多行文本：返回按宽度折行后的行数组。中文按字折行，拉丁按词折行（避头标点不会落到行首）。 */
   wrap(text, style = {}, maxWidth = 1200) {
+    style = this.withSize(style);
     const lines = [];
     for (const para of String(text).split('\n')) {
       if (!para) { lines.push(''); continue; }
@@ -534,6 +569,7 @@ export class TextKit {
 
   /** 画一段自动折行的正文（做说明文字、字幕块用）。 */
   paragraph(text, x, y, style = {}, opts = {}) {
+    style = this.withSize(style);
     const lh = opts.lineHeight ?? (style.size ?? 40) * 1.35;
     const lines = this.wrap(text, style, opts.width ?? 1200);
     c2dLines(this.ctx, lines, (line, i) => this.write(line, x, y + i * lh, { ...style, ...opts }));
@@ -546,6 +582,7 @@ export class TextKit {
    */
   writeOnPath(text, pts, style = {}, opts = {}) {
     const c = this.ctx;
+    style = this.withSize(style);
     this.font(style);
     const { clusters } = this.layout(text, style);
     const size = style.size ?? 48;
