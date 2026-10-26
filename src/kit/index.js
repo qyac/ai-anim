@@ -83,6 +83,7 @@ export {
 } from './world.js';
 
 export { makeShot, shot } from './shot.js';
+export { stickerShot } from './sticker.js';
 
 /**
  * `src/kit/info.js` —— **infoShot 段落骨架**（BACKLOG 1-50）：眉标 + 标题 + 面板底

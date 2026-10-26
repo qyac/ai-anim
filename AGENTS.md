@@ -303,6 +303,7 @@ export default makeShot('chart', {
 | **一个信息段的骨架**（标题/面板底/侧标注/出处/页脚/错峰全包，只写 `draw(ctx, rect)`；1-50） | `infoShot(id, { title, kicker, caption, source, draw })`（`src/kit/info.js`；版面纪律与 focus 声明由骨架承担） |
 | 一个 **Three.js 镜头**（真网格，第 3 种 3D） | `makeThreeShot(id, { camera, setup, update, overlay, post })`（见 §5.5 ③ 与 `docs/THREE.md`） |
 | 一个现成的整镜头（画面本身） | `shot('chart', { values: [...], title: '…' })`（A 档镜头库 `src/shots/`，也可直接写进时间线） |
+| **动图表情包**（GIF 当图层） | `stickerShot(id, { frame: (i) => url, count })`（`src/kit/sticker.js`）。⚠ **别直接播 GIF**：`render(t)` 必须是 t 的纯函数，播放器时钟一 seek 就乱 —— 先 `ffmpeg -vf "fps=12,scale=320:-1"` 抽成 PNG 序列，按 `floor(lt*fps)%n` 取帧；`comp.draw` **没有旋转**，手感靠缩放与浮动 |
 | 只要背景 + 转场 | `makeWorldKit(ctx)` → `wk.openFrame(ctx)` |
 | 按锚点写整行字 | `type.writeLine(text, x, y, { anchor })` —— 与 `type.write(…, { align })` **等价**（`align` 自 2026-10-24 起是整行对齐） |
 | 整行淡入 | `fade(f.lt, delay)` → `{ alpha: [0,1], t, staggerDur }` |

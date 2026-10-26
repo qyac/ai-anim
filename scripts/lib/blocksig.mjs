@@ -39,6 +39,83 @@ export function walk(dir, accept, out = []) {
   return out;
 }
 
+
+/**
+ * **配置档任务的按段签名**（BACKLOG 1-59）。
+ *
+ * 问题：配置档任务（B 档）把十几段全写在同一个 `task.config.mjs` 里，而段 id → 源文件是
+ * **文件粒度**的 —— 改任意一段的文案，那个文件的 `size:mtime` 就变，于是**所有**引用它的段
+ * 签名一起变 ⇒ 12 块里 10 块重渲（2026-10-26 实测）。
+ *
+ * 做法：按 `id: 'xxx'` 找到它所属的**对象字面量**，用括号配平截出这一段源码，取它的哈希。
+ * 于是"改 A 段"只让 A 段的签名变。截不出来（写法太野）就**不返回**，调用方退回整文件 mtime ——
+ * 宁可多渲一块，也不拿旧块冒充新画面（与 1-45 同一条纪律）。
+ *
+ * @param {string} src 配置文件源码
+ * @returns {Map<string, string>} id → 片段哈希
+ */
+export function configNodeHashes(src) {
+  /** @type {Map<string, string>} */
+  const out = new Map();
+  const text = String(src ?? '');
+  // 只认行内 "id: 'xxx'"；先确认这一行的引号是配对的开引号（排除字符串里出现的 id:）
+  for (const m of text.matchAll(/\bid\s*:\s*'([\w.-]+)'/g)) {
+    const id = m[1];
+    const lineStart = text.lastIndexOf('\n', m.index) + 1;
+    const before = text.slice(lineStart, m.index);
+    // 落在字符串内部就不算键：把**单、双**引号一起数，
+    // 任何一个奇数都说明此刻正处于某个字符串里（第一版只数单引号，sub: "id: 'fake'" 就漏了）
+    const sq = (before.match(/'/g) ?? []).length;
+    const dq = (before.match(/"/g) ?? []).length;
+    if (sq % 2 === 1 || dq % 2 === 1) continue;
+    const start = findEnclosingBrace(text, m.index);
+    if (start < 0) continue;
+    const end = matchBrace(text, start);
+    if (end < 0) continue;
+    const slice = text.slice(start, end + 1);
+    out.set(id, hash32(slice));
+  }
+  return out;
+}
+
+/** 从 `at` 往回找最近的、未闭合的 `{`。 */
+function findEnclosingBrace(text, at) {
+  let depth = 0;
+  for (let i = at; i >= 0; i--) {
+    const c = text[i];
+    if (c === '}') depth++;
+    else if (c === '{') {
+      if (depth === 0) return i;
+      depth--;
+    }
+  }
+  return -1;
+}
+
+/** 从 `start` 那个 `{` 起，配平到对应的 `}`。 */
+function matchBrace(text, start) {
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/** FNV-1a 32 位（够用：只比"变没变"，不是安全哈希）。 */
+function hash32(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
 /**
  * 段 id → 场景源文件（静态扫任务目录下的 `.js`）。
  *
@@ -70,7 +147,21 @@ export function sceneFileIndex(taskDir, root = taskDir) {
       byId.set(id, list);
     }
   }
-  return { byId, all: files.map((f) => path.relative(root, f).split(path.sep).join('/')) };
+  // 配置档任务：同一文件里有很多段 ⇒ 再算一份"按段切片"的哈希（BACKLOG 1-59）
+  /** @type {Map<string, string>} */
+  const configHashes = new Map();
+  for (const f of files) {
+    const rel = path.relative(root, f).split(path.sep).join('/');
+    if (!/task\.config\.mjs$/.test(rel)) continue;
+    let src = '';
+    try { src = readFileSync(f, 'utf8'); } catch { continue; }
+    for (const [id, h] of configNodeHashes(src)) configHashes.set(rel + '#' + id, h);
+  }
+  return {
+    byId,
+    all: files.map((f) => path.relative(root, f).split(path.sep).join('/')),
+    configHashes,
+  };
 }
 
 /**
@@ -101,6 +192,10 @@ export function blockSignature(o) {
     const files = o.index.byId.get(it.id);
     if (!files || !files.length) { parts.push(`?:${it.id}`); continue; }
     for (const rel of files) {
+      // 配置档文件用**按段切片**的哈希：改 A 段不影响 B 段（BACKLOG 1-59）。
+      // 切片截不出来就不进这张表，退回下面的整文件 mtime（保守）。
+      const slice = o.index.configHashes?.get(rel + '#' + it.id);
+      if (slice) { parts.push(`${rel}#${it.id}:slice:${slice}`); continue; }
       try {
         const st = stat(path.join(o.root, rel));
         parts.push(`${rel}:${st.size}:${Math.round(st.mtimeMs)}`);

@@ -185,7 +185,9 @@ function walk(dir, out = []) {
   for (const e of entries) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) { if (e.name !== 'node_modules') walk(p, out); }
-    else if (e.isFile() && e.name.endsWith('.js')) out.push(p);
+    // ⚠ 必须扫 .mjs：配置档任务（B 档）整个目录只有 task.config.mjs，
+    //   只认 .js 的话"没有可判对象"会被误报成工具出错（退出码 2）。
+    else if (e.isFile() && /\.(js|mjs)$/.test(e.name)) out.push(p);
   }
   return out;
 }

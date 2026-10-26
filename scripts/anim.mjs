@@ -5232,6 +5232,27 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
       '-tune', 'grain',
       '-x264-params', opt('x264', 'aq-mode=3'),
     );
+    /**
+     * **码率封顶**（2026-10-26 实测后才加的）：`-tune grain` + crf16 在带颗粒的画面上会飙到
+     * **230 Mbit/s**（4 秒 1080p60 = 112 MB，75 秒的片子就是 2 GB）—— crf 调到 20 也几乎不变，
+     * 因为颗粒保护把细节全留下了。上传平台还要再压一遍，等于白折腾。
+     *
+     * 给 `--bitrate 12M` 就切到「封顶 VBR」：`-b:v` 目标 + `-maxrate` 峰值 + `-bufsize` 缓冲。
+     * 不给则完全沿用原配方（**默认行为一个字节不动**）。
+     */
+    const cap = opt('bitrate', '');
+    if (cap) {
+      const m = /^([0-9.]+)\s*([KMG]?)$/i.exec(String(cap).trim());
+      if (!m) die(`--bitrate 看不懂：${cap}（写成 12M / 8000K 这种）`);
+      const mult = { K: 1e3, M: 1e6, G: 1e9 }[String(m[2] || '').toUpperCase()] ?? 1;
+      const bps = Math.round(Number(m[1]) * mult);
+      args.push(
+        '-b:v', String(bps),
+        '-maxrate', String(Math.round(bps * 1.4)),
+        '-bufsize', String(Math.round(bps * 2)),
+      );
+      warn(`（码率封顶：目标 ${cap} / 峰值 ${(bps * 1.4 / 1e6).toFixed(1)} Mbps —— 上传用，画质与体积折中）`);
+    }
   } else if (isNvenc) {
     args.push(
       '-preset', opt('preset', 'p5'),          // p1 最快 … p7 最慢最好
@@ -5239,7 +5260,37 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
       '-spatial-aq', '1', '-aq-strength', '8',
     );
   } else {
-    args.push('-preset', opt('preset', 'medium'), '-crf', opt('crf', withAudio ? '16' : '20'));
+    /**
+     * 兜底编码器（`h264_mf` / `libopenh264`）：**它们不认识 `-crf`**。
+     *
+     * 2026-10-26 实测（这台机器的 ffmpeg 是 LGPL 构建，没有 libx264）：原来这一支直接把
+     * `-crf 16` 递过去，ffmpeg 不报错、按自己的默认码率出片 —— 4 秒 1080p60 出来 **112 MB / 235 Mbit/s**。
+     * 一支 75 秒的片子会变成 2 GB 级，平台还得再压一遍，画质反而更差（re-encode 二次损失）。
+     * 所以这里改成**显式码率**：1080p60 带颗粒给 12–14 Mbps（B 站/YouTube 的推荐区间），
+     * 码率数字可用 `--bitrate` 覆盖。
+     */
+    const br = opt('bitrate', withAudio ? '14M' : '12M');
+    const bps = (() => {
+      const m = /^([0-9.]+)\s*([KMG]?)$/i.exec(String(br).trim());
+      if (!m) return null;
+      const mult = { K: 1e3, M: 1e6, G: 1e9 }[String(m[2] || '').toUpperCase()] ?? 1;
+      return Math.round(Number(m[1]) * mult);
+    })();
+    if (!bps) die(`--bitrate 看不懂：${br}（写成 12M / 8000K 这种）`);
+    args.push(
+      '-b:v', String(bps),
+      '-maxrate', String(Math.round(bps * 1.5)),
+      '-bufsize', String(Math.round(bps * 2)),
+    );
+    if (vcodec === 'h264_mf') {
+      // MediaFoundation：`-rate_control` 只吃**数值枚举**（写 'vbr' 会 "Error setting option"）。
+      // 1 = pc_vbr（峰值受限 VBR）—— 正好对得上我们给的 -b:v / -maxrate 三元组。
+      args.push('-rate_control', '1', '-quality', opt('quality', '82'));
+    } else {
+      // libopenh264：只有码率模式与 profile
+      args.push('-rc_mode', 'bitrate', '-profile:v', 'high');
+    }
+    warn(`（兜底编码器 ${vcodec}：按 ${br} 显式码率出片 —— 它不支持 -crf；想要 crf16 + tune grain 请装 GPL 构建）`);
   }
   // ⚠ `-shortest` 必须与 `-af apad` 成对（`docs/history/IMPROVEMENTS-4-5.md` §1）：AAC 封装有
   //   priming/padding，音频流的记账时长会比视频**短几十毫秒**，单独用 `-shortest` 会把

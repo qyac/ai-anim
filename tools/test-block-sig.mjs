@@ -110,6 +110,49 @@ ok(g !== sigOf(9, 13), '但与"没有这个段"的签名不同 ⇒ 不会误复�
 section('块的边界进 key（调用方负责）');
 ok(sigOf(0, 4) !== sigOf(0, 5), '同一段、不同边界 ⇒ 签名不同（时间线挪位后不复用旧块）');
 
+section('配置档的按段切片（BACKLOG 1-59）');
+{
+  const { configNodeHashes } = await import('../scripts/lib/blocksig.mjs');
+  const cfg = [
+    'export default {',
+    '  timeline: [',
+    "    { type: 'title', id: 'open', title: 'A', sub: 'x' },",
+    "    { type: 'counter', id: 'n', to: 602, label: '用例' },",
+    "    { type: 'bigtype', id: 'deep', post: { grain: 0.03 }, footer: 'f' },",
+    '  ],',
+    '};',
+  ].join('\n');
+  const h = configNodeHashes(cfg);
+  ok(h.size === 3, '三个 id 都切出片段（实际 ' + h.size + '）');
+  ok(h.get('open') !== h.get('n'), '不同段的哈希不同');
+  // 改一段的文案 ⇒ 只有那一段的哈希变
+  const cfg2 = cfg.replace("title: 'A'", "title: 'B'");
+  const h2 = configNodeHashes(cfg2);
+  ok(h2.get('open') !== h.get('open'), '改 open 的文案 ⇒ open 的哈希变');
+  ok(h2.get('n') === h.get('n') && h2.get('deep') === h.get('deep'), '其余段哈希不变（这就是修复的收益）');
+  // 嵌套对象（post: { … }）也要配平对
+  ok(h.get('deep') && h.get('deep').length === 8, '带嵌套对象的段也切出来了');
+  // 字符串里出现的 id: 不算键
+  const tricky = "export default { timeline: [ { type: 'title', id: 'ok', sub: \"id: 'fake'\" } ] };";
+  const ht = configNodeHashes(tricky);
+  ok(ht.size === 1 && ht.has('ok'), '字符串里的 id 不误切（只认真键），实际切出：' + [...ht.keys()].join(','));
+  // 同文件 + 不同 id ⇒ 签名不同；同 id 同内容 ⇒ 签名相同
+  const idx = { byId: new Map([['open', ['tasks/t/task.config.mjs']], ['n', ['tasks/t/task.config.mjs']]]),
+    configHashes: new Map([['tasks/t/task.config.mjs#open', h.get('open')], ['tasks/t/task.config.mjs#n', h.get('n')]]) };
+  const base0 = { root: root, engineSig: 'e0', paramsText: 'p0', timeline: [
+    { id: 'open', start: 0, end: 4 }, { id: 'n', start: 4, end: 8 } ], index: idx };
+  const s1 = blockSignature({ ...base0, from: 0, to: 4 });
+  const s2 = blockSignature({ ...base0, from: 4, to: 8 });
+  ok(s1 !== s2, '同一文件里的两段，签名不同（切片生效）');
+  const idx2 = { ...idx, configHashes: new Map([['tasks/t/task.config.mjs#open', 'deadbeef'], ['tasks/t/task.config.mjs#n', h.get('n')]]) };
+  ok(blockSignature({ ...base0, index: idx2, from: 0, to: 4 }) !== s1, '只有 open 的切片变了 ⇒ 只有它那块签名变');
+  ok(blockSignature({ ...base0, index: idx2, from: 4, to: 8 }) === s2, 'n 那一块不受影响');
+  // 截不出切片 ⇒ 退回整文件 mtime（保守，不许静默复用）
+  const idxNoSlice = { byId: idx.byId, configHashes: new Map() };
+  const s3 = blockSignature({ ...base0, index: idxNoSlice, from: 0, to: 4 });
+  ok(s3.includes('slice:') === false, '没有切片时退回文件 stat（不含 slice: 前缀）');
+}
+
 /* ---------------------------------------------------------------- 收尾 */
 
 try { rmSync(root, { recursive: true, force: true }); } catch { /* ignore */ }
