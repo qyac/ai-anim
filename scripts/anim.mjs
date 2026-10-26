@@ -148,7 +148,7 @@
  * 离屏渲染全程无头 Chrome + 同一条渲染代码路径，所以「预览看到什么，成片就是什么」。
  */
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync, statSync, openSync, closeSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -157,6 +157,8 @@ import { chromium } from 'playwright-core';
 // 抖动统计（纯函数，无依赖）：`anim shake` 与 `video` 收尾的守门共用同一套判据
 import { analyzeShake, shakeSummary } from './lib/shake.mjs';
 import { blankJsComments as sharedBlankJsComments } from './lib/js-source.mjs';
+// 分块增量重渲的判据（BACKLOG 1-45）：纯函数，`tools/test-block-sig.mjs` 直接测
+import { sceneFileIndex, blockSignature } from './lib/blocksig.mjs';
 import { layoutReport, layoutSummary } from '../src/layout.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -944,7 +946,17 @@ async function openSession(o) {
   }
 
   const browser = await chromium.launch({
-    channel: 'chrome',
+    /**
+     * 浏览器通道。默认 `chrome`（官方 Chrome，`channel: 'chrome'` 是 **playwright-core 的
+     * 硬要求**：它不会替你下载浏览器，见 AGENTS.md §1 前置条件）。
+     *
+     * `ANIM_CHANNEL` 是给"Chrome 装坏了/没有 Chrome"的机器留的后门：
+     * `ANIM_CHANNEL=msedge` 用系统里的 Edge（同 Chromium，渲染路径一致）。
+     * 本机实测踩过：Chrome 的 `Application\` 里只剩 `chrome.exe` 壳、没有 `chrome.dll`，
+     * 启动报「并行配置不正确」，playwright 只会说 `spawn UNKNOWN` —— 报错位置在 `launch`，
+     * 看不出是浏览器装坏了。有了这个环境变量就不必改源码。
+     */
+    channel: process.env.ANIM_CHANNEL || 'chrome',
     headless: !flag('headed'),
     args: [
       '--use-angle=default',
@@ -1039,6 +1051,63 @@ function ffmpegCmd() {
   const parts = raw.match(/"[^"]+"|\S+/g)?.map((s) => s.replace(/^"|"$/g, '')) ?? ['ffmpeg'];
   return parts.length ? parts : ['ffmpeg'];
 }
+/**
+ * 这台 ffmpeg 有没有某个编码器（结果**缓存**，一次出片只跑一次探测）。
+ *
+ * 为什么要探：Windows 上最常见的发行包是 **LGPL 构建**（`--disable-libx264`），
+ * 而引擎默认走 `libx264`。不探的后果不是"报错"，是**静默死**：ffmpeg 打一行
+ * `Unrecognized option 'x264-params'` 就退出，CLI 还在等帧，看起来像"卡死"
+ * （2026-10-25 实测挂 20 分钟）。这里把"有没有"变成可判定的事实。
+ *
+ * @param {string} name 编码器名（`libx264` / `h264_mf` / `libopenh264` …）
+ * @returns {boolean}
+ */
+const encoderCache = new Map();
+function ffmpegHasEncoder(name) {
+  if (encoderCache.has(name)) return encoderCache.get(name);
+  let ok = false;
+  try {
+    const cmd = ffmpegCmd();
+    const r = spawnSync(cmd[0], [...cmd.slice(1), '-hide_banner', '-encoders'], {
+      encoding: 'utf8', timeout: 20000, windowsHide: true,
+    });
+    const text = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
+    ok = new RegExp(`^\\s*[VAS][.\\w]{5}\\s+${name}\\s`, 'm').test(text);
+  } catch { ok = false; }
+  encoderCache.set(name, ok);
+  return ok;
+}
+
+/**
+ * 挑一个**这台 ffmpeg 真的有的**编码器。
+ *
+ * 默认仍是 `libx264`（质量最好、参数最全）。但这台机器上踩过：PATH 里的 ffmpeg 是
+ * **LGPL 构建**（`--disable-libx264`），于是默认参数里的 `-x264-params` 直接把它打死，
+ * 而 CLI 只表现为"卡住"。所以这里先探一次，缺了就退到能用的那个，并把原因**说出来** ——
+ * 宁可画面参数不是最优，也不要静默出一支废片。
+ *
+ * 兜底顺序：`h264_mf`（Windows 自带的硬件编码，AMD/NVIDIA/Intel 都能吃）→
+ * `libopenh264`（LGPL 构建常见）→ 报错（并告诉你去装 GPL 构建）。
+ *
+ * @param {string} requested
+ * @returns {string}
+ */
+function pickVideoEncoder(requested) {
+  if (ffmpegHasEncoder(requested)) return requested;
+  const chain = process.platform === 'win32'
+    ? ['h264_mf', 'libopenh264']
+    : ['libopenh264'];
+  const alt = chain.find((c) => c !== requested && ffmpegHasEncoder(c));
+  if (!alt) {
+    die(`这台 ffmpeg 既没有 ${requested}，也没有可用的兜底编码器（${chain.join(' / ')}）。\n`
+      + `  装一个带 libx264 的 GPL 构建（例如 winget install Gyan.FFmpeg），\n`
+      + `  或用 --vcodec 指定一个这台机器真有的编码器（看 ffmpeg -hide_banner -encoders）。`);
+  }
+  warn(`⚠ 这台 ffmpeg 没有 ${requested}（多半是 LGPL 构建），改用 ${alt}。`);
+  warn(`  要原配方（crf16 + tune grain）就装 GPL 构建，或用 --vcodec / ANIM_VCODEC 显式指定。`);
+  return alt;
+}
+
 function ffprobeCmd() {
   if (process.env.ANIM_FFPROBE) {
     const parts = process.env.ANIM_FFPROBE.match(/"[^"]+"|\S+/g)?.map((s) => s.replace(/^"|"$/g, '')) ?? [];
@@ -1053,6 +1122,20 @@ function ffprobeCmd() {
 }
 function ffmpegPath() { return ffmpegCmd()[0]; }
 function ffprobePath() { return ffprobeCmd()[0]; }
+
+/**
+ * 把 Windows 的**无符号**退出码转成有符号（`4294967274` → `-22`，即 EINVAL）。
+ *
+ * 为什么要转：编码器参数写错时 ffmpeg 退的是 `-22`，但 Node 在 Windows 上拿到的是
+ * 4294967274 —— 报错里出现这个数字，读者第一反应是"这是什么天文数字"。
+ * 转成负数之后，`-22` 至少能让人联想到"参数不对"。
+ * @param {number|null|undefined} c
+ */
+function signedExitCode(c) {
+  if (typeof c !== 'number') return c;
+  return c > 0x7fffffff ? c - 0x100000000 : c;
+}
+
 
 function checkFfmpeg() {
   // 把固定的前缀参数一起带上（ANIM_FFMPEG 可能是个包装器，例如 `node tools/slow-ffmpeg.mjs`）
@@ -1337,6 +1420,27 @@ function sceneSignature(task) {
     } catch { /* 读不到就跳过 */ }
   }
   parts.sort();
+  return parts.join('|');
+}
+
+/**
+ * 引擎签名 = `src/` 下所有源文件的 `相对路径:大小:mtime`（排序后拼起来）。
+ *
+ * 为什么要单独算：**分块增量重渲（BACKLOG 1-45）**需要知道"这次改动影响的是哪一块"。
+ * `tasks/` 下的改动只影响用到它的那几块；`src/` 下的改动（引擎）**任何一块都可能变** ——
+ * 所以引擎签名一变化就整批失效，这是保守但正确的方向。
+ */
+function engineSignature() {
+  const files = [];
+  walkSourceTree(path.join(ROOT, 'src'), SOURCE_EXT, files);
+  files.sort();
+  const parts = [];
+  for (const f of files) {
+    try {
+      const st = statSync(f);
+      parts.push(`${path.relative(ROOT, f)}:${st.size}:${Math.round(st.mtimeMs)}`);
+    } catch { /* 读不到就跳过 */ }
+  }
   return parts.join('|');
 }
 
@@ -4267,16 +4371,35 @@ async function renderSegments({ task, info, out, from, to, fps, samples, shutter
    */
   const man = segmentManifest(segDir, task, { fps, samples, shutter });
   const paramChanged = man.changed.filter((c) => !c.startsWith('tasks/') && !c.startsWith('首次'));
-  let reuse = !flag('force') && man.changed.length === 0;
-  if (flag('force')) {
+  /**
+   * **块级增量重渲**（BACKLOG 1-45，2026-10-26）。
+   *
+   * 以前只有两档：要么整批复用，要么整批重渲。于是"改一个镜头"和"改一个参数"代价一样 ——
+   * 三分钟的片子 ~70 分钟。现在多一档：**按块判断**。
+   *
+   *   · 渲染参数（fps / samples / shutter / scale / vcodec / crf …）变了 ⇒ 整批重渲
+   *     （混合出来的片子自己都不自洽，这是 P1-1 的结论，不改）；
+   *   · 只有 `tasks/` 下的场景改了 ⇒ 逐块比签名，只重渲**签名变了**的那几块；
+   *   · `src/` 下的引擎改了 ⇒ 引擎签名进每一块的签名 ⇒ 整批失效（保守且正确）。
+   */
+  const force = flag('force');
+  const engineSig = engineSignature();
+  const sceneIndex = sceneFileIndex(path.join(ROOT, 'tasks', task), ROOT);
+  const prevBlocks = man.prev?.blocks ?? null;
+  /** 这一批块的签名（收尾写进 params.json，下一次拿来比） */
+  /** @type {Record<string, string>} */
+  const blockSigs = {};
+  const globalReuse = !force && paramChanged.length === 0;
+
+  if (force) {
     log('  --force：忽略已存在的分块，全部重渲');
-  } else if (!reuse) {
+  } else if (paramChanged.length) {
     warn(`\n⚠ 分块参数与上一次不同，**全部重渲**（不复用旧块）：`);
     for (const c of man.changed) warn(`  · ${c}`);
-    if (paramChanged.length) {
-      warn(`  → 提示：上一次是 ${man.prev?.text ?? '(未知)'}；本次是 ${man.fp.text}`);
-    }
+    warn(`  → 提示：上一次是 ${man.prev?.text ?? '(未知)'}；本次是 ${man.fp.text}`);
     warn(`  （这正是 P1-1 那个坑：以前这里会静默复用旧分块，秒完成并报 ✓ 出片成功）\n`);
+  } else if (man.changed.length && prevBlocks) {
+    log('  参数没变，按块比对签名：只重渲改到的那几块（BACKLOG 1-45）');
   }
 
   const files = [];
@@ -4296,13 +4419,21 @@ async function renderSegments({ task, info, out, from, to, fps, samples, shutter
     const c = chunks[i];
     const file = path.join(segDir, `part_${String(i).padStart(3, '0')}_${c.from.toFixed(2)}-${c.to.toFixed(2)}.mp4`);
     const expect = Math.max(1, Math.round((c.to - c.from) * fps));
+    // 块的 key 用**时间边界**：时间线一改（段变长/挪位），对得上号的块才会复用
+    const key = `${c.from.toFixed(2)}-${c.to.toFixed(2)}`;
+    const sig = blockSignature({
+      root: ROOT, engineSig, paramsText: man.fp.text, timeline: info.timeline,
+      index: sceneIndex, from: c.from, to: c.to,
+    });
+    blockSigs[key] = sig;
     // 已经渲好的块直接复用（改一个镜头就只重渲它所在的那块）
-    if (reuse && existsSync(file)) {
-      log(`  [${i + 1}/${chunks.length}] ${c.from.toFixed(2)}–${c.to.toFixed(2)}s  已存在，跳过（${man.fp.text}）`);
+    if (globalReuse && existsSync(file) && prevBlocks?.[key] === sig) {
+      log(`  [${i + 1}/${chunks.length}] ${c.from.toFixed(2)}–${c.to.toFixed(2)}s  已存在且签名一致，跳过（${man.fp.text}）`);
       files.push({ file, expect });
       continue;
     }
-    if (!reuse && existsSync(file)) {
+    if (existsSync(file)) {
+      log(`  [${i + 1}/${chunks.length}] ${c.from.toFixed(2)}–${c.to.toFixed(2)}s  签名变了 → 重渲这一块`);
       try { rmSync(file, { force: true }); } catch { /* ignore */ }
     }
     log(`  [${i + 1}/${chunks.length}] ${c.from.toFixed(2)}–${c.to.toFixed(2)}s  ${expect} 帧 …`);
@@ -4384,6 +4515,8 @@ async function renderSegments({ task, info, out, from, to, fps, samples, shutter
   mkdirSync(segDir, { recursive: true });
   writeFileSync(man.file, JSON.stringify({
     ...man.fp, at: new Date().toISOString(), chunks: chunks.length, frames: files.reduce((s, f) => s + f.expect, 0),
+    // 每块的签名（BACKLOG 1-45）：下一次逐块比对，只重渲改到的那几块
+    blocks: blockSigs,
   }, null, 2));
   const listFile = path.join(segDir, 'concat.txt');
   writeFileSync(listFile, files.map((f) => `file '${f.file.replace(/\\/g, '/').replace(/'/g, "'\\''")}'`).join('\n'));
@@ -4680,20 +4813,32 @@ async function cmdVideo(short = false) {
       // ⚠ 措辞按「已知 / 未知」分开（`docs/BACKLOG.md` 1-3）：直播这一条路**没有可复用的块**
       //   —— 重跑就是整片重渲，而"渲染期间改了文件"/"页面崩了"这类根因是**确定性**的，
       //   不修就重跑＝白等一整片。所以这里只给"先做什么"。
+      //
+      // ⚠ 2026-10-26：**ffmpeg 自己提前退出**（退出码非 0）不再归到"断流"，那是两回事 ——
+      //   前者多半是编码器/参数问题（Windows 上最常见的 LGPL 构建没有 libx264），
+      //   把它说成"重跑会停在同一个地方、去查 HMR"会把人指偏。
+      const ffDied = code !== null && code !== undefined && code !== 0;
       die(
         `只渲染了 ${frames}/${total} 帧，成片不完整，${removed}。\n` +
-        `  ffmpeg 退出码 ${code}。最近一次进展：${r.progressWhy}\n` +
-        `  ${knownCauseHeadline('interrupted')}\n` +
-        `  下一步：① 先看"最近一次进展"停在哪一帧 —— 那附近就是断点；\n` +
-        `          ② 如果渲染期间动过 tasks/ 或 src/ 下任何文件，那就是根因：私有 Vite 会 HMR 重载页面 → WebSocket 断开\n` +
-        `             （连 docs/*.md 也不行：编辑器的原子写会留下 .tmp，watch 挡不住，撞 EBUSY 直接让 Vite 崩）；\n` +
-        `          ③ 否则看是不是页面渲染报错/崩溃（加 --headed 能看到控制台）；\n` +
-        `          ④ 改完之后：长片子用 --segments 分块，已渲好的块会保留，重跑只补没渲完的块。`,
+        `  ffmpeg 退出码 ${signedExitCode(code)}。最近一次进展：${r.progressWhy}\n` +
+        (ffDied
+          ? `  **这一条是 ffmpeg 提前退出**（不是页面断流）⇒ 先查编码器，别急着重跑：\n`
+            + `  ① 这台 ffmpeg 到底有没有你指定的 --vcodec：\n`
+            + `     node -e "const{spawnSync}=require('child_process');console.log(spawnSync('ffmpeg',['-hide_banner','-encoders'],{encoding:'utf8'}).stdout)"\n`
+            + `  ② Windows 上最常见的 LGPL 构建**没有 libx264**（引擎会自己退到 h264_mf/libopenh264；\n`
+            + `     如果你手写了 --vcodec libx264，把那个参数去掉）；\n`
+            + `  ③ 要原配方（crf16 + tune grain）就装 GPL 构建（winget install Gyan.FFmpeg）后重跑。`
+          : `  ${knownCauseHeadline('interrupted')}\n`
+            + `  下一步：① 先看"最近一次进展"停在哪一帧 —— 那附近就是断点；\n`
+            + `          ② 如果渲染期间动过 tasks/ 或 src/ 下任何文件，那就是根因：私有 Vite 会 HMR 重载页面 → WebSocket 断开\n`
+            + `             （连 docs/*.md 也不行：编辑器的原子写会留下 .tmp，watch 挡不住，撞 EBUSY 直接让 Vite 崩）；\n`
+            + `          ③ 否则看是不是页面渲染报错/崩溃（加 --headed 能看到控制台）；\n`
+            + `          ④ 改完之后：长片子用 --segments 分块，已渲好的块会保留，重跑只补没渲完的块。`),
       );
     }
     if (code !== 0) {
       die(
-        `ffmpeg 退出码 ${code}${r.exitSignal ? `（信号 ${r.exitSignal}）` : ''}\n` +
+        `ffmpeg 退出码 ${signedExitCode(code)}${r.exitSignal ? `（信号 ${r.exitSignal}）` : ''}\n` +
         `  这一类**不在"确定性失败"里** —— 可能是瞬时的（被外部中断 / 磁盘满 / 编码器掉线），也可能是参数问题。\n` +
         `  下一步：① 确认磁盘还有空间、out/ 没被别的进程碰过；② 再重跑一次；\n` +
         `          ③ 同样的错再来一次就按确定性处理：先 node scripts/anim.mjs check <任务>，再考虑换 --vcodec / --preset。`,
@@ -4802,7 +4947,12 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
   //   h264_nvenc p5/cq19   1.8s（166 fps）· p1/cq21 1.6s
   // 硬件编码不只是快：它把 16 个 CPU 线程全让给浏览器那一侧（渲染才是大头），所以
   // `--vcodec h264_nvenc` 常常比「省下的编码时间」还要多省一点。
-  const vcodec = opt('vcodec', 'libx264');
+  //
+  // ⚠ `pickVideoEncoder()` 会先探一次「这台 ffmpeg 到底有没有它」：LGPL 构建（Windows 上
+  //   最常见的发行包）**没有 libx264**，硬写默认值的结果是 ffmpeg 打一行
+  //   `Unrecognized option 'x264-params'` 就退出，而 CLI 在那儿等帧（2026-10-25 实测挂 20 分钟）。
+  //   `ANIM_VCODEC` 给"这台机器固定用某个编码器"留了个口子，优先级低于 `--vcodec`。
+  const vcodec = pickVideoEncoder(opt('vcodec', process.env.ANIM_VCODEC || 'libx264'));
   const isNvenc = vcodec.endsWith('_nvenc');
   args.push('-c:v', vcodec, '-pix_fmt', 'yuv420p');
   if (vcodec.startsWith('libx264')) {
@@ -4906,6 +5056,17 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
   let lastFileSize = 0;
   let maxBlockedMs = 0;
   const bump = (why) => { lastProgressAt = Date.now(); progressWhy = why; };
+
+  /**
+   * ffmpeg 的 stdin 出错（EPIPE）要**吞掉**，不能让进程崩在栈上。
+   *
+   * 场景：编码器提前退出（参数不认 / 编码器不存在），我们这边还在写帧 —— 写管道必然 EPIPE。
+   * 以前这个错误没人接，于是 CLI 打出一段 Node 栈就退出，看不出"是 ffmpeg 死了"。
+   * 现在：写失败由 `ff.on('close')` 那条路**说人话**，这里只负责别崩。
+   */
+  ff.stdin.on('error', (e) => {
+    ffExitSignal = ffExitSignal ?? `stdin ${e?.code ?? 'error'}`;
+  });
 
   /**
    * 背压状态。ffmpeg 比渲染慢时 `stdin.write()` 返回 false，此时**必须停发 ack**：
@@ -5064,6 +5225,22 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
     // ffmpeg 已经退出：stdin 上再也不会触发 drain，别让 pendingAck 把页面吊在那里
     ffBlocked = false;
     flushAcks();
+    /**
+     * **提前退出就是失败，立刻收工**（2026-10-26）。
+     *
+     * 以前这里只记账，于是编码器一死（参数不认 / 编码器不存在 / 磁盘满 / 输出被占用），
+     * 页面还在欢快地推帧，CLI 一直等到看门狗（`--idle` 默认 300s）—— 实测有人挂了 20 分钟
+     * 才发现 `out/*.mp4` 根本没在长。退出码非 0 且流还没收尾 ⇒ 明确报错 + 结束这次渲染，
+     * 让上面的帧数/产物复核把"废片"判出来，而不是等人肉盯屏。
+     *
+     * 退出码 0 不走这条路：`-shortest` 与音频等场景下它可能合法地提前结束，
+     * 那种情况由帧数守门负责判定（"只渲染了 N/M 帧"）。
+     */
+    if (!finished && !stdinClosed && code !== null && code !== 0) {
+      warn(`\n⚠ ffmpeg 提前退出（退出码 ${signedExitCode(code)}${signal ? ` / ${signal}` : ''}）—— 编码器没吃下这些参数，或磁盘写不进去。`);
+      warn(`  产物作废。改 --vcodec / -crf 重跑，或换一个带 libx264 的 ffmpeg 构建。`);
+      finish();
+    }
   });
 
   /**
@@ -5160,7 +5337,11 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
    * 超时就杀掉，并让随后的 ffprobe 守门把废品判出来。
    */
   const finalizeLimit = Number(opt('finalize', '180')) * 1000;
-  await new Promise((r) => ff.stdin.end(r));
+  // ⚠ stdin 可能**已经死了**（ffmpeg 提前退出 ⇒ EPIPE）：这时再 end() 会抛一个没人接的错误。
+  //   直接跳过，让下面的 `code` 走"已退出"分支（退出码非 0 ⇒ 上层会把这次渲染判成失败）。
+  if (!ff.stdin.destroyed) {
+    await new Promise((r) => { try { ff.stdin.end(r); } catch { r(); } });
+  }
   stdinClosed = true;
   const code = ffExitCode !== null ? ffExitCode : await new Promise((r) => {
     const timer = setTimeout(() => {

@@ -70,6 +70,10 @@ const ITEMS = [
   //   放进来会让回归清单永久变红，反而没人看了。它是「交付前自检」（AGENTS.md §10.9）
   //   与 `check` 的警告项（见 scripts/anim.mjs 里那段的注释）。
   { name: 'unit:style', cmd: ['tools/test-style.mjs'], note: '风格包 + 字幕层：合并规则 / 默认值一致 / "不写 style 时零变化"的底线（54 项）' },
+  { name: 'unit:tokens', cmd: ['tools/test-tokens.mjs'], note: '设计 token 的语义字号（1-46）：数字原样通过 / 六档按风格取值 / 拼错必须抛（不许静默回落 64）/ 每套风格 6 档齐全（38 项）' },
+  { name: 'unit:portrait', cmd: ['tools/test-portrait.mjs'], note: '竖屏 1080×1920（1-52）：横屏原样返回同一个对象（老任务零变化）/ 栅格按短边缩放而不是按高 / 字号 ×1.35 / 字幕带 61%–70% 且在 B 站 UI 之上 / gridPortrait 可覆盖（39 项）' },
+  { name: 'unit:block-sig', cmd: ['tools/test-block-sig.mjs'], note: '分块增量重渲（1-45）：段 id→源文件（三种写法）/ 块的覆盖范围只算真正跨过的段 / 改一个镜头只有它那块失效 / 引擎或参数变=全失效 / 查不到源文件的段永远重渲（21 项）' },
+  { name: 'meta:gates', cmd: ['tools/test-gates-meta.mjs'], note: '守门判据的**元测试**（1-51）：每条判据都要"注入缺陷必须报 + 去掉缺陷不许报"。覆盖版面三条 / 背景守门 / 采样四个出口（tol·cap·stall·NaN）/ 误差量具 / 节奏节拍器；文末一张覆盖表点名"哪个缺口没验"（37 项）' },
   { name: 'unit:blocks', cmd: ['tools/test-blocks.mjs'], note: '方块世界 kit：面朝向判据 / 深度排序 / 世界切片 / 摄影机关键帧' },
   { name: 'unit:check-skipped', cmd: ['tools/test-check-skipped.mjs'], note: '1-19「空≠干净」：skipped 收集/聚合/结论行 + --quick 分档 + 接线自检（25 项）' },
   { name: 'unit:timeline-audit', cmd: ['tools/test-timeline-audit.mjs'], note: '段级审计（纯函数）：under 的 missing / 第 1 段不判 / 与引擎同口径；背景守门采两个时刻 + world:false 分流 + 判定只落在窗中点（钉住 demo 那个假报）；+ 接线自检（26 项）' },
