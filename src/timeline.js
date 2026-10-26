@@ -276,9 +276,12 @@ export function build(plan, music = {}) {
       maxSamples: c.maxSamples,
       handlesTransition: c.handlesTransition,
       // 主体声明（版面守门，见 docs/LAYOUT.md）：搬运到段上，引擎的 ctx.focus 读它。
-      // 场景对象自己也可以声明一份（engine 里是 `item.focus ?? scene.focus`），
-      // 段上这份优先 —— 同一支片子里某一段想换主体时不必去改场景文件。
-      focus: c.focus,
+      // 场景对象自己也可以声明一份，段上这份优先 —— 同一支片子里某一段想换主体时不必去改场景文件。
+      // ⚠ 2026-10-26 前这里只写 c.focus：场景对象上声明的 focus（如 kit/info.js 的 infoShot）
+      //   对 `anim check` 的版面守门**不可见**（守门读 it.focus，不读 scene.focus），
+      //   引擎渲染倒是能合并（item.focus ?? scene.focus）—— 于是出现"渲染知道主体、
+      //   审计却说没声明"的分叉。补上 ?? scene?.focus 后两条路径同源。
+      focus: c.focus ?? c.scene?.focus ?? null,
       note: c.note,
       // 共享背景：'auto' = 用 task.worldPass；对象 = 本段专用 Pass；false = 本段自己负责底
       world: c.world,

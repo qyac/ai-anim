@@ -584,6 +584,81 @@ const api = {
   },
 
   /**
+   * **封面**：渲染 t 时刻的帧，再在它上面压字（BACKLOG 1-53）。
+   *
+   * 为什么在页面里压而不是用 ffmpeg 的 drawtext：字体已经由 TextKit 加载好了
+   * （Archivo / Noto Sans SC / IBM Plex Mono），ffmpeg 那边的 drawtext 还要自己
+   * 拼 fontfile 路径 + 转义，中文字形与引擎里的**不是同一套**。这里用的是同一份字体栈，
+   * 封面与成片里的字看起来是一家人。
+   *
+   * 压字结构（自下而上）：底部渐变蒙版（保证任何画面上都读得清）→ 主标题 → 一条信号色短线 → 副标。
+   *
+   * @param {number} t
+   * @param {{ title?: string, sub?: string, scrim?: number, scale?: number }} [opts]
+   */
+  async cover(t, opts = {}) {
+    const r = await api.frame(t, { samples: 'auto' });
+    const gl = engine.gl;
+    const buf = engine.readPixels();
+    const cv = document.createElement('canvas');
+    cv.width = gl.pw; cv.height = gl.ph;
+    const c = /** @type {CanvasRenderingContext2D} */ (cv.getContext('2d'));
+    const img = c.createImageData(gl.pw, gl.ph);
+    const row = gl.pw * 4;
+    for (let y = 0; y < gl.ph; y++) {
+      const src = (gl.ph - 1 - y) * row;
+      img.data.set(buf.subarray(src, src + row), y * row);
+    }
+    c.putImageData(img, 0, 0);
+
+    // 逻辑坐标 → 物理坐标（--scale 2 出 4K 封面时，字的视觉大小不变）
+    const k = gl.scale || 1;
+    const W = gl.w, H = gl.h;
+    const fam = (n) => engine.text?.families?.[n] ?? n;
+    const title = String(opts.title ?? '').trim();
+    const sub = String(opts.sub ?? '').trim();
+
+    // 1) 底部渐变蒙版：0 → scrim（默认 0.82），只压下半屏
+    if (title || sub) {
+      const scrim = Math.max(0, Math.min(1, opts.scrim ?? 0.82));
+      const g = c.createLinearGradient(0, cv.height * 0.42, 0, cv.height);
+      g.addColorStop(0, 'rgba(6,6,7,0)');
+      g.addColorStop(0.55, 'rgba(6,6,7,' + (scrim * 0.55).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(6,6,7,' + scrim.toFixed(3) + ')');
+      c.fillStyle = g;
+      c.fillRect(0, 0, cv.width, cv.height);
+    }
+
+    const px = 120 * k;
+    let baseline = (H - 150) * k;
+    c.textBaseline = 'alphabetic';
+
+    if (sub) {
+      // 2) 副标在上（等宽、信号色）—— 先算它，标题再往上排
+      const subSize = 26 * k;
+      c.font = '400 ' + subSize + 'px ' + fam('mono');
+      c.fillStyle = 'rgba(255,77,18,0.92)';
+      c.fillText(sub, px, baseline);
+      baseline -= 46 * k;
+    }
+    if (title) {
+      // 3) 主标题：大字、自动缩到 78% 宽以内（长标题不被裁）
+      let size = 96 * k;
+      c.font = '800 ' + size + 'px ' + fam('sans');
+      const maxW = cv.width * 0.78;
+      const w = c.measureText(title).width;
+      if (w > maxW) size *= maxW / w;
+      c.font = '800 ' + size + 'px ' + fam('sans');
+      c.fillStyle = '#eee9df';
+      c.fillText(title, px, baseline);
+      // 4) 标题下一条信号色短线
+      c.fillStyle = '#ff4d12';
+      c.fillRect(px, baseline + 18 * k, Math.min(260 * k, cv.width * 0.2), 4 * k);
+    }
+    return { png: cv.toDataURL('image/png'), samples: r.samples };
+  },
+
+  /**
    * 非有限值（NaN / ±Inf）扫描：**「整屏白」这一类事故的唯一可靠判据**。
    *
    * 为什么不能靠看图或靠 `stats()`：`readPixels()` 读的是 8bit，

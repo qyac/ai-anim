@@ -133,8 +133,8 @@ tasks/我的片子/
 
 改这两个文件就能出片。**不需要动 `src/` 里的引擎**（除非确实要加底层能力）。
 
-> **要写多少代码？** 常见镜头现在是**一行**——A 档镜头库 `src/shots/` 有 11 个参数化模板
-> （`title` `chart` `kinetic` `whip` `outro` `wave` `pulse` `grid` `quote` `counter` `compare`），场景文件退化成「取模板 + 给参数」：
+> **要写多少代码？** 常见镜头现在是**一行**——A 档镜头库 `src/shots/` 有 20 个参数化模板
+> （`title` `chart` `kinetic` `whip` `outro` `wave` `pulse` `grid` `quote` `counter` `compare` `bigtype` `scan` `device` `lineart` `morph` `layers` `lockup` `timeline` `radial`），场景文件退化成「取模板 + 给参数」：
 >
 > ```js
 > // tasks/<任务>/scenes/chart.js
@@ -250,7 +250,7 @@ export default {
     镜头模板 "chart" 没有参数 "value"（大概是拼错了）。可用参数：id / values / title / sub / footer / peak
   ```
 
-**什么时候必须回去写场景**：模板只有这 11 个，参数只能调它们**本来就有的画面**。要新视觉
+**什么时候必须回去写场景**：模板只有这 20 个，参数只能调它们**本来就有的画面**。要新视觉
 （raymarch 晶格、燃烧的引线、某支片子特有的母题）就回 §3 手写场景 / §3.5 的 `makeShot`；
 要自己掌控转场与背景时同理。**别为了"纯配置"把模板撑成万能 DSL。**
 
@@ -296,6 +296,7 @@ export default makeShot('chart', {
 | 想要 | 用什么 |
 |---|---|
 | 一个完整镜头的骨架 | `makeShot(id, { setup, draw, post })` |
+| **一个信息段的骨架**（标题/面板底/侧标注/出处/页脚/错峰全包，只写 `draw(ctx, rect)`；1-50） | `infoShot(id, { title, kicker, caption, source, draw })`（`src/kit/info.js`；版面纪律与 focus 声明由骨架承担） |
 | 一个 **Three.js 镜头**（真网格，第 3 种 3D） | `makeThreeShot(id, { camera, setup, update, overlay, post })`（见 §5.5 ③ 与 `docs/THREE.md`） |
 | 一个现成的整镜头（画面本身） | `shot('chart', { values: [...], title: '…' })`（A 档镜头库 `src/shots/`，也可直接写进时间线） |
 | 只要背景 + 转场 | `makeWorldKit(ctx)` → `wk.openFrame(ctx)` |
@@ -573,6 +574,17 @@ captions: true,                    // ← 就这一行；场景里一个字都�
 # 单帧（看图用）
 node scripts/anim.mjs still <任务> -t 1.5,2,3.25            # 逗号分隔多个时刻
 
+# 封面（B 站）：取 t 时刻那帧 + 压字（底部渐变压暗 → 主标题 → 信号色短线 → 副标）
+# ⚠ 字用的是**引擎那套字体**（Noto Sans SC / Archivo / Plex Mono），不是 ffmpeg drawtext 另找一份
+node scripts/anim.mjs cover <任务> -t 12 --title "把信号拆开" --sub "SPECTRUM · 72s"
+node scripts/anim.mjs cover <任务> -t 12 --title "…" --scale 2      # 4K 封面
+
+# 章节时间码（B 站/YouTube 的 `mm:ss 名字`）：从时间线的段名与起点生成
+# 三条规则：首段必是 00:00（否则平台不认整组章节）/ 短于 --min（默认 4s）的段不单独成章、
+# 时长并进上一章 / 起点取段自己的 start（转场重叠时也对）
+node scripts/anim.mjs chapters <任务>                    # 打印 + 写 out/<任务>/chapters.txt
+node scripts/anim.mjs chapters <任务> --min 6 --json     # 机器可读（--json 不进文件）
+
 # 切点两侧 ±1.5s（三点采样不落在切点上；画方框那格 = 切点）
 node scripts/anim.mjs cuts <任务> [--window 1.5] [--n 7]
 
@@ -722,7 +734,7 @@ node scripts/anim.mjs check <任务>
 | 要改什么 | 去哪 |
 |---|---|
 | 渲染一帧 / 合成 / 后处理 / 自适应运动模糊 | `src/core/`（先读 `docs/ENGINE.md`） |
-| 镜头模板（A 档，11 个） | `src/shots/`；参数：`node scripts/anim.mjs shots [名字]` |
+| 镜头模板（A 档，20 个） | `src/shots/`；参数：`node scripts/anim.mjs shots [名字]` |
 | 写镜头的骨架与元件 | `src/kit/`（`index.js` 是统一出口：`makeShot` `makeWorldKit` `panel` …） |
 | 时间线 DSL、任务加载、配置档节点判定 | `src/timeline.js`、`src/tasks.js` |
 | 风格包 | `src/style/`（见 `docs/STYLE.md`） |

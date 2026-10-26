@@ -53,6 +53,12 @@ const ROOT = findRoot(HERE);
 const TEMPLATES = [
   'title', 'chart', 'kinetic', 'whip', 'outro', 'wave', 'pulse', 'grid',
   'quote', 'counter', 'compare',
+  // BACKLOG 1-48 第一批（11 → 15）：这 4 个是新写的模板，夹具在 tasks/_shots2-lab/
+  'bigtype', 'scan', 'device', 'lineart',
+  // 第二批（15 → 18）
+  'morph', 'layers', 'lockup',
+  // 收尾批（18 → 20）
+  'timeline', 'radial',
 ];
 
 /** 任务侧的 8 个场景模块 → 它们必须保持的段名。 */
@@ -479,6 +485,8 @@ async function main() {
       case 'number': return typeof v === 'number' && Number.isFinite(v);
       case 'boolean': return typeof v === 'boolean';
       case 'number[]': return Array.isArray(v) && v.length > 0 && v.every((x) => Number.isFinite(x));
+      // 字符串数组（timeline.events / radial.nodes）：非空、每项是字符串。
+      case 'string[]': return Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'string');
       case '[number, number]': return Array.isArray(v) && v.length === 2 && v.every((x) => Number.isFinite(x));
       case 'string[2]': return Array.isArray(v) && v.length === 2 && v.every((x) => typeof x === 'string');
       // 结构化参数（compare 的 rows: [{ label, a, b }]）：非空数组、每项是普通对象。

@@ -411,3 +411,237 @@ seed 决定抽到什么。我们缺的正是这三个字段，不是部件数量
 
 ⚠ 已知影响：**已有的片子重渲时字幕会重新折行**（`spectrum` 等）。
 这是有意的改进；若某支片子存过 `hashes` 基线，需要 `--accept --note "字幕断行升级"`。
+---
+
+## 11. 追加（2026-10-26 下午）：1-48 第一批 —— 模板 11 → 15
+
+**做了什么**：四个新镜头模板 + 夹具 + 文档同步。都不动引擎（`src/core/` 一个字没改），
+所以老片子的画面不可能变（`git diff --stat` 只有 `src/shots/` 的新文件与注册行）。
+
+| 模板 | 画面 | 关键手法（与老模板的分工） |
+|---|---|---|
+| `bigtype` | 两三行 hero 级大字逐行上浮，一处关键词换信号色，左侧引导线 + 下划线 + 底部长线上一个游标 | **高亮词是切段画的**：先在整行里找子串，切成 前/中/后 三段按 `type.measure` 推进 x，逐字延迟用 `t - 段首字数×stagger` 续上。叠色重画会在动画途中把信号色与骨白混成脏色（试过） |
+| `scan` | 扫描线从左走到右，走过的格子按 `hash2(i,j)` 的确定性读数填块，当前列偏信号色，右上跟「已扫 %」 | 与 `grid` 的分工写进两个文件的 meta：**grid 的亮度来自音频包络（要 music + analyze），scan 不读音频** —— 后者哪里都能用 |
+| `device` | 窗口四条边依次展开 + 标题栏（三点 + 一行等宽小字）+ 一句标题 + 逐行填出来的内容骨架 + 闪烁光标 + 标题栏下一条加载条 | 骨架行用**不透明调色**（见 §11.2）；光标闪烁走 `cycle(t)`（确定性） |
+| `lineart` | 一条折线按**弧长**画出来（幽灵线先铺全貌），走过的节点留圆点/刻度，笔尖带当前节点的名字 | `polylineLengths` + `pointAtLength`：按点数画会让长段快、短段慢 |
+
+**夹具**：`tasks/_shots2-lab/`（只有 `task.config.mjs`）—— 4 段默认画面 + 4 段非默认分支
+（`bigtype-mark` 高亮在第一行 / `scan-dense` 40×6 / `device-1row` 单行 + 空 chrome / `lineart-few` 三节点两标签）。
+
+### 11.1 验收读数
+
+```
+node tools/test-shots.mjs            ✓ 153 项（TEMPLATES 手写表 11 → 15、spec/params/defaults 逐项一致）
+node scripts/anim.mjs check _shots2-lab
+  ✓ 没有发现问题（另有 3 项没跑：无交叠段 / 未声明 focus / 没有 motion.json 断言）
+  版面守门：8/8 段采到文字 · 最挤的一帧 4 块（上限 6；主体之外 ≤ 2）
+  节点：bigtype 3 块 / scan 2 块 / device 4 块 / lineart 3 块
+node scripts/anim.mjs still _shots2-lab -t 3,9,15,21,27,33,39,45   # 8 张全看过了
+```
+
+出图后改掉的三处（都是"看着不对"才动手的，不是猜的）：
+① `scan` 的格子最初是**一屏灰砖** —— 见下面那条坑；
+② `device` 原来画了一条扫过窗口的红线，读起来像故障 ⇒ 换成标题栏下面一条"加载条"；
+③ `lineart` 的笔尖太小、幽灵线太淡 ⇒ 线宽 ×1.4、节点 4.5 → 5.5、幽灵线 0.28 → 0.40。
+
+### 11.2 一个**会重复犯**的坑：`lines.fillRect` 的柔边会互相叠加
+
+`fillRect(x,y,w,h,[r,g,b,a])` 是"沿 y 铺一串胶囊"（`gl.js:1302`），宽 = 步进 + 0.5 的余量；
+相邻两条的**抗锯齿柔边重叠**，而 LineBatch 的混合是 `ONE / ONE_MINUS_SRC_ALPHA` 的预乘 ——
+于是半透明填充会**比写的 alpha 亮得多，而且出现横向条纹**（实测 a=0.1 就已经是中灰）。
+`scan` 的格子与 `device` 的骨架行都栽在这上面，最后都改成**不透明 + 在颜色里调亮度**
+（`mixColor(P.ink2, P.bone, 0.02 + 0.10*v)`）：没有叠加、没有条纹、亮度可控。
+
+> 判据：**画"暗底上的暗块"时不要用 alpha 调暗度**，用 `mixColor` 调颜色。
+> alpha 留给"真的要让后面的东西透出来"的场合（扫描线辉光、光晕）。
+
+### 11.3 文档同步（"11 个模板"这一族）
+
+模板数是**会过期的散文**，但读者会拿它当事实，所以这一轮把它一起改了：
+`AGENTS.md`（§2.2 名字表 / §3.2「模板只有这 N 个」/ §9 表格）、`README.md`、
+`docs/ENGINE.md`（§14.1 查询行、**§14.2 表新增 4 行**、§14.4、§14.5、§14.9）、
+`docs/CONFIG-ONLY.md`（§0 / §1 / §3 / §4 标题与表格 / §9 排错）、`docs/DIAGNOSIS.md`。
+守门全绿：`lint-agents-size`（58201 / 65536 B）、`lint-agents-refs`（200 处引用全部可解析）、
+`lint-doc-facts`（15/15 键）。
+
+### 11.4 下一会话从这里接
+
+1. **1-48 第二批**：`chart-morph` / `paper-layer` / `lockup`（见 BACKLOG 1-48 的"剩下"）。同一套流程，一个模板约「写 150 行 + 一段夹具 + 4 张图」。
+2. **`1-50` infoShot**（段落骨架）仍是主线第三条；它的前置正是"模板够不够用" —— 第二批做完再动它更省事。
+3. `_shots2-lab` **没有进 `regress-all`**（和 `_shots-lab` 一样：一支 48 帧的夹具会让整份回归多 3–4 分钟）。要进就挂 `check:_shots2-lab --quick`。
+---
+
+## 12. 追加（2026-10-26 下午）：1-48 第二批 —— 模板 15 → 18
+
+| 模板 | 画面 | 这一支解决的"手写要重算"的东西 |
+|---|---|---|
+| `morph` | 同一组数：柱子立起来 → **缩回基线、只留顶端刻度** → 刻度连成折线 → 折线下铺排线面积 | 三相位共用同一套 x 坐标 —— 形变时观众的眼睛不用重新找位置；面积排线**跟随折线画到的地方**长出来 |
+| `layers` | 带透视的梯形纸页从后往前往上落位（实心 + 横线 + 左侧信号色标记），最前面那张写标题 | `fillTrap()` 梯形逐行铺（线段批没有 z-test，叠放顺序 = 绘制顺序 = 画家算法） |
+| `lockup` | 环 / 菱形 / 方块标记画出来 + 字标 + 副标 + 从中间展开的分隔线 + 署名行，**停住不压黑** | 与 `outro`（片尾动作）分工写进两份 meta；`mark` 写错**在工厂里就抛** |
+
+**夹具**：`tasks/_shots3-lab/`（6 段：morph / layers / lockup 默认 + `morph-flat` 两点 / `layers-6` 六层 + 空眉标 / `lockup-diamond` 菱形 + 空 meta）。
+
+### 12.1 验收读数
+
+```
+node tools/test-shots.mjs                 ✓ 171 项（TEMPLATES 15 → 18）
+node scripts/anim.mjs check _shots3-lab   ✓ 没有发现问题（6 段 36 帧 × 三条采样 × 双路径，189s）
+node scripts/anim.mjs check _shots2-lab --quick / _shots3-lab --quick   ✓ 各 0 红
+node scripts/anim.mjs still _shots3-lab -t 3,5.5,9,15,21,27,33         # 逐张看过
+```
+
+### 12.2 出图后改掉的四处（都是"看着不对"）
+
+1. **面积排线**原来铺满整幅、而且是信号橙色 ⇒ 像斑马、比折线还抢眼。改成：只铺到折线已画到的地方（`pointAtLength`）、笔尖前 80px 淡出、颜色换成**中性灰**（信号色只留给线本身）。
+2. **`layers` 的横线**原来铺满整页、和标题叠在一起 ⇒ 改成只铺标题下面那半页（k = 0.55 / 0.65 / 0.75）。
+3. **`lockup` 的环**原来留了 6% 的缺口（想做"手画感"）⇒ 读起来像没画完，改成画满。
+4. **暖色底噪**：`bigtype` 左下角实测 RGB **(39,15,14)**（旧模板 demo 是 22,21,21）—— 是 shader 里那团"信号色微光"给的，不是 bloom。降到 0.012 并把半径收紧到 3.2 之后回到中性。**量法**：`ffmpeg -vf "crop=240:160:60:820,scale=1:1" -f rawvideo -pix_fmt rgb24 -` 直接读一个区域的平均 RGB —— 比"看着有点红"可靠。
+
+### 12.3 一个操作教训：完整的 `check` 会超过 10 分钟
+
+`_shots2-lab` 8 段 × 3 点 × 2 路径 = 48 帧，静态画面会吃到 216 子帧，实测 **150–210s**；系统有别的负载时这次直接撞了 540s 的调用上限（输出全丢）。
+**做法**：迭代期用 `check <任务> --quick`（每段 1 点 × 单子帧，6–8 秒），交付前再跑一次完整的；长跑用后台 job（`pwsh run_in_background` + `job_output`），别再盯着前台超时。
+
+### 12.4 下一会话
+
+1. **还差 2 个到 20+**：候选 `timeline`（横向事件轴）与 `radial`（径向分布）。1-48 现在是 18/20+。
+2. 然后回主线 **1-50 infoShot**（段落骨架：标题 + 旁白 cue + 图形区 + 标注 + 出处行）。
+3. `_shots3-lab` 同样没进 `regress-all`（理由同 §11.4）。
+---
+
+## 13. 追加（2026-10-26 下午）：1-48 收尾批 —— 模板 18 → 20，1-48 关闭
+
+| 模板 | 画面 | 关键手法 |
+|---|---|---|
+| `timeline` | 横向事件轴：轴从左画到右，笔尖路过的事件节点依次弹出（outBack），事件名**上下交替**淡入 | 与 `lineart` 的分工写进 meta：lineart 画**路径形状**（y 拐弯），timeline 画**顺序**（直轴+名字）。节点在笔尖 ±40px 内弹出，标签随后淡入 |
+| `radial` | 径向分布：中心呼吸核 + 一圈轮辐（节点/名字/沿辐条读数条）+ 外圈慢转的缺口环 | 名字在**外环背向圆心**排，读数条沿辐条方向 —— 文字与图形各占一环不互压；缺口环 = 直接**跳过绘制**那一段（不画透明线，省批次） |
+
+**夹具**：`tasks/_shots4-lab/`（4 段：两个默认 + 7 事件边界 + 单节点边界）。**这批夹具声明了 focus**（radial 用 {cx,cy,w,h}，timeline 用 center）—— 不声明时守门直接 skipped，那才是"没判"。
+
+### 13.1 验收
+
+```
+node tools/test-shots.mjs               183 项（TEMPLATES 18 → 20；typeOk 补 string[] 档）
+node scripts/anim.mjs check _shots4-lab  没有发现问题（24 帧 × 3 点 × 双路径，85.5s）
+  版面守门：主体区 2 块（上限 2）· 5 块（上限 6）—— 全绿（上一版"主体之外 3 块"的告警靠 focus 声明收掉）
+外圈参考环实测：R=389 处亮度 0.34（邻带 0.10）—— 修完后环清晰可见
+```
+
+### 13.2 出图后改掉的两处
+
+1. **radial 的外圈参考环画了但看不见**：graphite×0.55 在墨底上量出来 0.0958，与邻带（0.0996）无法区分 —— "画了"和"看得见"是两回事。改成 bone×0.35 后 R=389 处 0.34 vs 邻带 0.10。量法：按角度采样圆周的 ringAvg（out/_probe_radial.mjs，注意 R 要先算：min(W*0.30, H*0.36) = 389，第一版拿 324 去量了个寂寞）。
+2. **缺口环的画法**：原来缺口段画 [0,0,0,0] 的透明线（白白占批次），改成 continue 跳过 —— 少 17 条线段，效果一样。
+
+### 13.3 本轮踩到的坑（新会话会再踩）
+
+- **模型不吃图时**（read_image 报 model does not declare image input）：改用 tools/png-rows.mjs（列亮度区间）+ 临时采样脚本（区域平均色）验证"线在不在、亮不亮"。比目视可复现，数字能进交接单。
+- **bash IPC 坏了**（could not create signal pipe, Win32 error 5）：这台机器 ops_bash 全挂，改用 pwsh 工具跑命令。
+- **字符串拼接漏加号**：notes 长文案多行相邻字符串漏 + 号 → Unexpected string。Node 只报"模块加载失败"，要用 import().catch 逐个文件定位。timeline.js 与 radial.js 各犯过一次。
+- **typeOk 不认 string[]**：test-shots.mjs 的 spec 校验原来只有 number[]，events/nodes 挂掉。补一档：非空、每项字符串。
+
+### 13.4 1-48 关闭后的状态
+
+- **镜头库 20 个**：title chart kinetic whip outro wave pulse grid quote counter compare bigtype scan device lineart morph layers lockup timeline radial
+- 四个夹具（_shots2-lab / _shots3-lab / _shots4-lab / 老 _shots-lab）都没进 regress-all（48 帧的夹具会让整份回归多几分钟）；要进就挂 check:名字 --quick。
+- **下一会话**：主线剩 1-50 infoShot（段落骨架，判据"新片子手写行数占比 < 30%"）与 1-53（B 站封面 + 章节时间码）。1-50 的前置"模板够不够用"已由 1-48 关闭。
+---
+
+## 14. 追加（2026-10-26 傍晚）：1-50 infoShot —— 信息段骨架 + 一个真分叉的修复
+
+做了两件事：`src/kit/info.js` 落地 + `timeline.js` 的 focus 搬运补回落。后者是**引擎级修复**，与骨架无关但被它暴露。
+
+### 14.1 infoShot 的形态
+
+```js
+import { infoShot } from '../../../src/kit/index.js';
+export default infoShot('频谱-概览', {
+  title: '把信号拆开', kicker: 'SPECTRUM / 02',
+  caption: '8×8 DCT · 基底图案', source: 'JPEG · Annex A', foot: '02 / 06',
+  draw(ctx, rect, k) { /* 只画这段的图；rect=图形区，k=错峰后的入场进度 */ },
+});
+```
+
+骨架包掉五件套（眉标 / 标题 / panelBox 面板底 / captionNote 侧标注+出处 / 页脚）+ 四段错峰（0.18s 间隔）+ post 三层合并（骨架默认 < 段 post < draw 返回值）。**draw 抛错不冒泡**：进 `ctx.warnings`（check 会打印），画面继续出。
+
+### 14.2 顺带修的真分叉（值得记住的形状）
+
+`timeline.js` 的 build 只搬 `cut()` 的 focus（`focus: c.focus`），**不回落** `scene.focus`；
+引擎渲染倒是合并（`item.focus ?? scene.focus`）—— 于是「渲染知道主体、审计说没声明」两条路径分叉。
+老任务全在 cut 上写 focus 或根本不声明，所以从未暴露；infoShot 在**场景对象**上声明 focus，第一批就撞上。
+修法一行：`focus: c.focus ?? c.scene?.focus ?? null`。
+
+### 14.3 验收
+
+```
+node tools/test-info.mjs           11 项（挂 regress-all 的 unit:info）
+node scripts/anim.mjs check _info-lab   没有发现问题（18 帧 × 3 点 × 双路径，6.3s）
+  demo/chartish：主体区 0 块字（主体是图形，3 次非文字绘制）—— focus 生效
+  bare：主体未声明 = 刻意的 noFocus 豁免路径，预期读数
+png-rows + 区域亮度实测：柱带 0.2411 vs 面板底 0.0777（柱浮在面板上）；
+  面板 0.0848 vs 网格背景 0.1513（tone 压暗，「信息要安静」）；bare 无 >0.5 像素（空字段不画）
+```
+
+**判据（1-50 的原始目标）**：夹具三个信息段共 69 行，每个 draw 平均 ~15 行；
+对照 promo 1529 / spectrum 767 / pdoom-lab 1187 行每支 —— **信息段这一类的手写占比 <30% 成立**。
+（整支片子的占比取决于信息段在片中的比例；这是骨架的上限，不是终点。）
+
+### 14.4 已知边界（诚实登记）
+
+- `rect` 几何按横屏 1080p 标定（panelK 0.62）；竖屏任务传 `noFocus: true` 并在段上自己声明 focus。
+- focus 的近似矩形是**静态声明**（渲染前引擎就要读）—— 自定义版面的任务同样用 `noFocus` 绕过。
+- infoShot 未接旁白 cue（`dur: { vo }` 的配合）—— 跟 1-23（variants + narration 显式指定）一起做更顺。
+- `captionNote` 画横线不走 begin/flush 周期：骨架在它后面补了一次 `lines.flush`（offset 0 时无害）。
+
+### 14.5 下一会话
+
+主线剩 **1-53（B 站封面 + 章节时间码）** 与 **1-23（variants + narration.json 显式指定）**；
+1-49 母题库的剩余部分（sodium 积木等）仍卡在「任务目录不在本 checkout」。
+
+---
+
+## 15. 追加（2026-10-26 晚）：1-53 封面与章节 —— 主线最后一条工具面
+
+两条命令，都进了 anim help（help 直接打印文件头 JSDoc，改头部就自动跟上）：
+
+    node scripts/anim.mjs cover <任务> -t 12 --title "把信号拆开" --sub "SPECTRUM · 72s"
+    node scripts/anim.mjs chapters <任务> [--min 4] [--json]
+
+### 15.1 封面为什么在页面里压字
+
+__anim.cover(t, {title, sub}) 先渲染那一帧，再在 Canvas2D 上画：底部渐变蒙版（0.42→1.0 高度，scrim 默认 0.82）
+→ 主标题（96px，超宽自动缩到画宽 78%）→ 信号色短线 → 副标（26px 等宽）。
+
+不用 ffmpeg drawtext 的理由：字体已经由 TextKit 加载（Noto Sans SC / Archivo / Plex Mono），
+drawtext 要自己拼 fontfile 路径与转义，且中文字形与引擎里不是同一套 —— 封面和成片会像两家做的。
+--scale 2 时文件名带 @2x（cover_2.50@2x.png），不覆盖 1080p 那张。
+
+### 15.2 章节的三条规则（纯函数，可离线断言）
+
+planChapters(segs, minDur)：
+① 首段无论多短都是 00:00（YouTube 第一个时间戳非 00:00 时整组章节不生效）；
+② 短于 minDur 的段不单独成章、时长并进上一章（3 秒的过场不该占一行）；
+③ 起点取段自己的 start（不是累加），所以转场重叠时章节时刻仍然对。
+
+输出 mm:ss 段名 + out/<任务>/chapters.txt；--json 给机器（要用 flag，不能用 opt —— opt 取的是值）。
+
+### 15.3 验收
+
+    node tools/test-cover-chapters.mjs   18 项（挂 regress-all 的 unit:cover）
+    node scripts/anim.mjs cover _info-lab -t 2.5 --title "把信号拆开" --sub "SPECTRUM · 72s"
+      → out/_info-lab/cover_2.50.png  1920×1080
+      亮度实测：标题带 17.9% >0.5、副标带 17.5% >0.25（信号色亮度 0.43，所以 0.5 阈值量不到 —— 不是没画）
+    node scripts/anim.mjs cover _info-lab -t 2.5 --title "4K 封面" --scale 2
+      → cover_2.50@2x.png  3840×2160（ffprobe 实测）
+    node scripts/anim.mjs chapters _info-lab → 00:00 demo / 00:06 chartish / 00:12 bare
+
+### 15.4 这一轮踩到的两处（都很小，但都会静默出错）
+
+1. 用 opt 读 --json 取得的是值不是开关 —— 写成 if (opt(...)) 永远为假，--json 静默无效。开关一律用 flag。
+2. 4K 与 1080p 默认同名会互相覆盖 —— 第一次 --scale 2 直接把 1080p 那张覆盖成了 3840×2160（ffprobe 量出来的）。
+   现在文件名带 @2x；--out 显式给了就照给的写。
+
+### 15.5 主线状态
+
+1-48（模板 20 个）、1-50（infoShot）、1-53（封面/章节）都已关闭。
+接下来是 **1-23（variants + narration.json 显式指定）**：它同时解掉 infoShot 还没接旁白 cue 的问题。
+1-49 母题库剩下的部分仍卡在「sodium / bikeshed 等任务目录不在本 checkout」。

@@ -13,6 +13,13 @@
  *   ── 只写配置出片（B 档）：timeline 里直接写 { type: 'title', … }，连 scenes/ 都不需要；
  *      节点字段、11 个模板、排错表见 docs/CONFIG-ONLY.md，可跑的完整示例见 tasks/example-config-only/
  *   node scripts/anim.mjs still <task> -t 1.5,2,3 [-o dir] 出单帧 PNG（agent 用它看图）
+ *   node scripts/anim.mjs cover <task> -t 12 --title "…" [--sub "…"] [--scale 2]
+ *                                                        出封面：那一帧 + 压字（底部渐变压暗 → 主标题 →
+ *                                                        信号色短线 → 副标）。字用引擎那套字体，
+ *                                                        不是 ffmpeg drawtext 另找一份（BACKLOG 1-53）
+ *   node scripts/anim.mjs chapters <task> [--min 4] [--json]
+ *                                                        章节时间码（`mm:ss 段名`）→ out/<task>/chapters.txt
+ *                                                        首段必是 00:00；短于 --min 的段并进上一章
  *   node scripts/anim.mjs sheet <task> --from 0 --to 10 -n 12  出接触表（一张图看一段）
  *   node scripts/anim.mjs cuts <task> [--window 1.5] [--n 7]   切点两侧各 ±1.5s 出一张接触表
  *                                                        （三点采样不落在切点上，切点要单独看；
@@ -2930,6 +2937,123 @@ async function cmdStill() {
       process.exitCode = 1;
     }
     log('\n下一步：用 Read 工具看这些 PNG，然后改场景再出一次。');
+  } finally { await closeSession(); }
+}
+
+/**
+ * `anim cover <任务> -t <秒>` —— 出一张**封面**（BACKLOG 1-53）。
+ *
+ * 与 `still` 的区别只有一层：still 出来的是"片子里的那一帧"，cover 在它上面再压
+ * 底部渐变压暗 + 主标题 + 一条信号色短线 + 副标。字体用的是引擎那套（Noto Sans SC /
+ * 拱形 Archivo / Plex Mono），所以封面与成片的字是同一家人 —— 不是 ffmpeg drawtext
+ * 另找一份字体。
+ *
+ * 判据：出来的 PNG 尺寸 = 任务分辨率 × --scale；字的墨迹落在下半屏（上半屏留给画面）。
+ *
+ *   node scripts/anim.mjs cover <任务> -t 12 --title "把信号拆开" --sub "SPECTRUM · 72s"
+ *   node scripts/anim.mjs cover <任务> -t 12 --title "…" --scale 2     # 4K 封面
+ */
+async function cmdCover() {
+  const task = pickTask();
+  const t = Number(opt('t', '6'));
+  if (!Number.isFinite(t)) die('-t 需要给一个秒数，例如 -t 12');
+  const title = opt('title', undefined);
+  const sub = opt('sub', undefined);
+  if (!title && !sub) die('封面至少要 --title 或 --sub（否则就是一张 still，用 still 更直接）');
+  const scale = Number(opt('scale', '0')) || undefined;
+  const scrim = opt('scrim', undefined);
+  // 4K 封面不要覆盖 1080p 那张：文件名带上 @2x（--out 显式给了就照给的写）
+  const tag = scale && scale > 1 ? `@${scale}x` : '';
+  const outFile = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, `cover_${t.toFixed(2)}${tag}.png`))));
+  mkdirSync(path.dirname(outFile), { recursive: true });
+
+  await openSession({ task, scale });
+  try {
+    const info = session.info;
+    const t0 = Date.now();
+    const r = await session.page.evaluate(
+      ([tt, o]) => /** @type {any} */ (window).__anim.cover(tt, o),
+      [t, { title, sub, scrim: scrim === undefined ? undefined : Number(scrim) }],
+    );
+    writeFileSync(outFile, Buffer.from(String(r.png).split(',')[1], 'base64'));
+    log(`封面 → ${path.relative(ROOT, outFile)}  (${info.width}×${info.height}${info.scale > 1 ? ' ×' + info.scale : ''}, t=${t}s, 子帧 ${r.samples}, ${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+    reportErrors(session.info);
+    const rerr = await collectRenderErrors({ take: false });
+    if (rerr.count) {
+      warn(`\n⚠ 封面那一帧有场景异常（${rerr.count} 帧）—— 封面是**错帧卡片**，不是画面`);
+      for (const line of rerr.text.slice(0, 4)) warn('  · ' + line);
+      process.exitCode = 1;
+    }
+  } finally { await closeSession(); }
+}
+
+/**
+ * 章节规划（**纯函数**，离线单测见 `tools/test-cover-chapters.mjs`）。
+ *
+ * 规则（三条，都有理由）：
+ *   ① **第一段无论多短都是 00:00 的入口** —— YouTube 的章节第一个时间戳必须是 00:00，
+ *      否则整组章节不生效；
+ *   ② 短于 `minDur` 的段**不单独成章**，它的时长并进上一章（一个 3 秒的过场不该占一行）；
+ *   ③ 起点取**段自己的 start**（不是累加），所以与时间线重叠（转场）时章节时刻仍然对。
+ *
+ * @param {{ id: string, start: number, end: number }[]} segs
+ * @param {number} [minDur]
+ * @returns {{ start: number, name: string, dur: number }[]}
+ */
+function planChapters(segs, minDur = 4) {
+  const out = [];
+  for (const s of Array.isArray(segs) ? segs : []) {
+    const dur = Math.max(0, s.end - s.start);
+    if (out.length === 0) {
+      out.push({ start: 0, name: s.id, dur });
+      continue;
+    }
+    if (dur < minDur) {
+      out[out.length - 1].dur += dur;
+      continue;
+    }
+    out.push({ start: s.start, name: s.id, dur });
+  }
+  return out;
+}
+
+/** `秒 → mm:ss`（章节时间码；向下取整到整秒是平台惯例）。 */
+function formatChapterTime(sec) {
+  const s = Math.max(0, Math.floor(Number(sec) || 0));
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+}
+
+/**
+ * `anim chapters <任务>` —— 从时间线生成**章节时间码**（BACKLOG 1-53）。
+ *
+ * B 站 / YouTube 的章节格式都是 `mm:ss 名字`（YouTube 首行必须是 00:00）。这里按段名与起点生成，
+ * 名字取段的 id（作者写的那个），所以"章节名"就是你在时间线里写的段名 —— 想起好名字就去改时间线。
+ *
+ * 只在段边界是**自然的章节**时才有意义：一个 3 秒的过场不该单独成章。所以默认跳过短于
+ * `--min`（默认 4 秒）的段，并把它的时长并进上一章。
+ *
+ *   node scripts/anim.mjs chapters <任务>                 # 打印 + 写 out/<任务>/chapters.txt
+ *   node scripts/anim.mjs chapters <任务> --min 6 --json  # 机器可读
+ */
+async function cmdChapters() {
+  const task = pickTask();
+  const minDur = Number(opt('min', '4'));
+  const outFile = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, 'chapters.txt'))));
+  await openSession({ task });
+  try {
+    const segs = (await session.page.evaluate(() => /** @type {any} */ (window).__anim.info())).timeline;
+    const rows = planChapters(segs, minDur);
+    const mmss = formatChapterTime;
+    const lines = rows.map((r) => mmss(r.start) + ' ' + r.name);
+    if (flag('json')) {
+      log(JSON.stringify({ task, chapters: rows.map((r) => ({ time: mmss(r.start), start: +r.start.toFixed(2), name: r.name, dur: +r.dur.toFixed(2) })) }, null, 2));
+    } else {
+      for (const l of lines) log(l);
+    }
+    mkdirSync(path.dirname(outFile), { recursive: true });
+    writeFileSync(outFile, lines.join('\n') + '\n', 'utf8');
+    log(`\n${rows.length} 章 → ${path.relative(ROOT, outFile)}`);
+    if (rows.length && rows[0].start !== 0) warn('⚠ 第一章不在 00:00 —— YouTube 会拒绝章节');
   } finally { await closeSession(); }
 }
 
@@ -7087,6 +7211,8 @@ const commands = {
   subs: cmdSubs,
   check: cmdCheck,
   still: cmdStill,
+  cover: cmdCover,
+  chapters: cmdChapters,
   sheet: cmdSheet,
   cuts: cmdCuts,
   carry: cmdCarry,
@@ -7146,6 +7272,9 @@ export {
   // `anim shots --json` 的载荷（BACKLOG 1-29 前半 / 1-21 的输入契约，纯函数）
   SHOTS_SCHEMA,
   shotsCatalog,
+  // 封面与章节（BACKLOG 1-53）：章节规划是纯函数，可离线断言
+  planChapters,
+  formatChapterTime,
   // 镜头模板的依赖前置校验（BACKLOG 1-21）：纯函数，可离线断言（不起浏览器、不渲染）
   blankJsComments,
   scanShotUsage,

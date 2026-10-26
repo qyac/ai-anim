@@ -59,6 +59,8 @@ const ITEMS = [
   { name: 'unit:cam-math', cmd: ['tools/test-cam-math.mjs'], note: '3D 相机/投影/透视变换 + **手性**（33 项）' },
   { name: 'unit:segment-cuts', cmd: ['tools/test-segment-cuts.mjs'], note: 'P2-4 分块切点只落在安全处' },
   { name: 'unit:shots', cmd: ['tools/test-shots.mjs'], note: 'A 档镜头库：模板登记/参数名/任务段名（写错就响）' },
+  { name: 'unit:cover', cmd: ['tools/test-cover-chapters.mjs'], note: '封面/章节（BACKLOG 1-53）：planChapters 三条规则（首段必是 00:00 / 短段并进上一章 / 起点取段自己 start）+ formatChapterTime 边界（0 / 59.9 / 60 / 3599 / 负 / NaN）' },
+  { name: 'unit:info', cmd: ['tools/test-info.mjs'], note: 'infoShot 段落骨架（BACKLOG 1-50）：场景对象形状 / focus 声明（默认近似矩形、noFocus 豁免）/ draw 抛错进 warnings 不冒泡 / post 三层合并（骨架默认 < 段 post < draw 返回值）' },
   { name: 'unit:subs', cmd: ['tools/test-subs.mjs'], note: '1-40 anim subs：ASS 文本转义（\\\\ / {} / 换行）、assTime 向上取整不留三位小数、接线自检（11 项）' },
   { name: 'unit:hashes-policy', cmd: ['tools/test-hashes-policy.mjs'], note: '基线策略（2026-10-24）：--accept 必须带 --note / --save 拒绝覆盖 / notes 审计 / 前后对比图 / negligible 判据不许放松 / 文档与回归清单接线（10 项）' },
   // BACKLOG 0-3 的真正修法（2026-10-24）：`write` 的 align 从"逐字生效"改成"整行对齐"。

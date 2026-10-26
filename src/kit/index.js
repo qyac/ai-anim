@@ -83,6 +83,14 @@ export {
 export { makeShot, shot } from './shot.js';
 
 /**
+ * `src/kit/info.js` —— **infoShot 段落骨架**（BACKLOG 1-50）：眉标 + 标题 + 面板底
+ * （图形区）+ 侧标注 + 出处行 + 页脚 + 四段错峰一次包掉，用户只写 `draw(ctx, rect)`。
+ * 版面纪律（字幕带避让 / focus 声明 / 出处行）由骨架承担 —— 判据"新片子手写行数
+ * 占比 < 30%"靠它收敛。
+ */
+export { infoShot } from './info.js';
+
+/**
  * `makeThreeShot()` —— 一个 **Three.js 镜头**（引擎的第 3 种 3D：真网格）。
  * 机制在 `src/core/three-bridge.js`（桥 / 颜色 / 投影），这里只是"一个镜头该怎么写"。
  * 标定夹具与沙盒：`tasks/_three-calib`、`tasks/_three-lab`；排错见 `docs/ENGINE.md` §3.8。
