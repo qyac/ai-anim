@@ -2118,6 +2118,52 @@ async function cmdCheck() {
     }
   }
 
+  // 1.55) 静态：**运动上限**（BACKLOG 1-33；判据与 src/kit/motion.js 的 waterfallOver 逐字一致）。
+  //
+  // 为什么放在 check 里：错峰跨度「items × stagger ≤ 0.5s」是"一组元素像一个节拍到达"的判据，
+  // 写超了画面不会报任何错 —— 只会"看着有点拖"。waterfallStagger() 能在运行时压回去，
+  // 但作者得先想起来调用它；这一层从**源码字面量**里算跨度，把"想不起来"变成一条读数。
+  //
+  // ⚠ 默认只 warn：0.5 是外部经验值（docs/MOTION.md §0），不是实测结论；
+  //   --strict 下进 errs（交付自检跑 --strict，回归清单跑默认）。
+  //   "没有可判的对象"进 skipped —— 空不等于干净。
+  {
+    const lint = path.join(ROOT, 'tools', 'lint-motion-caps.mjs');
+    try {
+      const { spawnSync } = await import('node:child_process');
+      if (existsSync(lint)) {
+        const r = spawnSync(process.execPath, [lint, task, '--json'], { encoding: 'utf8', timeout: 30000 });
+        const txt = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim();
+        let j = null;
+        try { j = JSON.parse(txt); } catch { j = null; }
+        if (r.status === 0 && j) {
+          if (j.over && j.over.length) {
+            warn(`⚠ 运动上限：${j.over.length} 处错峰跨度超过 ${j.cap}s（判据同 waterfallOver）：`);
+            for (const o of j.over.slice(0, 6)) {
+              warn(`  · ${o.file}:${o.line}  stagger ${o.stagger} × ${o.items} 项 = ${o.span.toFixed(3)}s`);
+            }
+            warn('  → 用 waterfallStagger(items, stagger).stagger 喂 type.write（按 0.5s/items 压回）；见 docs/MOTION.md §4');
+            if (strict) staticErrs.push('[运动上限] ' + j.over.length + ' 处错峰跨度超过上限');
+          }
+          if (!j.over.length && !j.checked.length) {
+            pushSkipped(skipped, '运动上限（stagger 跨度）',
+              `这个任务里没有可判的 stagger 字面量（可判 0 处、读不出 ${j.unchecked.length} 处）—— 没验`);
+          } else if (j.unchecked.length && !j.over.length) {
+            warn(`（运动上限：可判 ${j.checked.length} 处都在上限内；另有 ${j.unchecked.length} 处读不出元素个数 —— 那些**没验**）`);
+          }
+        } else if (r.status === 2) {
+          pushSkipped(skipped, '运动上限（stagger 跨度）', `工具自己退出码 2（不是"没命中"）：${firstLine(txt)}`);
+        } else if (r.status !== 0) {
+          pushSkipped(skipped, '运动上限（stagger 跨度）', `退出码 ${r.status}，输出不是可解析的 JSON —— 没验`);
+        }
+      } else {
+        pushSkipped(skipped, '运动上限（stagger 跨度）', `工具不存在：${path.relative(ROOT, lint)}`);
+      }
+    } catch (err) {
+      pushSkipped(skipped, '运动上限（stagger 跨度）', `起不了这个子进程：${firstLine(err)}`);
+    }
+  }
+
   /**
    * 1.6) 镜头模板的**依赖前置校验**（BACKLOG 1-21 / `docs/ENGINE.md` §14.9）。
    *

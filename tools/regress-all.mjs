@@ -59,6 +59,7 @@ const ITEMS = [
   { name: 'unit:cam-math', cmd: ['tools/test-cam-math.mjs'], note: '3D 相机/投影/透视变换 + **手性**（33 项）' },
   { name: 'unit:segment-cuts', cmd: ['tools/test-segment-cuts.mjs'], note: 'P2-4 分块切点只落在安全处' },
   { name: 'unit:shots', cmd: ['tools/test-shots.mjs'], note: 'A 档镜头库：模板登记/参数名/任务段名（写错就响）' },
+  { name: 'unit:motion-caps', cmd: ['tools/test-motion-caps.mjs'], note: '运动上限静态扫描（BACKLOG 1-33）：判据与 waterfallOver 同口径（items × stagger > 0.5）/ 元素个数怎么读（const 字符串、数组，别抓 family 样式值）/ 读不出进 unchecked（含简写）/ 接线自检 + 夹具 _motion-lab 的 --strict 红证明' },
   { name: 'unit:variants', cmd: ['tools/test-variants.mjs'], note: '变体（BACKLOG 1-23）：deepMergeInto 语义（对象递归 / 数组整体替换 / 原始值覆盖）+ CLI 接线（--variant 进 URL、产物目录 taskOut 带子目录、无漏网调用点）+ 夹具声明' },
   { name: 'unit:pin-timing', cmd: ['tools/test-pin-timing.mjs'], note: 'anim say --pin-timing（BACKLOG 1-23）：同 id 且放得下 ⇒ slot/stretch 逐位不动；放不下 ⇒ 只重解那一段并警告长多少；部分钉住；pinned 缺 id / 为空 / 陌生 id 的边界' },
   { name: 'unit:pin-timing-e2e', cmd: ['tools/test-pin-timing-e2e.mjs'], note: 'anim say --pin-timing 端到端（真跑 CLI + 假 TTS 驱动 tools/fake-tts.mjs）：改短一句 ⇒ 时间线逐位不动；改长一句 ⇒ 只重解那一段' },
