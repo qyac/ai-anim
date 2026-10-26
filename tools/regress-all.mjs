@@ -73,6 +73,7 @@ const ITEMS = [
   { name: 'unit:tokens', cmd: ['tools/test-tokens.mjs'], note: '设计 token 的语义字号（1-46）：数字原样通过 / 六档按风格取值 / 拼错必须抛（不许静默回落 64）/ 每套风格 6 档齐全（38 项）' },
   { name: 'unit:portrait', cmd: ['tools/test-portrait.mjs'], note: '竖屏 1080×1920（1-52）：横屏原样返回同一个对象（老任务零变化）/ 栅格按短边缩放而不是按高 / 字号 ×1.35 / 字幕带 61%–70% 且在 B 站 UI 之上 / gridPortrait 可覆盖（39 项）' },
   { name: 'unit:block-sig', cmd: ['tools/test-block-sig.mjs'], note: '分块增量重渲（1-45）：段 id→源文件（三种写法）/ 块的覆盖范围只算真正跨过的段 / 改一个镜头只有它那块失效 / 引擎或参数变=全失效 / 查不到源文件的段永远重渲（21 项）' },
+  { name: 'unit:motifs', cmd: ['tools/test-motifs.mjs'], note: '母题库（1-49）：方波级数收敛 + Gibbs 过冲 / 本轮末端 == 级数值 / DCT 往返 <1e-9 / 归一化不改形状 / 采样不出 NaN 且 x 单调 / 游标越界夹住（38 项）' },
   { name: 'meta:gates', cmd: ['tools/test-gates-meta.mjs'], note: '守门判据的**元测试**（1-51）：每条判据都要"注入缺陷必须报 + 去掉缺陷不许报"。覆盖版面三条 / 背景守门 / 采样四个出口（tol·cap·stall·NaN）/ 误差量具 / 节奏节拍器；文末一张覆盖表点名"哪个缺口没验"（37 项）' },
   { name: 'unit:blocks', cmd: ['tools/test-blocks.mjs'], note: '方块世界 kit：面朝向判据 / 深度排序 / 世界切片 / 摄影机关键帧' },
   { name: 'unit:check-skipped', cmd: ['tools/test-check-skipped.mjs'], note: '1-19「空≠干净」：skipped 收集/聚合/结论行 + --quick 分档 + 接线自检（25 项）' },

@@ -279,3 +279,36 @@ ANIM_FFPROBE = ...\bin\ffprobe.exe
    第一版 7 块被合成 2 组，判据当然不报；
 2. `offSubject` **不数第一个**"看的地方"（那是主体入口），`maxOffSubject=2` 要 4 块才越线；
 3. `worldAuditVerdict` 的 `blackTail` 读的是**第二条**样本（窗后中点），只传一条永远不红。
+
+---
+
+## 9. 追加（2026-10-26）：1-49 母题库（部分）
+
+`src/kit/motifs/` 落地，统一从 `src/kit/index.js` 再导出：
+
+| 模块 | 内容 | 来源 |
+|---|---|---|
+| `fourier` | `squareCoeffs` / `squareWave` / `growK` / `epicycles` / `drawEpicycles` | `tasks/spectrum` 的「方波 = 一串圆」 |
+| `dct` | `dct2` / `idct2` / `normalizeBlock`（8×8，JPEG 口径） | `tasks/spectrum/scenes/keep.js` |
+| `waveform` | `wavePoints` / `drawWave` / `drawTicks` / `playheadX` | 各镜头重抄的"采样折线 + 游标" |
+
+验证：`tools/test-motifs.mjs` **38 项**（级数 RMS 随项数递减 / Gibbs 过冲 1.15–1.22 /
+本轮末端 == `squareWave()` 到 1e-12 / DCT 往返 <1e-9 / 归一化不改形状 / 采样不出 NaN 且 x 单调 /
+游标越界夹住），夹具 `tasks/_motif-lab`（两段样片），文档 `docs/MOTIFS.md`。
+
+### 9.1 一个**重复犯的**坑：`lines.flush()` 不传目标
+
+母题夹具第一版**文字在、线全没了**：`drawEpicycles()` 里写了 `lines.flush()`（没传 `ctx.out`）。
+屏幕/导出目标由调用方决定，不传就落到引擎默认目标 —— 画了，但不在这一帧上，且**不报错**。
+现在 `drawEpicycles()` 收 `target`，夹具里两处 `flush` 都显式传 `ctx.out`。
+
+顺带一个量图技巧（模型看不了图时）：`ffmpeg -vf "crop=W:H:X:Y,signalstats"` 量某个矩形的平均亮度，
+或 `node tools/png-rows.mjs <png> <x>` 看某列上"亮度>0.5 的 y 区间"——线在不在，一秒就知道。
+第一版圆用 `P.ash` + 0.45 alpha，量出来 27.5（背景 25 左右），换成 `P.bone` 0.55 后同一列出现了
+y=335 / 823 两段笔画 —— **"看着有点暗"和"根本没画"在数字上是两回事**。
+
+### 9.2 没做完的部分（诚实登记）
+
+`sodium` 积木 / `bikeshed` 会议室 / `beast`·`fidus`·`nekohome` 的私有 `_kit.js`：**都没抽**
+—— 这些任务目录被 `.gitignore` 排除（含真实素材与音频），**本 checkout 里根本不存在**。
+要接着抽，得先把那几个任务目录放回 `tasks/`，抽完用 `hashes --accept --note` 记录画面变化。

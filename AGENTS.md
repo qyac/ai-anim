@@ -736,6 +736,7 @@ node scripts/anim.mjs check <任务>
 |---|---|
 | `docs/ENGINE.md` | 引擎规格（`src/` 的地基；**改引擎之前读**） |
 | `docs/COOKBOOK.md` | 常见效果怎么做 —— 按「画面要什么」找做法 |
+| `docs/MOTIFS.md` | **母题库**`src/kit/motifs/`：拆方波 / 8×8 DCT / 波形+游标 —— 同一件事只写一次 |
 | `docs/CONFIG-ONLY.md` | 零代码出片（B 档，§3.2 的完整版） |
 | `docs/STYLE.md` | 风格包与反审美疲劳（相邻两片换脸是**建议**：风格由内容决定） |
 | `docs/CAPTIONS.md` | 字幕层与信息分工（画面只放标注） |

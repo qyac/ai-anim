@@ -145,3 +145,6 @@ export {
   pickColor, requireColor, FACE_NORMALS, FACE_GEO, BOX_EDGES, SUN,
   FILL_ZERO, FILL_FULL, TONE_FLOOR, SOLID_K, QUEUE_KEY, PENDING, clearPending,
 } from './blocks.js';
+
+// 母题库（BACKLOG 1-49）：跨片子复用的视觉母题 —— 见 src/kit/motifs/index.js 的头注释
+export * from './motifs/index.js';
