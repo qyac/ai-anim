@@ -1,7 +1,7 @@
-# HANDOFF · 2026-10-25 夜（W3：语义字号落地 + 两个采样 bug）
+# HANDOFF · 2026-10-25 夜 → 10-26（采样 bug / 语义字号 / 竖屏 / 块级重渲 / 判据元测试 / 断行）
 
 > **一次性交接单**，假设读者看不到产生它的会话。待办仍以 [`BACKLOG.md`](BACKLOG.md) 为准。
-> 这一轮做了三件事：**验环境 → 修两个采样 bug → 把 W3（1-46）做完**。
+> 这两天做了六件事：**验环境 → 修两个采样 bug → 语义字号（1-46）→ 竖屏（1-52）→ 编码器兜底与块级重渲（1-45）→ 判据元测试（1-51）→ 母题库（1-49 部分）与字幕断行（1-57）**。`n> **先读 §0.5 交接总览**（提交清单 / 机器状态 / 测试账 / 已知缺口），再按需往下翻。
 
 ---
 
@@ -11,6 +11,66 @@
 2. **修掉两个自适应采样的 bug** —— 它们让「写了 `maxSamples: 8` 的段」成片比预览**暗 27%**，
    而 `maxSamples: 8` 正是 HANDOFF-spectrum-friction §1 里作者用来提速的那个旋钮（spectrum 全片在用）。
 3. **W3 / 1-46 收尾**：`type.write` 认语义字号（`size: 'hero'`）+ 四套风格各自的 token 覆盖 + 六张风格样片。
+
+---
+
+## 0.5 交接总览（2026-10-26 定稿，先读这一节）
+
+**四个提交，都在 `qyac/ai-anim` 的 `master` 上（`fca3cd8..5295244`）**：
+
+| 提交 | 内容 |
+|---|---|
+| `aeced23` | **修** 自适应采样两处丢帧（成片暗 27%）+ **feat** 语义字号 + 竖屏 1080×1920 |
+| `df372f8` | **feat** 编码器兜底 + 块级增量重渲（1-45）+ 判据元测试（1-51） |
+| `2c40aa7` | **feat** 母题库 `src/kit/motifs/`（1-49 部分） |
+| `5295244` | **feat** 中日文断行（1-57）+ JIZURA 参考拆解 |
+
+**BACKLOG 状态**：`1-45 / 1-46 / 1-51 / 1-52 / 1-57` 已完成；`1-49` **部分**（只抽了 spectrum，另三处任务不在仓库里）；
+`1-56`（绿幕导出）新登记、不排期。主线剩下的：**`1-48` 模板扩张 / `1-50` infoShot / `1-53` 封面章节**。
+
+**这台机器现在的状态**（换机器时这一段要重做）：
+
+| 项 | 值 |
+|---|---|
+| Chrome | 156.0.8078.48（原装坏了缺 chrome.dll，`winget install Google.Chrome` 重装） |
+| ffmpeg | Gyan **9.0.2 full build**（带 libx264），路径写在用户环境变量 `ANIM_FFMPEG` / `ANIM_FFPROBE` |
+| 备注 | PATH 里第一个 ffmpeg 仍是旧的 **LGPL 构建**（没有 libx264）—— 所以必须靠上面那两个环境变量 |
+
+**测试账（都是纯 JS，一条一条跑）**：
+
+```sh
+node tools/test-cjk.mjs          # 28  字幕断行（禁则/平衡/不丢字）
+node tools/test-motifs.mjs       # 38  母题（级数收敛 / DCT 往返 / 采样）
+node tools/test-gates-meta.mjs   # 37  守门判据的"能红"证明
+node tools/test-block-sig.mjs    # 21  分块增量重渲的签名
+node tools/test-portrait.mjs     # 39  竖屏（含"横屏原样返回同一个对象"）
+node tools/test-tokens.mjs       # 38  语义字号
+node tools/test-style.mjs        # 66  风格包 + 字幕
+node tools/test-sampling.mjs     # 51  采样判据
+node tools/test-layout.mjs       # 47  版面守门
+node tools/lint-agents-size.mjs / lint-agents-refs.mjs / lint-doc-facts.mjs   # 三个文档守门
+```
+
+渲染侧的验证（需要浏览器，跑起来才算数）：
+
+```sh
+node scripts/anim.mjs check spectrum        # 修完采样后：0 红（只剩响度 -16.5 LUFS 的已知告警）
+node scripts/anim.mjs check demo --quick    # 横屏回归：✓
+node scripts/anim.mjs still _portrait-lab -t 3,8   # 竖屏样片
+node scripts/anim.mjs still _motif-lab -t 3,8      # 母题样片
+```
+
+**已知缺口（别当成"已经好了"）**：
+
+1. `lint-narration-dup`（旁白复述）**没有纯 JS 红证明** —— 见 `test-gates-meta` 文末的覆盖表。
+2. 整份 `regress-all` 没一次跑通过：`test-parallel` / `test-world` 要浏览器、`test-say` 要 TTS。
+3. 竖屏只验了 `flat` 风格 + 自建夹具，**没有真片子端到端**。
+4. 母题库只抽了 spectrum 那三样；`sodium`/`bikeshed`/`beast`/`fidus`/`nekohome` 的任务目录被 `.gitignore` 排除，
+   **本仓库里没有**，抽不了也删不了。
+
+**三个"新人最容易踩"的坑**（都写在正文里了，这里只列名字）：
+`lines.flush()` 不传 `ctx.out` ⇒ 线静默消失（§9.1）；`maxSamples: 8` 曾让成片暗 27%（§1）；
+渲染期间写任何文件 ⇒ Vite 崩、断流（AGENTS.md §7）。
 
 ---
 
