@@ -51,6 +51,8 @@
 npm install                                     # 第一次
 
 node scripts/anim.mjs tasks                     # 列出所有任务（一支片子 = 一个任务）
+node scripts/anim.mjs tasks --json               # 机器可读清单（1-58）：尺寸/帧率/风格/旁白/变体/时长 + schema 串
+                                                 # 批量跑（queue / 变体矩阵 / 外部脚本）用它，别去 grep 配置文本
 node scripts/anim.mjs shots [名字]              # 列出镜头模板（A 档镜头库）与参数
 node scripts/anim.mjs still demo -t 1,6,9.5     # 出单帧 PNG（agent 主要靠这个看效果）
 node scripts/anim.mjs shot  demo --from 0 --to 6   # 出短 mp4（快速看运动）
@@ -497,6 +499,9 @@ music.hit('kick', t, 0.12)          // 衰减脉冲（做撞击位移/闪白最�
 ```sh
 node scripts/anim.mjs say <任务> [--voice zh-CN-YunxiNeural] [--rate -6%] [--dry-run]
 node scripts/anim.mjs mix <任务>          # 旁白摆位 + 给音乐做闪避 → 一条混音轨
+node scripts/anim.mjs say <任务> --table en   # 表写到 audio/en.{timing,narration}.json，默认那份不动
+                                            # → task.config 里 narration: './audio/en.narration.json'
+                                            #   就是多语言 / 剪短版 / 回放旧表的落点（1-23③）
 ```
 
 > 贴平台响度靶子要**显式**：`anim mix <任务> --target streaming`（默认只报数字、不动音轨；见 `docs/NARRATION.md` §7）。

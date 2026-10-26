@@ -507,7 +507,7 @@ render(ctx) {
 
 | 想要 | 用什么 |
 |---|---|
-| 交叠期把上一帧**甩走**（不是原地淡出） | `transitionPass(gl, { push = 0.36, blur = 0.085, fadeAt = 0.55 })` —— **文字量大的画面必须用它**，交叉溶解会把两屏字叠糊 |
+| 交叠期把上一帧**甩走**（不是原地淡出） | `transitionPass(gl, { push = 0.36, blur = 0.085, fadeAt = 0.55, victimRatio })` —— **文字量大的画面必须用它**，交叉溶解会把两屏字叠糊 |
 | 每帧第一句就"铺背景 + 甩走上一帧" | `makeTransitionKit(ctx)` → `const k = tk.openFrame(ctx)`（返回入场进度） |
 | 全片一台摄影机 | `cameraPost(f.t, { …这一段的 post })`（= `cameraAt(f.t)` + 你的参数；**用 `f.t` 不是 `f.lt`**） |
 | 新内容从**反方向**落位 | `enterOffset(f.t, k, 220)` → `[dx, dy]` 直接加到坐标上 |

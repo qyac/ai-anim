@@ -16,6 +16,21 @@
  *   ④ **交叠期把上一帧甩走**，不是原地淡出：`transitionPass()` 沿摄影机方向加速推出去
  *      并加方向拖尾；新内容从**反方向**落位（`enterOffset`）。
  *
+ * ## ⑤ 受害者的退出时长 = 入侵者的 40–50%（可调用、可断言）
+ *
+ * 第四条只说了"甩走"，没说**甩多久**。外部项目 hyperframes 的 `reactive-displacement`
+ * （`docs/REFERENCE-hyperframes.md` **518 行**）给了那个比例：**受害者的时长是入侵者的
+ * 40–50%**，三个并发的 tween 落在同一时间点。
+ *
+ * ⚠ **那是【外部经验值】，我方还没实测**（证据分级见 `docs/MOTION.md` §0）——
+ * 这一层只是把它做成可调用、可断言的东西，不是宣布"40–50% 最好看"：
+ *
+ *   · `planCollision({ enterDur, ratio })` —— 纯函数（不碰 GPU），算出受害者该占的时长与
+ *     比例；越界**夹到 `VICTIM_RATIO_RANGE` 并返回说明**（不静默）；
+ *   · `transitionPass(gl, { victimRatio })` —— 交给场景用：比例直接变成 uniform `fadeAt`
+ *     （`k` 就是交叠期的归一化进度，所以"受害者时长 ÷ 入侵者时长 = fadeAt"）。
+ *     **不传 `victimRatio` = 行为与从前逐像素相同**（已交付片子的硬要求）。
+ *
  * 用法（每段场景的骨架）：
  *
  * ```js
@@ -41,23 +56,165 @@
 import { Pass } from './gl.js';
 import { sat } from './util.js';
 
+/* ═════════════ 碰撞式转场：受害者时长 = 入侵者时长 × 40–50%（§4.4） ═════════════ */
+
+/**
+ * 「受害者（被顶掉的旧内容）退出时长 ÷ 入侵者（新内容）入场时长」的**合法区间**。
+ *
+ * 出处：`docs/REFERENCE-hyperframes.md` **518 行**（`reactive-displacement`：
+ * "受害者的时长是入侵者的 40-50%"）。
+ * ⚠ **【外部经验值】，我方未实测** —— 我们证到的只是"越界会被夹取、夹取会说话"
+ * （`tools/test-transition-collision.mjs` 钉着），**不是**"40–50% 在我们这儿最好看"。
+ *
+ * 0.40 / 0.50 不要散在代码里：要判就用这个常量，要改就改这一处。
+ */
+export const VICTIM_RATIO_RANGE = [0.40, 0.50];
+
+/**
+ * 不给 `ratio` 时用的值 = 区间中点（0.45）。两端都是"边界"，中点才是没有主张时的默认。
+ */
+export const VICTIM_RATIO_DEFAULT = (VICTIM_RATIO_RANGE[0] + VICTIM_RATIO_RANGE[1]) / 2;
+
+/** 参数必须是有限数：NaN / ±Inf 传下去 = 整屏白或"每一帧都不一样"，而且引擎不报错（AGENTS.md §5.5）。 */
+function needFinite(who, name, v) {
+  if (typeof v !== 'number' || !Number.isFinite(v)) {
+    throw new TypeError('trans: ' + who + ' 的 ' + name + ' 必须是有限数，收到 ' + String(v)
+      + ' —— NaN / ±Inf 传下去会变成整屏白或每帧不同的转场，而且引擎不会报错（AGENTS.md §5.5）。');
+  }
+}
+
+/** 短字符串（告警里给人看的，不留 toFixed 的尾零）。 */
+function num(x) {
+  return String(Math.round(x * 1000) / 1000);
+}
+
+/**
+ * **碰撞式转场的比例计划**（纯函数：无副作用、不碰 GPU、不读时钟、不认识 `ctx`）。
+ *
+ * 规则（`docs/MOTION.md` §2 / §3.5，判据出处 `docs/REFERENCE-hyperframes.md` **518 行**，
+ * 【外部经验值】，我方未实测）：**受害者退出时长 = 入侵者入场时长 × 0.40–0.50**。
+ *
+ * ```js
+ * const c = planCollision({ enterDur: 0.6 });        // 交叠期 0.6s
+ * c.victimDur;   // 0.27s —— 旧内容该在这么久之内退干净（= 0.6 × 0.45）
+ * c.ratio;       // 0.45（夹取之后；原值在 c.rawRatio）
+ * c.fadeAt;      // 0.45 —— 同一件事的"k 口径"，直接喂 transitionPass
+ * if (c.clamped) ctx.warnings.push(c.warning);       // 本函数只判定，不喊
+ * ```
+ *
+ * **三条边界**（都是刻意的，不要"顺手"放宽）：
+ *   · `ratio` 越界（< 0.40 或 > 0.50）⇒ **夹回区间**并给 `warning`（说明里带原值、区间、
+ *     夹取后的受害者时长）—— 静默夹取等于"画面照样出，只是不是你要的那个"；
+ *   · `enterDur ≤ 0`（没有交叠期）⇒ 受害者时长记 **0**（不是负数、不是 NaN），`degenerate: true`，
+ *     比例照原样保留 —— 等有了交叠期就能直接用；
+ *   · `enterDur` / `ratio` 是 NaN / ±Inf / 非数字 ⇒ **当场抛**（与镜头模板参数写错同一条哲学）。
+ *
+ * @param {{ enterDur?: number, ratio?: number }} [o]
+ *        `enterDur` 入侵者入场时长（秒；**默认 1** = "一整段交叠期"的归一化口径，此时
+ *        `victimDur` 与 `fadeAt` 同值）、`ratio` 想要的受害者比例（默认 {@link VICTIM_RATIO_DEFAULT}）
+ * @returns {{ enterDur: number, rawEnterDur: number, ratio: number, rawRatio: number,
+ *   victimDur: number, minVictimDur: number, maxVictimDur: number, fadeAt: number,
+ *   clamped: boolean, degenerate: boolean, ok: boolean, warning: string | null }}
+ *   `ratio`/`victimDur` = 夹取后可直接用的值；`rawRatio` = 你原本给的那个数；
+ *   `fadeAt` = 同一件事的 k 口径（`transitionPass` 的 uniform）；`warning` 为字符串或 null
+ */
+export function planCollision(o = {}) {
+  const enterDur = o.enterDur ?? 1;
+  const rawRatio = o.ratio ?? VICTIM_RATIO_DEFAULT;
+  needFinite('planCollision', 'enterDur', enterDur);
+  needFinite('planCollision', 'ratio', rawRatio);
+  const [lo, hi] = VICTIM_RATIO_RANGE;
+  const ratio = Math.min(hi, Math.max(lo, rawRatio));
+  const clamped = ratio !== rawRatio;
+  /** 没有交叠期就没有"退出时长"可言 —— 记 0，并且**明说**，不糊过去。 */
+  const degenerate = !(enterDur > 0);
+  const dur = degenerate ? 0 : enterDur;
+  const victimDur = dur * ratio;
+  const notes = [];
+  if (degenerate) {
+    notes.push('碰撞式转场没有交叠期：enterDur = ' + num(enterDur) + 's ⇒ 受害者退出时长记 0s'
+      + '（比例 ' + num(ratio) + ' 照原样留着，等有了交叠期再生效）。');
+  }
+  if (clamped) {
+    notes.push('受害者时长比例越界：' + num(rawRatio) + ' 不在 ' + num(lo) + '–' + num(hi)
+      + '（§4.4 reactive-displacement / REFERENCE-hyperframes.md 518 行：受害者 = 入侵者的 40–50%），'
+      + '已夹到 ' + num(ratio) + '——受害者退出 ' + num(victimDur) + 's，入侵者入场 '
+      + num(dur) + 's。');
+  }
+  return {
+    enterDur: dur,
+    rawEnterDur: enterDur,
+    ratio,
+    rawRatio,
+    victimDur,
+    minVictimDur: dur * lo,
+    maxVictimDur: dur * hi,
+    fadeAt: ratio,
+    clamped,
+    degenerate,
+    ok: !clamped && !degenerate,
+    warning: notes.length ? notes.join(' ') : null,
+  };
+}
+
+/**
+ * 只要那个**时长**时的简写：`victimSpan(enterDur, ratio)` → 受害者应占的秒数。
+ *
+ * 与 `planCollision({ enterDur, ratio }).victimDur` **逐位相同**（同一个实现，不另算一套）；
+ * 需要"为什么是这个数 / 夹取说明"时用 `planCollision`。
+ *
+ * @param {number} [enterDur] 入侵者入场时长（秒；默认 1）
+ * @param {number} [ratio] 受害者比例（默认 {@link VICTIM_RATIO_DEFAULT}，越界夹取）
+ * @returns {number} 受害者退出时长（秒）；`enterDur ≤ 0` 时为 0
+ */
+export function victimSpan(enterDur = 1, ratio = VICTIM_RATIO_DEFAULT) {
+  return planCollision({ enterDur, ratio }).victimDur;
+}
+
 /**
  * 把「上一段那一帧」沿摄影机方向甩出去，并加方向拖尾。
  *
  * 与交叉溶解的区别：溶解是「两张图叠在一起」，甩出去是「镜头没停，画面被带走了」。
  * 位移随 k **加速**（k²），拖尾宽度同时变宽 —— 这两个一起给速度感；
- * 透明度在 k=0.55 之前就降到 0，避免两屏文字长时间叠着。
+ * 透明度在 k=`fadeAt`（默认 0.55）之前就降到 0，避免两屏文字长时间叠着。
  *
  * 返回的 `Pass` 是 `blend: true` 的：它是**叠在本段背景之上**的，不是覆盖。
  *
+ * ## `victimRatio`：受害者该在交叠期的哪个进度上退干净（§4.4，518 行）
+ *
+ * `fadeAt` 的字面意思是"旧的这一帧在 k=多少时完全消失"，而 `k` 就是交叠期的归一化进度
+ * （`f.tin`）—— 所以 **受害者时长 ÷ 入侵者时长 = fadeAt**。`victimRatio` 是同一个东西的
+ * **比例写法**：传了就按 {@link VICTIM_RATIO_RANGE} 夹取（越界夹回来，说明放在
+ * `pass.collision.warning`），免得每个场景各写一个 0.4 / 0.5。
+ *
+ * ⚠ **不传 `victimRatio` ⇒ `fadeAt` 还是 0.55，逐像素与从前一致**（已交付的片子全走这条路，
+ * 改它们一个像素都算事故）。**不传 = 行为不变**，这条是硬要求。
+ *
+ * ⚠ `fadeAt` 与 `victimRatio` 是**同一个旋钮的两种写法**，两个都给会**抛**——
+ * 静默忽略其中一个比抛错贵得多（画面照样出，只是不是你要的那个）。
+ *
  * @param {import('./gl.js').GL} gl
- * @param {{ push?: number, blur?: number, fadeAt?: number, samples?: number, key?: string }} [opts]
+ * @param {{
+ *   push?: number, blur?: number, fadeAt?: number, samples?: number, key?: string,
+ *   victimRatio?: number,
+ * }} [opts] `victimRatio` = 受害者退出时长 ÷ 入侵者入场时长（0.40–0.50，越界夹取并说明）；
+ *   不传 = 保持 `fadeAt` 0.55 的老行为
+ * @returns {Pass & { collision: ReturnType<typeof planCollision> | null }}
+ *   转场 Pass；`collision` 是这次的比例计划（没传 `victimRatio` 时为 `null`）
  */
 export function transitionPass(gl, opts = {}) {
   const push = opts.push ?? 0.36;
   const blur = opts.blur ?? 0.085;
-  const fadeAt = opts.fadeAt ?? 0.55;
-  return new Pass(gl, /* glsl */ `
+  const hasRatio = opts.victimRatio !== undefined && opts.victimRatio !== null;
+  if (hasRatio && opts.fadeAt !== undefined && opts.fadeAt !== null) {
+    throw new TypeError('trans: transitionPass 的 fadeAt 与 victimRatio 是同一个旋钮的两种写法'
+      + '（fadeAt = 受害者退出时的 k，victimRatio = 受害者时长 ÷ 入侵者时长），只给一个。');
+  }
+  /** `enterDur: 1` = 以"一整段交叠期"为单位 ⇒ `collision.fadeAt` 就是 uniform 要的那个 k。 */
+  const collision = hasRatio ? planCollision({ enterDur: 1, ratio: opts.victimRatio }) : null;
+  const fadeAt = opts.fadeAt ?? (collision ? collision.fadeAt : 0.55);
+  const pass = /** @type {Pass & { collision: ReturnType<typeof planCollision> | null }} */ (
+    new Pass(gl, /* glsl */ `
     uniform sampler2D under;
     uniform float k;
     uniform vec2 dir;
@@ -81,7 +238,10 @@ export function transitionPass(gl, opts = {}) {
       float a = 1.0 - smoothstep(0.0, max(0.02, fadeAt), kk);
       fragColor = vec4(acc / wsum, a);
     }`, { under: { value: null }, k: 1, dir: [1, 0], push, blur, fadeAt },
-  { key: opts.key ?? 'trans_push', blend: true });
+  { key: opts.key ?? 'trans_push', blend: true }));
+  /** 这一笔用的是哪一套比例（没传 `victimRatio` 时是 `null` = 老行为） */
+  pass.collision = collision;
+  return pass;
 }
 
 /**

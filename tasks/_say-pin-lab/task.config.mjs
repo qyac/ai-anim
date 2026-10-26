@@ -14,3 +14,8 @@ export default {
     { type: 'bigtype', dur: 8, world: false, kicker: 'PIN / 02', line1: '第二段', line2: '只看时长' },
   ],
 };
+// 表可以指向任意一份（BACKLOG 1-23 第三块）：
+//   node scripts/anim.mjs say _say-pin-lab --tts "node tools/fake-tts.mjs" --table en
+//   → audio/en.narration.json + audio/en.timing.json（默认那份不动）
+// 想用哪份就把它写进来 —— 这就是多语言 / 剪短版 / 回放旧表的落点：
+//   narration: './audio/en.narration.json',

@@ -24,6 +24,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const MAX_STAGGER_SPAN = 0.5;
+/** 辉光峰值上限（与 src/kit/motion.js 的 GLOW_PEAK_CAP 同值；那里是运行时函数，这里是静态判据）。 */
+export const GLOW_PEAK_CAP = 0.45;
 
 /** 把注释抹成空格（保留换行与列位置，报错才能给准行号）。 */
 export function maskComments(src) {
@@ -135,6 +137,29 @@ export function scanMotionCaps(sources, opts = {}) {
       else checked.push(row);
     }
   }
+  // ── 辉光峰值（§4 的 `ambient-glow-bloom`，外部契约 522 行：峰值 opacity ≤ 0.45）──
+  //
+  // 为什么只认显式的 `halo` 声明：静态扫 `alpha` 分不清「辉光」与「正文淡入」，
+  // 假阳性会淹掉真命中（正文整行淡入本来就要 alpha: [0,1]）。
+  // 所以约定：场景想让人看得见的辉光，写成 `halo: { peak: 0.6 }`（或 `halo: 0.6`），
+  // lint 只判这个键；没有 halo 的场景一律不算"没验辉光"（那是设计上没做辉光，不是漏了）。
+  for (const src of sources) {
+    const code = maskComments(String(src.text ?? ''));
+    const { nums } = collectConsts(code);
+    for (const m of code.matchAll(/\bhalo\s*:\s*(?:\{\s*peak\s*:\s*([A-Za-z_$][\w$]*|-?[0-9]*\.?[0-9]+)|([A-Za-z_$][\w$]*|-?[0-9]*\.?[0-9]+))/g)) {
+      const raw = m[1] ?? m[2];
+      const peak = /^-?[0-9]/.test(raw) ? Number(raw) : nums.get(raw);
+      const line = code.slice(0, m.index).split('\n').length;
+      if (!Number.isFinite(peak)) {
+        unchecked.push({ file: src.file, line, kind: 'halo', peak: null, how: 'halo' });
+        continue;
+      }
+      const row = { file: src.file, line, kind: 'halo', peak, cap: GLOW_PEAK_CAP };
+      if (peak > GLOW_PEAK_CAP + 1e-9) over.push(row);
+      else checked.push(row);
+    }
+  }
+
   // 简写属性 `{ stagger, … }`：值在别处（多半是函数参数或解构），静态读不出 ——
   // 但**必须让它进 unchecked**，否则"看不见"会被误读成"合规"。
   for (const src of sources) {
@@ -197,6 +222,11 @@ function main() {
     console.log('  扫了 ' + r.files + ' 个 .js：可判 ' + r.checked.length + ' 处 · 超限 '
       + r.over.length + ' 处 · 读不出元素个数 ' + r.unchecked.length + ' 处');
     for (const o of r.over) {
+      if (o.kind === 'halo') {
+        console.log('  ✗ ' + o.file + ':' + o.line + '  halo.peak ' + o.peak + ' > ' + GLOW_PEAK_CAP + '（辉光峰值上限）');
+        console.log('      → 降到 ' + GLOW_PEAK_CAP + ' 以下：峰值超限的辉光会把主体糊掉（docs/REFERENCE-hyperframes.md 522 行）');
+        continue;
+      }
       console.log('  ✗ ' + o.file + ':' + o.line + '  stagger ' + o.stagger + ' × ' + o.items
         + ' 项（' + o.how + '）= ' + o.span.toFixed(3) + 's > ' + MAX_STAGGER_SPAN + 's');
       console.log('      → 用 waterfallStagger(items, stagger).stagger 喂 type.write（按 0.5s/items 压回）');

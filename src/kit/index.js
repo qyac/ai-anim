@@ -78,6 +78,8 @@ export { bands, bandsOf, assertInBand, captionNote, subLine } from './bands.js';
 
 export {
   worldPass, cameraAt, cameraDir, cameraPost, enterOffset, makeWorldKit, transitionPass,
+  // 碰撞式转场的判据（BACKLOG 1-33 ③，docs/MOTION.md §3.5）：0.40–0.50 那条区间只在 trans.js 里定义一次
+  planCollision, victimSpan, VICTIM_RATIO_RANGE, VICTIM_RATIO_DEFAULT,
 } from './world.js';
 
 export { makeShot, shot } from './shot.js';

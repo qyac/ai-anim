@@ -33,6 +33,19 @@ export const over = {
   },
 };
 
+// 辉光峰值超限（1-33 ②）：显式 halo 声明才判 —— 峰值 0.62 > 0.45
+export const halo = {
+  id: 'halo',
+  render(ctx) {
+    const { gl, P, lines } = ctx;
+    gl.clear(ctx.out, [P.ink[0], P.ink[1], P.ink[2]]);
+    lines.begin();
+    lines.circle(960, 540, 220, 2, [P.signal[0], P.signal[1], P.signal[2], 0.62], 48);
+    lines.flush(ctx.out);
+    return { bloom: 0.3, grain: 0.03, halo: { peak: 0.62 } };
+  },
+};
+
 export const ok = {
   id: 'ok',
   render(ctx) {

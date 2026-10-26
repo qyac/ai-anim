@@ -420,3 +420,20 @@ node scripts/anim.mjs say <任务> --pin-timing      # 改词之后跑这一条
 离线复现用的假驱动：`tools/fake-tts.mjs`（按文本长度生成等长低音量正弦，协议与 `tools/tts-edge.py` 一致）。
 ⚠ 它**不能**用纯静音：`say` 按"说到哪算到哪"剔尾部静音，全静音会被量成 0.12s 下限，
 "文本变长 ⇒ 时长变长"这条前提就不成立了（第一版正是这么栽的，端到端测试当场抓住）。
+
+### 8.1 表写到另一份：`--table`（1-23③）
+
+```sh
+node scripts/anim.mjs say <任务> --table en          # → audio/en.timing.json / en.narration.json / en.timing.mjs
+node scripts/anim.mjs say <任务> --table en --pin-timing --pin-table en   # 钉住 en 那一份再改词
+```
+
+默认那三份**一个字节都不动**（实测：跑完对比 `audio/timing.json` 的 SHA256 未变）。
+于是"另一份表"只是 `task.config.mjs` 里那行字符串：
+
+```js
+narration: './audio/en.narration.json',   // 用哪份就指哪份
+```
+
+用途三个：**多语言**（同一支片子、不同旁白）、**剪短版**（少几句）、**回放旧表**（零 TTS 成本）。
+表名走字符白名单（只留字母数字下划线短横线点），防止 `--table ../..` 这种写法写穿任务目录。

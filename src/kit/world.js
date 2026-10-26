@@ -45,6 +45,9 @@ import {
   transitionPass as coreTransitionPass, makeCameraProfile, openTransitionFrame,
 } from '../core/trans.js';
 
+// 碰撞式转场的判据转发（BACKLOG 1-33 ③）：场景侧从 kit 里就能拿到，不必回头 import core
+export { planCollision, victimSpan, VICTIM_RATIO_RANGE, VICTIM_RATIO_DEFAULT } from '../core/trans.js';
+
 /**
  * 把「上一段那一帧」沿摄影机方向甩出去，并加方向拖尾。
  *
@@ -53,7 +56,12 @@ import {
  * 透明度在 k=0.55 之前就降到 0，避免两屏文字长时间叠着。
  *
  * 实现在 `src/core/trans.js`（引擎级），这里只做转发 —— 同一件事不该有第二份实现。
- * @param {{ push?: number, blur?: number, fadeAt?: number, key?: string }} [opts]
+ *
+ * `victimRatio` 是 §4.4 那条「受害者退出时长 = 入侵者入场时长 × 40–50%」的入口
+ * （判据与夹取在 `src/core/trans.js` 的 `planCollision` / `VICTIM_RATIO_RANGE`）。
+ * **不传 = `fadeAt` 还是 0.55，逐像素与从前一致。**
+ *
+ * @param {{ push?: number, blur?: number, fadeAt?: number, key?: string, victimRatio?: number }} [opts]
  */
 export function transitionPass(gl, opts = {}) {
   return coreTransitionPass(gl, opts);
@@ -233,6 +241,10 @@ export const enterOffset = CAM.enterOffset;
  *   ② 交叠期把上一段那一帧沿摄影机方向甩出去（不是原地淡出 —— 两屏文字叠着会糊）。
  *
  * 返回的 `k` 是入场进度：1 = 已经站稳，按平常那样画即可。
+ *
+ * `opts` **原样交给 `transitionPass()`** —— 所以 `transitionPass` 的旋钮在这里都能用
+ * （`push` / `blur` / `fadeAt` / `victimRatio`）；`opts.background` 是这一层的背景。
+ * 一个都不给 = 从前的行为（`fadeAt` 0.55）。
  */
 export function makeWorldKit(ctx, opts = {}) {
   const pass = transitionPass(ctx.gl, opts);

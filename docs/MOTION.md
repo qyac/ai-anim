@@ -66,7 +66,7 @@
 | 新元素**出现**（"到达"） | **二值到达**：`type.write(text, x, y, { t, stagger })` —— **不要传 `alpha`、不要传 `from`**（§3.3） | 不许给到达做淡入（"never fade an arrival"）；真要一帧过渡就 `staggerDur ≤ 0.05s`（≤3 帧，观感等同二值） | 【外部经验值】同上 **517 行**；【引擎默认值】`src/core/text.js:291/293/303` 证明 `from: 'up'` 会 `al = e` **淡入** |
 | **已经在那儿的东西**显隐（不是到达） | `fade(f.lt, delay)` → `{ alpha: [0,1], t, staggerDur }` | 淡出随便；**淡入只给"本来就在"的东西**（面板重新出现、整屏压暗再回来） | 【引擎默认值】`src/kit/layout.js:74` |
 | 文字**逐字上浮**入场（我们现在的默认写法） | `type.write(..., { stagger, from: 'up', t: f.lt })` | ⚠ 它**是淡入**（`al = e`），与上一行冲突；**我方没做过对照实验** —— 见 §3.3 | 【引擎默认值】`src/core/text.js:296–304` |
-| 转场：**新内容把旧内容推走**（物理碰撞式） | `handlesTransition` + `transitionPass` + `enterOffset`（新内容从反方向落位） | **受害者的时长 = 入侵者的 40–50%**；三个 tween 落在**同一时间点** | 【外部经验值】[REFERENCE-hyperframes.md](REFERENCE-hyperframes.md) **518 行**（`reactive-displacement`）。**kit 里还没有这个函数**，见 §4 |
+| 转场：**新内容把旧内容推走**（物理碰撞式） | `handlesTransition` + `transitionPass(gl, { victimRatio })` + `enterOffset`（新内容从反方向落位）；比例本身用**纯函数** `planCollision({ enterDur, ratio })` 算（§3.5） | **受害者的时长 = 入侵者的 40–50%**：`VICTIM_RATIO_RANGE = [0.40, 0.50]`（闭区间）；越界**夹回区间并返回说明**（不静默）；`enterDur ≤ 0` ⇒ 受害者时长记 0；三个 tween 落在**同一时间点** | 【外部经验值】[REFERENCE-hyperframes.md](REFERENCE-hyperframes.md) **518 行**（`reactive-displacement`，**我方未实测**）+ 【引擎默认值】`src/core/trans.js`（**不传 `victimRatio` ⇒ `fadeAt` 0.55，逐像素不变**），判据由 `tools/test-transition-collision.mjs`（纯 JS）钉着 |
 | **切点上有东西活下来**（连贯 / carry）：按下的东西变成结果、卡片推近成场景、一群元素收拢成标志 | `src/kit/carry.js`：`morphRect`（容器形变）/ `iris`（圆形揭示）/ `zoomThrough`（推近穿透）/ `hop`（弧线跳）/ `gather`（收拢）；衔接物的选择表见 [REFERENCE-onetake.md](REFERENCE-onetake.md) §2.4 | **验收**：`anim carry` 判 carried/anchored/bare；**carry score < 0.5 = 像 PPT**（四版对照 0.00/0.40 被否、0.75/0.83 通过）。跨元素合成的缝（量具判 bare 但观众认）用 `cut(..., { carry: 'morph' })` 声明 | 【外部经验值】[REFERENCE-onetake.md](REFERENCE-onetake.md) §2（probe 判据：位移 ≥2% 对角线 / 缩放 ≥10%） |
 | **操作员摄影机**（跟主体、甩到落点、hold 真空静） | `operatorCam(makeCam(...), { lead, hits, rests })`（`src/kit/carry.js`） | `lead` 提前量 ~0.1s（"一帧不落"= 摄影机**先到**）；**rests 区间内浮动必须归零**（浮动着的机位永远不"死静"，静帧判据会假红）；每次落地配 `hits` 的确定性衰减 shake | 【外部经验值】同上 §4（one-dot：定机位版被否「缺灵动的跟踪运镜」、操作员版通过） |
 | **镜头长度不许匀速**（节奏：CoV ≥ 0.25） | 时间线设计层的事 —— 长枪 8–13s、短击 2–4s、burst 里 0.2–0.5s；`check` 的「节奏（静态）」腿自动报 | **变异系数 < 0.25 = 节拍器**：观众读作"一格一格翻灯片"，不管每镜多好看；单段 / `--only` 没有分布可判（进 skipped） | 【外部经验值】同上 §3（motion-web 匀速两版都被否；通过片实测 0.44 / 0.67） |
@@ -175,13 +175,44 @@ if (!g.ok) { ctx.warnings.push(g.warning); hero.alpha = g.suggested[0]; }
 - ⚠ **它现在还没有接进 `post` / `check`**：`bloom` / `halation` 的强度是 0..1 的自由数，
   引擎不会替你判"这个辉光是不是太亮"（见 §4）。
 
+### 3.5 `planCollision` —— 碰撞式转场的受害者时长（= 入侵者的 40–50%）
+
+```js
+import { planCollision, victimSpan, VICTIM_RATIO_RANGE } from '../../../src/core/trans.js';
+
+const c = planCollision({ enterDur: 0.6 });   // 交叠期 0.6s（不给 ratio ⇒ 默认 0.45）
+c.victimDur;   // 0.27s —— 旧内容该在这么久之内退干净
+c.ratio;       // 0.45（夹取之后；你原本给的那个数在 c.rawRatio）
+if (c.clamped || c.degenerate) ctx.warnings.push(c.warning);   // 函数只判定，不喊
+
+// 接线：给转场 Pass 一个比例，它就把 fadeAt 设成同一个数（k 是交叠期的归一化进度）
+this.wk = makeWorldKit(ctx, { victimRatio: 0.45 });
+```
+
+- 出处：**518 行**那条 `reactive-displacement`（"受害者的时长是入侵者的 40-50%"）。**【外部经验值】，
+  我方未实测** —— 我们证到的只有下面这些边界，不是"40–50% 在我们这儿最好看"。
+- **常量只有一处**：`VICTIM_RATIO_RANGE = [0.40, 0.50]`（`VICTIM_RATIO_DEFAULT` = 区间中点 0.45）。
+  别在场景里再写一个 0.4 / 0.5；要改口径就改常量。
+- **`enterDur` 的口径**：真实秒数就是"交叠期多长"；省略时是 **1**（= 一整段交叠期的归一化口径，
+  此时 `victimDur` 与 `fadeAt` 同值）。`transitionPass` 走的就是后一种 —— 它只知道 `k`，不知道秒数。
+- **三条边界**（都有单测）：
+  ① 越界（< 0.40 或 > 0.50）⇒ **夹回区间**并给 `warning`（带原值 / 区间 / 夹取后的时长）；
+  ② `enterDur ≤ 0`（没有交叠期）⇒ 受害者时长记 **0**（不是负数、不是 NaN），比例照原样保留；
+  ③ `NaN` / `±Inf` / 非数字 ⇒ **当场抛** —— "空 ≠ 干净"，不能把非有限数当成"没越界"。
+- **默认路径逐像素不变**：`transitionPass(gl, opts)` 不传 `victimRatio` 时 `fadeAt` 还是 0.55，
+  shader 源码逐字符相同（`tools/test-transition-collision.mjs` 直接比 `src`）。
+  `fadeAt` 与 `victimRatio` 是同一个旋钮的两种写法，**两个都给会抛**（静默忽略一个比抛错贵得多）。
+- **还能怎么用**：`victimSpan(enterDur, ratio)` 只要那个数（与 `planCollision().victimDur` 逐位相同）；
+  想自查一条切缝的节奏，用 `c.victimDur / c.enterDur` 与 `VICTIM_RATIO_RANGE` 比 —— 越界就是这次
+  按 40%/50% 夹过（`clamped`），观众看到的"旧内容走得太急/黏太久"就在这里。
+
 ---
 
 ## 4. 还没落地的（诚实清单）
 
 | 规则 | 现在的状态 | 缺什么 |
 |---|---|---|
-| 碰撞式转场：**受害者时长 = 入侵者的 40–50%**（518 行） | 只有判据，**没有函数** | `enterOffset` / `transitionPass` 的入口要能接受"入侵者时长"，再按比例排受害者的退出 —— 现在两边各写各的 |
+| 碰撞式转场：**受害者时长 = 入侵者的 40–50%**（518 行） | **已落地（2026-10-26）**：纯函数 `planCollision({ enterDur, ratio })` / `victimSpan()`（§3.5，`src/core/trans.js`）+ 接进 `transitionPass(gl, { victimRatio })`（比例 = `fadeAt`，`kit/world.js` 原样转发）；`tools/test-transition-collision.mjs` 纯 JS 钉着 | 边界：① 比例只在 `VICTIM_RATIO_RANGE = [0.40, 0.50]` 内被接受，越界**夹回并给说明**；② `enterDur ≤ 0` ⇒ 受害者时长 0、比例保留；③ 非有限数当场抛；④ `fadeAt` 与 `victimRatio` 两个都给会抛；⑤ **还没在已交付片子里用过** —— 40–50% 仍是【外部经验值】，要拿一段 `anim cuts` 看切点做对照才算【我方实测】；⑥ `docs/ENGINE.md` §后处理表里 `transitionPass` 的签名还没补 `victimRatio` |
 | 辉光峰值上限 | 函数有了，**没人调用** | 接进 `post`（或 `check` 的静态扫描：读场景里的 alpha 字面量），并定一条"谁在什么时候调用"。<br>⚠ 2026-10-26：错峰那一条已经接上了（见下），**辉光这条没接** —— 静态读 `alpha` 字面量分不清"辉光"与"正文淡入"，假阳性会淹掉真命中；要接得先给辉光一个显式声明（比如 `halo: { peak }`） |
 | 错峰跨度上限 | **已接（2026-10-26）**：`tools/lint-motion-caps.mjs` 从源码字面量算 `items × stagger`，`anim check` 每次都会跑（默认 warn、`--strict` 进 errs）；判据与 `waterfallOver()` **同一个函数口径**（0.5s），元素个数优先取「文字绘制调用的第一个实参」（const 字符串 / 数组 / 字面量），读不出就记 **unchecked**（不是通过） | 还差：`stagger` 由函数参数传进来的写法只能记 unchecked（静态读不到值）；要覆盖就得把「同屏字数」挪进运行时读数 |
 | 模糊峰值绑定最大速度（519 行） | 引擎有真运动模糊（强项），但**谁也没规定模糊什么时候最大** | `cameraPost` 之外的一个 post 助手 |

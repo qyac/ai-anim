@@ -999,7 +999,7 @@ export async function runSay(task, opts) {
   //    成片靠 --segments 的块级判断只重渲真正变了的那一块。
   let pinned = null;
   if (opts.pinTiming) {
-    const pinPath = path.join(taskDir, 'audio', 'timing.json');
+    const pinPath = path.join(taskDir, 'audio', opts.pinTable ? `${String(opts.pinTable).replace(/[^\w.-]/g, '')}.timing.json` : 'timing.json');
     if (!existsSync(pinPath)) {
       log('⚠ --pin-timing：找不到上一版 audio/timing.json，这一次按正常流程解时长（没有可钉的东西）');
     } else {
@@ -1080,13 +1080,31 @@ export async function runSay(task, opts) {
   }
 
   mkdirSync(path.join(taskDir, 'audio'), { recursive: true });
-  writeFileSync(path.join(taskDir, 'audio', 'timing.json'), JSON.stringify(timing, null, 2) + '\n');
+  /**
+   * **表写到哪儿**（BACKLOG 1-23 第三块）：默认是 `audio/timing.json` / `audio/narration.json`；
+   * 给了 `--table <名字>` 就写 `audio/<名字>.timing.json` / `audio/<名字>.narration.json`，
+   * **默认那份一个字节都不动**。
+   *
+   * 于是"另一份表"成为可能：`task.config.mjs` 的 `narration` 是个普通字符串路径，
+   * 指向哪一份就用哪一份 —— 多语言、剪短版、或者把上一轮解好的表原样回放（零 TTS 成本）。
+   */
+  const table = opts.table ? String(opts.table).replace(/[^\w.-]/g, '') : '';
+  const timingName = table ? `${table}.timing.json` : 'timing.json';
+  const narrationName = table ? `${table}.narration.json` : 'narration.json';
+  if (table && !timingName.startsWith(table)) {
+    throw new Error('--table 的名字只能含字母数字下划线短横线点，收到：' + opts.table);
+  }
+  writeFileSync(path.join(taskDir, 'audio', timingName), JSON.stringify(timing, null, 2) + '\n');
   writeFileSync(
-    path.join(taskDir, 'audio', 'timing.mjs'),
+    path.join(taskDir, 'audio', table ? `${table}.timing.mjs` : 'timing.mjs'),
     '// 由 `node scripts/anim.mjs say <任务>` 生成，不要手改；改旁白请改 narration.mjs 再重跑。\n'
     + `export default ${JSON.stringify(timing, null, 2)};\n`,
   );
-  writeFileSync(path.join(taskDir, 'audio', 'narration.json'), JSON.stringify(narration, null, 2) + '\n');
+  writeFileSync(path.join(taskDir, 'audio', narrationName), JSON.stringify(narration, null, 2) + '\n');
+  if (table) {
+    log(`· 表写到 audio/${timingName} 与 audio/${narrationName}（默认那份没动）`);
+    log(`  → 让任务用它：task.config.mjs 里 narration: './audio/${narrationName}'`);
+  }
   // 词锚点（BACKLOG 1-17）：只在**解出过锚点**时写 anchors.json —— 它是给 `check`（降级警告）
   // 和人看的解算记录，不是 timing 表的一部分。脚本里一个锚点都没有就不写这个文件；
   // 而且**先删旧的**：把锚点删掉之后旧记录留在盘上，`check` 会拿上一轮的降级继续报警。

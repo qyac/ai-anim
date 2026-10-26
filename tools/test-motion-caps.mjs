@@ -69,6 +69,25 @@ console.log('§3 读不出 ⇒ unchecked（空不等于干净）');
 }
 
 console.log('');
+console.log('§3.5 辉光峰值（1-33 ②：只认显式 halo 声明）');
+{
+  const over = scan('const s = { halo: { peak: 0.62 } };');
+  check('halo.peak 0.62 > 0.45 ⇒ 超限', over.over.length === 1 && over.over[0].kind === 'halo', JSON.stringify(over.over));
+  const ok = scan('const s = { halo: { peak: 0.30 } };');
+  check('halo.peak 0.30 ⇒ 合规', ok.over.length === 0 && ok.checked.length === 1);
+  const edge = scan('const s = { halo: { peak: 0.45 } };');
+  check('正好 0.45 ⇒ 不算超（等号不越线）', edge.over.length === 0);
+  const bare = scan('const s = { halo: 0.5 };');
+  check('halo 直接给数字也认', bare.over.length === 1, JSON.stringify(bare.over));
+  const konst = scan('const PEAK = 0.7;\nconst s = { halo: { peak: PEAK } };');
+  check('peak 用 const 也认', konst.over.length === 1 && konst.over[0].peak === 0.7);
+  const nan = scan('const s = { halo: { peak: something } };');
+  check('读不出值 ⇒ unchecked（不是通过）', nan.unchecked.length === 1 && nan.unchecked[0].kind === 'halo');
+  const plain = scan("type.write('三个', 0, 0, { stagger: 0.02 });");
+  check('没有 halo 的场景不算"没验辉光"（设计上没做辉光）', plain.unchecked.length === 0);
+}
+
+console.log('');
 console.log('§4 接线自检（check 真的调了它，且 --strict 会红）');
 {
   const cli = readFileSync(join(ROOT, 'scripts/anim.mjs'), 'utf8');
@@ -87,6 +106,7 @@ console.log('§4 接线自检（check 真的调了它，且 --strict 会红）')
   }
   check('红证明：_motion-lab --strict 以非零退出', strictExit !== 0, 'exit=' + strictExit);
   check('红证明：输出里点名 over.js 的那一行', /over\.js:28/.test(out), out.slice(-400));
+  check('红证明：输出里点名辉光那一条', /halo\.peak 0\.62/.test(out), out.slice(-600));
 }
 
 console.log('');
