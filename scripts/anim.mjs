@@ -37,7 +37,7 @@
  * 【口播/旁白】（docs/NARRATION.md；这两条都不渲染画面，改旁白/换音色不用动场景代码）
  *   node scripts/anim.mjs say <task> [--voice X] [--rate X] [--script 文件] [--bpm N]
  *                                  [--tail 1.2] [--max-stretch 1.9] [--tts "<命令>"]
- *                                  [--force] [--dry-run] [--no-vo]
+ *                                  [--force] [--dry-run] [--no-vo] [--pin-timing]
  *                                                        读 tasks/<任务>/narration.mjs（找不到就看 tools/narration.mjs）
  *                                                        → 逐句 TTS → 量真实时长 → 反推每段 stretch/slot →
  *                                                        写 audio/timing.{json,mjs} + narration.json + <任务>-vo.mp3
@@ -212,6 +212,21 @@ function opt(name, def) {
   return def;
 }
 function flag(name) { return rest.includes(`--${name}`); }
+
+/**
+ * 产物目录：`out/<任务>`，带 `--variant` 时是 `out/<任务>/<变体>`（BACKLOG 1-23）。
+ *
+ * **为什么必须分目录**：同一支片子的两个变体，成片、分块缓存、stills、hashes 基线全都不同；
+ * 挤在一个目录里会互相覆盖/串味（最隐蔽的是 `video --segments` 的块缓存：改了两句词却
+ * 复用了另一个变体的块，画面对不上还查不出来）。
+ */
+function taskOut(task, ...parts) {
+  const v = opt('variant', '');
+  // ⚠ 这里刻意写成 String(task)：这条 helper 是被一次全局替换生成出来的，
+  //    用 path.join('out', task, …) 的字面形状会被替换脚本连自己一起改掉（踩过一次，自递归爆栈）。
+  const root = path.join('out', String(task));
+  return v ? path.join(root, v, ...parts) : path.join(root, ...parts);
+}
 function positional(i = 0) { return rest.filter((a) => !a.startsWith('-'))[i]; }
 
 const log = (...a) => console.log(...a);
@@ -1003,6 +1018,8 @@ async function openSession(o) {
   // `--style paper`：临时换风格出图/预览（不改任务文件）。
   // 用途就一个 —— **一眼对比**："同一段画面在几套风格下各长什么样"（docs/STYLE.md）。
   if (opt('style', '')) params.set('style', String(opt('style')));
+  // 变体（BACKLOG 1-23）：把名字交给页面，深合并在那边的 loadTask 里做（报错也带任务名）。
+  if (opt('variant', '')) params.set('variant', String(opt('variant')));
   params.set('hud', '0');
 
   await page.goto(`${url}/?${params}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -2778,7 +2795,7 @@ async function cmdCheck() {
       //   另一个坑：`--sheet --quick` 时 opt 会把下一个 flag 当成值 ⇒ 用 startsWith('-') 挡掉。
       const sheetArg = opt('sheet', '');
       const sheetPath = path.resolve(ROOT, sheetArg && !String(sheetArg).startsWith('-') ? sheetArg
-        : path.join('out', task, 'check', 'contact.png'));
+        : taskOut(task, 'check', 'contact.png'));
       await writeContactSheet(all, sheetPath);
       log(`✓ 接触表 ${path.relative(ROOT, sheetPath)}（${all.length} 格，每段 15%/50%/85%）`);
     }
@@ -2903,7 +2920,7 @@ async function cmdStill() {
   const task = pickTask();
   const times = (opt('t', '1') ?? '1').split(',').map(Number).filter((x) => Number.isFinite(x));
   if (!times.length) die('-t 需要给时间，例如 -t 0,1.5,3');
-  const outDir = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, 'stills'))));
+  const outDir = path.resolve(ROOT, opt('out', opt('o', taskOut(task, 'stills'))));
   mkdirSync(outDir, { recursive: true });
   const samples = opt('samples', '1');
   const scale = Number(opt('scale', '0')) || undefined;
@@ -2964,7 +2981,7 @@ async function cmdCover() {
   const scrim = opt('scrim', undefined);
   // 4K 封面不要覆盖 1080p 那张：文件名带上 @2x（--out 显式给了就照给的写）
   const tag = scale && scale > 1 ? `@${scale}x` : '';
-  const outFile = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, `cover_${t.toFixed(2)}${tag}.png`))));
+  const outFile = path.resolve(ROOT, opt('out', opt('o', taskOut(task, `cover_${t.toFixed(2)}${tag}.png`))));
   mkdirSync(path.dirname(outFile), { recursive: true });
 
   await openSession({ task, scale });
@@ -3038,7 +3055,7 @@ function formatChapterTime(sec) {
 async function cmdChapters() {
   const task = pickTask();
   const minDur = Number(opt('min', '4'));
-  const outFile = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, 'chapters.txt'))));
+  const outFile = path.resolve(ROOT, opt('out', opt('o', taskOut(task, 'chapters.txt'))));
   await openSession({ task });
   try {
     const segs = (await session.page.evaluate(() => /** @type {any} */ (window).__anim.info())).timeline;
@@ -3064,7 +3081,7 @@ async function cmdSheet() {
   const n = Math.max(2, Number(opt('n', '12')));
   const cols = Math.max(1, Number(opt('cols', '4')));
   const cell = Number(opt('cell', '480'));
-  const out = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, `sheet_${from}-${to}.png`))));
+  const out = path.resolve(ROOT, opt('out', opt('o', taskOut(task, `sheet_${from}-${to}.png`))));
 
   await openSession({ task, only: opt('only', undefined) });
   try {
@@ -3102,7 +3119,7 @@ async function cmdCuts() {
   const n = Math.max(3, Number(opt('n', '7')));
   const samples = opt('samples', '1');
   const shutter = Number(opt('shutter', '0.5'));
-  const outDir = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, 'cuts'))));
+  const outDir = path.resolve(ROOT, opt('out', opt('o', taskOut(task, 'cuts'))));
   const atArg = opt('at', '');
 
   await openSession({ task, scale: Number(opt('scale', '0')) || undefined });
@@ -3213,7 +3230,7 @@ async function cmdHashes() {
   const timesArg = opt('times', opt('t', ''));
   const scale = Number(opt('scale', '0')) || undefined;
   const only = opt('only', '');
-  const baseFile = path.resolve(ROOT, opt('file', path.join('out', task, `hashes${only ? '_' + only.replace(/,/g, '-') : ''}.json`)));
+  const baseFile = path.resolve(ROOT, opt('file', taskOut(task, `hashes${only ? '_' + only.replace(/,/g, '-') : ''}.json`)));
   const accept = flag('accept');
   const force = flag('force');
   const note = String(opt('note', '') || '').trim();
@@ -3659,7 +3676,7 @@ async function cmdDumpFrame() {
   const times = (opt('t', opt('times', '0')) ?? '0').split(',').map(Number).filter(Number.isFinite);
   const samples = opt('samples', '1');
   const runUp = flag('run-up');
-  const outDir = path.resolve(ROOT, opt('out', path.join('out', task, '_dumpframe')));
+  const outDir = path.resolve(ROOT, opt('out', taskOut(task, '_dumpframe')));
   mkdirSync(outDir, { recursive: true });
   await openSession({ task, only: opt('only', undefined), scale: Number(opt('scale', '0')) || undefined });
   try {
@@ -3726,7 +3743,7 @@ async function cmdDumpFrames() {
   const to = Number(opt('to', '1'));
   const fps = Number(opt('fps', '60'));
   const samples = opt('samples', '1');
-  const outDir = path.resolve(ROOT, opt('out', path.join('out', task, '_frames')));
+  const outDir = path.resolve(ROOT, opt('out', taskOut(task, '_frames')));
   mkdirSync(outDir, { recursive: true });
   const n = Math.max(1, Math.round((to - from) * fps));
   await openSession({ task, only: opt('only', undefined), scale: Number(opt('scale', '0')) || undefined });
@@ -4057,7 +4074,7 @@ async function cmdProbeAlpha() {
  */
 async function cmdVerify() {
   const task = pickTask();
-  const file = path.resolve(ROOT, opt('file', opt('o', path.join('out', task, `${task}.mp4`))));
+  const file = path.resolve(ROOT, opt('file', opt('o', taskOut(task, `${task}.mp4`))));
   if (!existsSync(file)) die(`没有找到成片 ${path.relative(ROOT, file)}。先跑 video，或用 --file 指定。`);
 
   const p = await probeVideo(file, { count: false });
@@ -4202,7 +4219,7 @@ async function cmdVerify() {
  */
 async function cmdQa() {
   const task = pickTask();
-  const file = path.resolve(ROOT, opt('file', opt('o', path.join('out', task, `${task}.mp4`))));
+  const file = path.resolve(ROOT, opt('file', opt('o', taskOut(task, `${task}.mp4`))));
   if (!existsSync(file)) die(`没有找到成片 ${path.relative(ROOT, file)}。先跑 video，或用 --file 指定。`);
   const strict = flag('strict');
   const withDecode = !flag('no-decode');
@@ -4341,7 +4358,7 @@ function pixelDiff(a, b) {
 async function cmdDumpPx() {
   const task = pickTask();
   const times = (opt('times', opt('t', '1')) ?? '1').split(',').map(Number).filter(Number.isFinite);
-  const out = path.resolve(ROOT, opt('out', path.join('out', task, '_browser.raw')));
+  const out = path.resolve(ROOT, opt('out', taskOut(task, '_browser.raw')));
   await openSession({ task, scale: Number(opt('scale', '0')) || undefined, only: opt('only', undefined) });
   try {
     for (const t of times) {
@@ -4854,7 +4871,7 @@ async function cmdVideo(short = false) {
     const fps = Number(opt('fps', String(info.fps)));
     const samples = opt('samples', draft ? '1' : (short ? '8' : 'auto'));
     const shutter = Number(opt('shutter', '0.5'));
-    const out = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, short ? `shot_${from}-${to}.mp4` : `${task}.mp4`))));
+    const out = path.resolve(ROOT, opt('out', opt('o', taskOut(task, short ? `shot_${from}-${to}.mp4` : `${task}.mp4`))));
     mkdirSync(path.dirname(out), { recursive: true });
 
     const audioFile = tracks.packaging;
@@ -6724,6 +6741,8 @@ async function cmdSay() {
     force: flag('force'),
     dryRun: flag('dry-run'),
     noVo: flag('no-vo'),
+    // BACKLOG 1-23：拿上一版 audio/timing.json 当钉子 —— 时间线不动，改一句词不重排全片
+    pinTiming: flag('pin-timing'),
   });
   return r;
 }
@@ -7058,7 +7077,7 @@ async function cmdSubs() {
     );
   }
 
-  const outDir = path.resolve(ROOT, opt('out', opt('o', path.join('out', task))));
+  const outDir = path.resolve(ROOT, opt('out', opt('o', taskOut(task))));
   mkdirSync(outDir, { recursive: true });
   const base = path.join(outDir, `${opt('name', task)}`);
   const per = Math.max(8, Number(opt('per', '16')) || 16);

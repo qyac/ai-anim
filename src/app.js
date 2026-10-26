@@ -138,7 +138,12 @@ async function boot() {
 
   // 先把音乐（可选）拿到：时间线里可能用拍号而不是秒来写
   setHud('读取任务…');
-  const preTask = await loadTask(taskName);
+  // 变体（BACKLOG 1-23）：--variant 名字 ⇒ 深合并覆盖。必须**两次**都带上 ——
+  // preTask 决定"有没有音乐/要不要先分析"，task 才是真正跑的那份；只带一次会出现
+  // "音乐按变体加载、时间线按原配置"的错位。
+  const variantName = q.get('variant') || null;
+  if (variantName) console.info('[variant] 使用变体 "' + variantName + '"');
+  const preTask = await loadTask(taskName, { variant: variantName });
   /**
    * 任务里的路径（audio / lyrics / analysis）都是**相对任务目录**的：
    * './audio/x.mp3' 指的是 tasks/<任务>/audio/x.mp3。
@@ -159,7 +164,7 @@ async function boot() {
     });
   }
 
-  const task = await loadTask(taskName, { music });
+  const task = await loadTask(taskName, { music, variant: variantName });
   /**
    * 旁白表可以从**文件**来（`narration: './narration.json'`）。
    * 与 `lyrics` 同一个套路：JSON 是外部脚本（TTS 量长那一步）产出的，任务目录里相对路径引用。

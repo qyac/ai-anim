@@ -72,3 +72,23 @@ export default {
     cut(bare, { dur: 6, world: 'auto' }),
   ]),
 };
+
+/**
+ * 变体（BACKLOG 1-23）：anim still|video _info-lab --variant dark 会把这个对象深合并到上面那份配置上。
+ * 规则：普通对象逐键递归，**数组与原始值整体替换**（timeline 写什么就是什么，不会和原来的拼起来）。
+ * 产物落在 out/_info-lab/<变体>/ —— 否则两个变体的 stills / 分块缓存会互相覆盖。
+ */
+export const variants = {
+  dark: {
+    style: 'noir',
+    palette: { signal: '#8ad7ff' },
+  },
+  paper: {
+    style: 'paper',
+    // 时间线整体替换：只留两段，验证「数组不被拼接」
+    timeline: [
+      { type: 'bigtype', dur: 5, world: false, kicker: 'VARIANT / paper', line1: '同一份代码', line2: '换一套皮' },
+      { type: 'chart', dur: 5, values: [0.2, 0.5, 0.9], title: '换变体' },
+    ],
+  },
+};

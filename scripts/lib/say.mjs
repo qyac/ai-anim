@@ -676,10 +676,16 @@ export function synthLine(driver, { file, text, voice, rate, force = false }) {
  * 纯函数：把"每句念了多久"解成每段的 `start / slot / stretch` 与每句的绝对时刻。
  * 单独拿出来是因为**这是整套东西里唯一值得单测的部分**（不需要 TTS、不需要 GPU）。
  *
- * @param {{ scenes: any[], beat: number|null, overlap: number|'beat'|null, tail: number, maxStretch: number }} a
- * @returns {{ scenes: any[], total: number, warnings: string[] }}
+ * **`pinned`（BACKLOG 1-23）：把上一版 `timing.json` 的 `scenes` 传进来**，同一 id 且新旁白仍放得下
+ * 就直接沿用它的 `stretch` / `slot` —— 时间线一个像素都不动，于是「改一句词」只重出那句音频，
+ * 成片靠 `--segments` 的块级判断只重渲真正变了的那一块（1-45）。放不下（话变长了）才重解这一段，
+ * 并在 `warnings` 里说清是哪一段、超了多少。
+ *
+ * @param {{ scenes: any[], beat: number|null, overlap: number|'beat'|null, tail: number, maxStretch: number,
+ *           pinned?: any[]|null }} a
+ * @returns {{ scenes: any[], total: number, warnings: string[], pinned: string[], resolved: string[] }}
  */
-export function solveTiming({ scenes, beat, overlap, tail, maxStretch }) {
+export function solveTiming({ scenes, beat, overlap, tail, maxStretch, pinned = null }) {
   const warnings = [];
   const bpmBeat = beat && beat > 0 ? beat : FALLBACK_BEAT;
   const ov = overlap === 'beat' || overlap == null
@@ -687,6 +693,11 @@ export function solveTiming({ scenes, beat, overlap, tail, maxStretch }) {
     : Number(overlap);
   const roundBeat = (x) => Math.ceil(x / bpmBeat - 1e-6) * bpmBeat;
   const out = [];
+  const pinnedIds = [];
+  const resolvedIds = [];
+  const pinnedById = new Map(
+    (Array.isArray(pinned) ? pinned : []).filter((p) => p && p.id).map((p) => [p.id, p]),
+  );
   let cursor = 0;
   for (const sc of scenes) {
     const lines = sc.lines.map((l, i) => ({ ...l, index: i }));
@@ -695,8 +706,35 @@ export function solveTiming({ scenes, beat, overlap, tail, maxStretch }) {
       throw new Error(`[${sc.id}] 有句子的时长量出来是 ${measured.find((l) => !(l.dur > 0))?.dur} —— TTS 没出声？`);
     }
     const need = Math.max(...measured.map((l) => l.cue + l.dur)) + tail;
+    // ── 钉住上一版（BACKLOG 1-23）──
+    // 同一 id + 新旁白仍然放得下 ⇒ 沿用上一版的 stretch/slot，**时间线不动**。
+    // 判断「放得下」用的是同一个 finish 公式；多给 1e-6 的容差，避免浮点噪声把等号判成超。
     const wantStretch = need / Number(sc.internal);
-    const stretch = Math.min(maxStretch, Math.max(1, wantStretch));
+    const pin = pinnedById.get(sc.id);
+    let stretch;
+    let pinnedNow = false;
+    if (pin && Number(pin.slot) > 0 && Number(pin.stretch) > 0) {
+      const pinStretch = Number(pin.stretch);
+      const pinSlot = Number(pin.slot);
+      const pinFinish = Math.max(
+        Number(sc.internal) * pinStretch,
+        ...measured.map((l) => l.cue * pinStretch + l.dur),
+      ) + tail;
+      if (pinFinish <= pinSlot + 1e-6) {
+        stretch = pinStretch;
+        pinnedNow = true;
+        pinnedIds.push(sc.id);
+      } else {
+        warnings.push(
+          `[${sc.id}] 新旁白比上一版长 ${(pinFinish - pinSlot).toFixed(2)}s，放不进原来的 slot `
+          + `(${pinSlot.toFixed(2)}s) —— 这一段重解（时间线会动，相关块要重渲）；其余段仍然钉住。`,
+        );
+      }
+    }
+    if (!pinnedNow) {
+      stretch = Math.min(maxStretch, Math.max(1, wantStretch));
+      if (pin) resolvedIds.push(sc.id);
+    }
     if (wantStretch > maxStretch + 1e-6) {
       warnings.push(
         `[${sc.id}] 旁白需要把画面放慢 ${wantStretch.toFixed(2)}× 才念得完，但 MAX_STRETCH=${maxStretch}`
@@ -707,8 +745,9 @@ export function solveTiming({ scenes, beat, overlap, tail, maxStretch }) {
       Number(sc.internal) * stretch,
       ...measured.map((l) => l.cue * stretch + l.dur),
     ) + tail;
-    const slot = roundBeat(finish);
-    if (slot > finish + bpmBeat) {
+    // 钉住时 slot 用上一版的值（不是 roundBeat(finish)）—— 差半拍也会让整条时间线挪位
+    const slot = pinnedNow ? Number(pin.slot) : roundBeat(finish);
+    if (!pinnedNow && slot > finish + bpmBeat) {
       warnings.push(`[${sc.id}] slot ${slot.toFixed(2)}s 比需要 ${finish.toFixed(2)}s 多出超过一整拍 —— 检查 beat 对不对。`);
     }
     for (let i = 1; i < measured.length; i++) {
@@ -742,7 +781,7 @@ export function solveTiming({ scenes, beat, overlap, tail, maxStretch }) {
     cursor += slot - ov;
   }
   const total = round3(cursor + ov);
-  return { scenes: out, total, overlap: round3(ov), beat: bpmBeat, warnings };
+  return { scenes: out, total, overlap: round3(ov), beat: bpmBeat, warnings, pinned: pinnedIds, resolved: resolvedIds };
 }
 
 /* --------------------------------------------------------------- 主流程 */
@@ -955,14 +994,39 @@ export async function runSay(task, opts) {
   }
 
   // 2) 解时长（纯函数）
+  //    --pin-timing（BACKLOG 1-23）：拿上一版 audio/timing.json 当"钉子"，同 id 且新旁白
+  //    仍放得下就沿用它的 stretch/slot ⇒ 时间线不动 ⇒ 改一句词只重出那句音频，
+  //    成片靠 --segments 的块级判断只重渲真正变了的那一块。
+  let pinned = null;
+  if (opts.pinTiming) {
+    const pinPath = path.join(taskDir, 'audio', 'timing.json');
+    if (!existsSync(pinPath)) {
+      log('⚠ --pin-timing：找不到上一版 audio/timing.json，这一次按正常流程解时长（没有可钉的东西）');
+    } else {
+      try {
+        const prev = JSON.parse(readFileSync(pinPath, 'utf8'));
+        pinned = Array.isArray(prev?.scenes) ? prev.scenes : null;
+        log(`· --pin-timing：拿 ${pinned?.length ?? 0} 段的旧时长当钉子（同 id 且放得下就沿用）`);
+      } catch (err) {
+        log(`⚠ --pin-timing：上一版 timing.json 读不出来（${String(err?.message ?? err)}），按正常流程解时长`);
+      }
+    }
+  }
   const solved = solveTiming({
     scenes: scenesForTiming,
     beat,
     overlap: opts.overlap ?? script.overlap,
     tail,
     maxStretch,
+    pinned,
   });
   for (const w of solved.warnings) log(`⚠ ${w}`);
+  if (solved.pinned?.length) {
+    log(`· 钉住 ${solved.pinned.length} 段（时间线不动）：${solved.pinned.join(' / ')}`);
+  }
+  if (solved.resolved?.length) {
+    log(`· 重解 ${solved.resolved.length} 段（旁白变长了）：${solved.resolved.join(' / ')}`);
+  }
 
   // 3) 写表
   const timing = {

@@ -386,3 +386,37 @@ node tools/test-mix-loudnorm.mjs      # 53 项；没有 ffmpeg 时 exit 2（「�
 夹具与产物一律写 `os.tmpdir()`，不往仓库里写任何文件。它也挂在 `tools/regress-all.mjs` 的
 `unit:mix-loudnorm` 上（`allowSkip: true`）。
 
+
+---
+
+## 8. 改一句词不重排全片：`anim say --pin-timing`（BACKLOG 1-23）—— ✅ 已落地
+
+**问题**：`say` 每次都重解 `slot`/`stretch`。改一句词 → 那句时长变 → 它那段 `slot` 变 → 后面每段的起点全挪 →
+`task.config.mjs` 里的 `timing.scenes[i].slot` 全变 → **整片重渲**（哪怕只改了一个字）。
+
+**做法**：把上一版 `audio/timing.json` 当"钉子"。同 `id` 且新旁白**仍放得下**该段原来的 `slot`，
+就沿用它的 `stretch` 与 `slot` —— 时间线一个数都不动，于是：
+
+- TTS 只重合成**改过的那句**（逐句 sha1 缓存本来就在）；
+- 成片靠 `--segments` 的块级判断（1-45）只重渲**真正变了的那一块**；
+- 放不下（话变长）才重解那一段，并在日志与 `warnings` 里说清**哪一段、长了多少**，其余段照旧钉住。
+
+```sh
+node scripts/anim.mjs say <任务> --pin-timing      # 改词之后跑这一条
+```
+
+判据（`tools/test-pin-timing.mjs` 15 项纯函数 + `tools/test-pin-timing-e2e.mjs` 9 项端到端）：
+
+| 情形 | 期望 |
+|---|---|
+| 同 id、改短或等长 | `slot` / `stretch` **逐位相等**，`total` 不变，日志「钉住 N 段」 |
+| 同 id、改长到放不下 | 只重解这一段（`slot` 变大），警告「放不进原来的 slot（长了 X s）」，其余段仍钉住 |
+| 段被删 / 改名（id 没了） | 当新段解；`pinned` 里的陌生 id 不影响 |
+| 没有上一版 timing | 明说「没有可钉的东西」，按正常流程解 |
+
+> **它不是什么**：不会让"换了音色/语速"的时间线保持不变（那本来就会变），也不会跳过 TTS ——
+> 改过的那句**必须**重新合成。它省的只是"其余段的时长被顺带改动"。
+
+离线复现用的假驱动：`tools/fake-tts.mjs`（按文本长度生成等长低音量正弦，协议与 `tools/tts-edge.py` 一致）。
+⚠ 它**不能**用纯静音：`say` 按"说到哪算到哪"剔尾部静音，全静音会被量成 0.12s 下限，
+"文本变长 ⇒ 时长变长"这条前提就不成立了（第一版正是这么栽的，端到端测试当场抓住）。

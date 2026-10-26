@@ -12,6 +12,9 @@ const configs = import.meta.glob('/tasks/*/task.config.mjs');
 
 import { makeNarration } from './core/narration.js';
 import { resolveStyle } from './style/index.js';
+// 深合并（变体用）：放 core/util.js 而不是这里 —— tasks.js 顶层是 Vite 专属的 import.meta.glob，
+// Node 直接 import 会炸；纯函数要能被 tools/test-variants.mjs 直接测到。
+import { deepMergeInto } from './core/util.js';
 
 /**
  * @typedef {Object} TaskSpec
@@ -80,7 +83,7 @@ export function normalizeAudio(audio) {
 }
 
 /** 载入某个任务的配置。 */
-export async function loadTask(name, { music = null } = {}) {
+export async function loadTask(name, { music = null, variant = null } = {}) {
   // 允许任务名里带引号/斜杠之类的意外输入，直接拒绝比默默跑挂好
   if (!/^[\w.-]+$/.test(name)) throw new Error(`任务名不合法：${name}`);
   const key = Object.keys(configs).find((k) => nameOfKey(k) === name);
@@ -94,7 +97,23 @@ export async function loadTask(name, { music = null } = {}) {
   }
   const mod = await loader();
   const spec = /** @type {TaskSpec} */ (mod.default ?? mod);
-  if (!spec) throw new Error(`tasks/${name}/task.config.mjs 没有 export default`);
+  if (!spec) throw new Error('tasks/' + name + '/task.config.mjs 没有 export default');
+  const variantName = variant == null ? null : (String(variant).trim() || null);
+  // 变体（BACKLOG 1-23）：export const variants = { 名字: {…覆盖…} }，CLI 的 --variant 选一个。
+  // 深合并规则只有一条：普通对象逐键递归合并，**数组与原始值整体替换**
+  //（timeline / palette 这类不适合把两个数组拼起来；要拼就在变体里写全）。
+  // 未知变体名直接抛错并列出可用的 —— 与镜头模板参数拼错同一个口径：写错不许静默。
+  const variants = (mod.variants && typeof mod.variants === 'object') ? mod.variants : null;
+  if (variants) spec.variants = variants;
+  if (variantName) {
+    const patch = variants && variants[variantName];
+    if (!patch) {
+      const known = Object.keys(variants ?? {}).join(' / ') || '（这个任务没有 export const variants）';
+      throw new Error('任务 "' + name + '" 没有变体 "' + variantName + '"。可用：' + known);
+    }
+    deepMergeInto(spec, patch);
+    spec.variantName = variantName;
+  }
   /**
    * `export const world = (ctx) => Pass` 是**具名导出**，而这里只拿 `default` ——
    * 所以必须显式带过来，否则时间线里的 `{ world: 'auto' }` 永远解析不到东西

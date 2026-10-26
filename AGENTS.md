@@ -99,6 +99,8 @@ npm run dev                                     # 浏览器里实时预览（空
 export default {
   title: '我的片子', width: 1920, height: 1080, fps: 60, scale: 1,
   style: 'paper',                                // ← 风格包（anim styles 看全部；不写 = print）
+  // export const variants = { dark: { style: 'noir', palette: { signal: '#0ff' } } };
+  //   → node scripts/anim.mjs video <任务> --variant dark（深合并覆盖；数组整体替换；产物落 out/<任务>/dark/）
   captions: true,                                // ← 引擎字幕层（有旁白时开；见 docs/CAPTIONS.md）
   timeline: [                                    // 数组、seq([...]) 都行
     { type: 'title', title: '我的片子', sub: '副标题', dur: { beat: 8 } },

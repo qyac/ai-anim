@@ -362,3 +362,22 @@ export function bar(x, width = 24) {
   const n = Math.round(sat(x) * width);
   return '█'.repeat(n) + '░'.repeat(width - n);
 }
+/**
+ * 深合并：普通对象逐键递归，**数组与原始值整体替换**（就地改 target，返回它）。
+ *
+ * 谁在用：任务的变体（`export const variants = {…}` + `--variant`，BACKLOG 1-23）。
+ * 为什么数组不拼：`timeline` / `values` 这类数组的语义都是「这一份就是全部」，
+ * 拼起来会得到一条既不属于原版也不属于变体的时间线 —— 那种错很难在图上看出来。
+ * @param {any} target @param {any} patch
+ */
+export function deepMergeInto(target, patch) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return target;
+  for (const [k, v] of Object.entries(patch)) {
+    const cur = target[k];
+    const bothPlain = v && typeof v === 'object' && !Array.isArray(v)
+      && cur && typeof cur === 'object' && !Array.isArray(cur);
+    if (bothPlain) deepMergeInto(cur, v);
+    else target[k] = Array.isArray(v) ? v.slice() : v;
+  }
+  return target;
+}
