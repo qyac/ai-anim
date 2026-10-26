@@ -558,7 +558,8 @@ captions: true,                    // ← 就这一行；场景里一个字都�
    `node tools/lint-narration-dup.mjs <任务>` 自查（它会把逐字重复报到 `文件:行号`）。
 2. **字幕带是保留区**：别把面板/计量条放进去。kit 的 `assertInBand()` 会在压上时警告，
    `check` 会把这类警告打出来（走 `ctx.warnings`，不是 `console.warn` —— 它每帧都会发生）。
-3. **别做逐词高亮**（`karaoke: true` 要显式开）：12 分钟 / 96 人的对照实验里，字幕本身
+3. **断行交给引擎**（`src/core/cjk.js`）：行首禁则 / 不拆词 / 两行平衡 / 超长句不丢字 —— 别在旁白文本里手打换行（见 `docs/CAPTIONS.md` §3.5）。
+4. **别做逐词高亮**（`karaoke: true` 要显式开）：12 分钟 / 96 人的对照实验里，字幕本身
    对记忆与理解没有负面影响，**关键词突显是负效应**（受试者把它当成筛选信息的替代品）。
 
 平台字幕（上传用）另有一条命令：`node scripts/anim.mjs subs <任务>` → `out/<任务>/*.srt|.ass`

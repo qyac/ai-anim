@@ -38,6 +38,10 @@
  */
 
 import { css } from './util.js';
+import { breakCaption } from './cjk.js';
+
+/** 超长句的提醒只报一次（按句子文本去重） */
+const warnedOverflow = new Set();
 
 /** 字幕默认样式（风格包的 `captions` 字段覆盖它）。 */
 export const DEFAULT_CAPTION_STYLE = {
@@ -148,14 +152,29 @@ export function makeCaptionLayer({ narration, style, P, W, H, grid }) {
     const c = layer.ctx;
     const { line, alpha } = cur;
     const st = { size: style.size, weight: style.weight, family: style.family ?? 'sans' };
-    const maxW = style.size * style.maxCharsPerLine;
-    let rows = layer.type.wrap(line.text, st, maxW);
-    // 太长就整体缩一号重排（字幕不省略号 —— 省略等于丢信息）
-    if (rows.length > style.maxLines) {
+    /**
+     * 断行交给 `src/core/cjk.js`（2026-10-26）：
+     *   · **禁则**：`，。」` 不许在行首（挂到上一行末尾）、`「（` 不许在行尾；
+     *   · **不拆词**：`24fps` / `v0.9.0` 这类拉丁数字串算一个整体；
+     *   · **两行平衡**：不再出现 15 + 1 的孤儿行；
+     *   · **绝不截断**：放不下就多给行（`overflow`），由这里决定"缩字号"还是"接受多一行"。
+     *     旧实现在这里 `rows.slice(0, maxLines)` —— 长句的后半句会被**吃掉**，字幕少半句话。
+     */
+    let brk = breakCaption(line.text, { maxChars: style.maxCharsPerLine, maxLines: style.maxLines });
+    // 太长就整体缩一号重排（字幕不省略号 —— 省略等于丢信息）；缩字号后每行能多放约 16% 的字
+    if (brk.overflow) {
       const smaller = { ...st, size: Math.round(style.size * 0.86) };
-      const r2 = layer.type.wrap(line.text, smaller, smaller.size * style.maxCharsPerLine);
-      if (r2.length <= style.maxLines) { rows = r2; st.size = smaller.size; }
-      else rows = rows.slice(0, style.maxLines);
+      const b2 = breakCaption(line.text, {
+        maxChars: Math.round(style.maxCharsPerLine * 1.16),
+        maxLines: style.maxLines,
+      });
+      if (!b2.overflow) { brk = b2; st.size = smaller.size; }
+    }
+    const rows = brk.rows.length ? brk.rows : [String(line.text ?? '')];
+    if (brk.overflow && !warnedOverflow.has(line.text)) {
+      warnedOverflow.add(line.text);
+      // 每句只提醒一次（与 util.js 的 `prog()` 警告同一个套路：这里没有 ctx.warnings）
+      console.warn(`[字幕] 这句太长，${rows.length} 行（maxLines=${style.maxLines}）：${line.text}`);
     }
     const lh = st.size * style.lineHeight;
     const widest = Math.max(...rows.map((r) => layer.type.measure(r, st)), 1);

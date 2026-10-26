@@ -360,3 +360,26 @@ node scripts/anim.mjs subs <任务> --name 字幕       # 换文件名前缀
 [`docs/SCENE-BRIEF-TEMPLATE.md`](./SCENE-BRIEF-TEMPLATE.md) ·
 `docs/ENGINE.md` §2.1 / §2.2 / §3.3 / §5.2 · `AGENTS.md` §6.5 / §10 ·
 `src/core/captions.js` · `src/core/narration.js` · `src/kit/bands.js` · `src/core/text.js`。
+
+---
+
+## 3.5 断行：禁则 / 平衡 / 不丢字（2026-10-26）
+
+字幕的画法（淡入淡出、停留、底衬、字幕带位置）见 §3；这一节只说**断行**，因为它最容易
+"看着不对劲又说不出哪不对"。
+
+断行现在由 `src/core/cjk.js` 的 `breakCaption()` 负责（纯函数，`tools/test-cjk.mjs` 28 项）：
+
+| 规则 | 之前（`type.wrap` 宽度贪心） | 现在 |
+|---|---|---|
+| **行首禁则** | `，。、）」` 可能落在行首 | 挂到上一行末尾（悬挂，允许溢出 1 个字宽） |
+| **行尾禁则** | `「（` 可能留在行尾 | 推到下一行 |
+| **不拆词** | `24fps` / `v0.9.0` 会被切成两半 | 拉丁字母/数字/小数点连成一个单元 |
+| **两行平衡** | 15 + 1 的孤儿行 | 在接近中点、优先标点处重断 |
+| **超长句** | `rows.slice(0, maxLines)` —— **吃掉后半句** | 缩字号（×0.86，每行多放 16% 字）→ 仍不行就**多给一行**并 `console.warn` 一次 |
+
+最后一条是真 bug 级：旧实现遇到长句会**静默截断**，观众看到的是半句话。
+现在 `breakCaption()` 的返回值里 `rows.join('')` 恒等于原文（测试钉着）。
+
+**默认行为**：不需要任何配置，`captions: true` 就走新断行。
+`style.captions.maxCharsPerLine / maxLines` 仍然生效（竖屏是 12 字 / 2 行，见 `docs/STYLE.md` §4.1）。
