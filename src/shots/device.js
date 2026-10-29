@@ -17,6 +17,7 @@
 import { Pass } from '../core/gl.js';
 import { css, ease, prog, clamp, cycle, mixColor } from '../core/util.js';
 import { resolveTypeSize } from '../style/tokens.js';
+import { drawIcon } from '../kit/icons.js';
 
 /** 全部参数 = "什么都不传时的画面"。`rows` 是每一行内容的宽度占内容区的比例。 */
 const DEFAULTS = {
@@ -24,6 +25,8 @@ const DEFAULTS = {
   kicker: 'DEVICE / 界面',
   chrome: 'anim.local / preview',
   title: '一屏只说一件事',
+  // 可选的应用图标（标题栏左侧；空串 = 不画）。同上：白名单是 DEFAULTS。
+  icon: '',
   rows: [0.86, 0.62, 0.74, 0.44],
   footer: '窗口是介质，不是主体 —— 主体是那句话',
 };
@@ -96,8 +99,15 @@ export function deviceShot(opts = {}) {
       const barK = ease.outCubic(prog(t, 1.0, 1.6));
       lines.seg(x0 + 1, y0 + barH, x0 + 1 + (w0 - 2) * barK, y0 + barH, rule.hair ?? 1,
         [P.graphite[0], P.graphite[1], P.graphite[2], 0.8]);
+      // 标题栏可选的"应用图标"：给了就画在最左边，替代第一个圆点（默认没有 → 旧画面不变）
+      if (o.icon) {
+        const lit0 = clamp((t - 1.2) * 4);
+        drawIcon(lines, String(o.icon), x0 + 14, y0 + barH * 0.5 - 9, 18,
+          [P.signal[0], P.signal[1], P.signal[2], 0.9 * lit0], { lw: 1.5 });
+      }
+      const dotsX = o.icon ? 44 : 20;   // 有应用图标时三个圆点整体右移，避免压在一起
       for (let i = 0; i < 3; i++) {
-        const cx = x0 + 20 + i * 16;
+        const cx = x0 + dotsX + i * 16;
         const cy = y0 + barH * 0.5;
         const lit = clamp((t - 1.2 - i * 0.08) * 4);
         lines.circle(cx, cy, 4, 1,
@@ -189,6 +199,7 @@ deviceShot.meta = {
     { name: 'kicker', type: 'string', desc: '左上眉标' },
     { name: 'chrome', type: 'string', desc: '标题栏里那行等宽小字（像地址栏 / 文件名）' },
     { name: 'title', type: 'string', desc: '窗口里那句标题（h2 级，逐字上浮）' },
+    { name: 'icon', type: 'string', desc: '可选的应用图标（名字见 anim icons），画在标题栏左侧' },
     { name: 'rows', type: 'number[]', desc: '每行内容的宽度比例（0..1）；长度 = 行数' },
     { name: 'footer', type: 'string', desc: '底部一行（页脚带里，最后淡入；空串则不画）' },
   ],
@@ -202,7 +213,7 @@ deviceShot.meta = {
  */
 deviceShot.spec = {
   params: {
-    id: 'string', kicker: 'string', chrome: 'string', title: 'string', rows: 'number[]', footer: 'string',
+    id: 'string', kicker: 'string', chrome: 'string', title: 'string', rows: 'number[]', footer: 'string', icon: 'string',
   },
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },

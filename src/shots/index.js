@@ -172,6 +172,9 @@ export function shot(name, opts = {}) {
       + '（看参数：node scripts/anim.mjs shots <名字>）',
     );
   }
+  // ⚠ 参数白名单就是 factory.defaults（不是 spec.params、也不是 meta.params）。
+  //   加一个可选参数要三处都写：DEFAULTS（校验用）、meta.params（--help）、spec.params（契约）。
+  //   只写后两处的话 check / still 会报「没有参数 xxx」，而 node --check 不会 —— 实测踩过。
   const valid = factory.defaults ?? {};
   if (opts && typeof opts === 'object') {
     for (const k of Object.keys(opts)) {
