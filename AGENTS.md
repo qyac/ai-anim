@@ -821,6 +821,9 @@ node scripts/anim.mjs check <任务>
 11.6 **每一秒都有东西看**（有音乐时也要）：`check` 的「事件密度」那行读的是**成片**的帧间差 ——
     `最长静止 ≤ 3.5s`、`稀薄窗口 ≤ 25%`（低于均值一半的 2 秒窗口）。超了就给它补持续运动（推近/扫线/逐条落位），
     别指望 2px 游标或 0.09 alpha 的水印——检测器和人眼都看不见。单独体检：`node tools/lint-event-density.mjs <任务>`。
+11.7 **提交前钩子会自动跑一次自检**（只读已有成片，不渲染）：`node tools/install-git-hooks.mjs` 装一次，
+    之后 `git commit` 会对**你改到的任务**跑 `anim report`；判据红就拦住提交。
+    只是被引擎改动顺带扫到的片子只提醒、不拦（重渲与否是人决定的）。绕过：`git commit --no-verify`。
 12. **自检最多 3 轮，3 轮不过就交人**（第 4 轮开始就是在猜）；发布前派一个只挑毛病不夸的审查者，
     交回**按时间码排序的问题清单 + 证据**（哪一秒、哪张图、什么问题）。两条的原文与理由见
     [`docs/REFERENCE-video-use.md`](docs/REFERENCE-video-use.md) §3.3；切点优先看 `anim cuts`。
