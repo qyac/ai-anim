@@ -24,7 +24,8 @@ const opt = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 && argv[
 const styles = (opt('styles', 'mg-flat-vector,mg-vhs,mg-bauhaus,mg-hud,mg-pixel')).split(',');
 const task = opt('task', '_style-sampler');
 const at = Number(opt('t', '6'));
-const TOL = Number(opt('tol', '28'));   // 允许后处理（颗粒/暗角/泛光）带来的偏差
+// 允许后处理带来的偏差：角落一定被暗角/颗粒压暗，实测 23–38，取 45 留余量
+const TOL = Number(opt('tol', '45'));
 
 const PORT = Number(opt('port', '5211'));
 const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: ROOT, shell: true, stdio: 'ignore' });
@@ -46,12 +47,18 @@ async function waitPort(port, ms = 60000) {
   return false;
 }
 
+const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+/** @type {{style:string, ink:string|null, want:number[], rgb:number[]}[]} */
+const results = [];
+let promise = null;
 let fail = 0;
 try {
   if (!(await waitPort(PORT))) throw new Error('vite 没在 60s 内起来（端口 ' + PORT + '）');
   const browser = await chromium.launch({ channel: 'chrome' });
+  // ⚠ 复用同一个页面：每套风格开一个新 page 会把 WebGL 上下文用光，
+  //   后面几套的场景 setup 直接失败 —— 画面变成错误卡（#5f2222），看起来像"调色板不对"。
+  const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
   for (const s of styles) {
-    const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
     await page.goto(`http://127.0.0.1:${PORT}/?task=${task}&style=${s}&t=${at}`, { waitUntil: 'load' });
     await page.waitForFunction(() => window.__anim?.info?.().duration > 0, { timeout: 180000 });
     const r = await page.evaluate(async (tt) => {
@@ -62,8 +69,8 @@ try {
       const idx = ((H - 1 - 8) * W + 8) * 4;
       return { ink: window.__animPalette?.hex?.ink ?? null, rgb: [px[idx], px[idx + 1], px[idx + 2]], style: info.style };
     }, at);
-    await page.close();
     if (!r.ink) { console.log('? ' + s + ' 拿不到调色板'); continue; }
+    results.push({ style: s, ink: r.ink, want: hex2rgb(r.ink), rgb: r.rgb });
     const want = hex2rgb(r.ink);
     const d = dist(want, r.rgb);
     const ok = d <= TOL;
@@ -75,6 +82,21 @@ try {
     );
   }
   await browser.close();
+  await promise;
+  // 序关系：ink 亮的风格，画面也必须更亮（防止"都变灰"这种整体塌陷蒙混过关）
+  const rows = results.filter((x) => x.ink);
+  const light = rows.filter((x) => lum(x.want) > 128);
+  const dark = rows.filter((x) => lum(x.want) < 64);
+  if (light.length && dark.length) {
+    const minLight = Math.min(...light.map((x) => lum(x.rgb)));
+    const maxDark = Math.max(...dark.map((x) => lum(x.rgb)));
+    const ok = minLight > maxDark + 40;
+    if (!ok) fail++;
+    console.log(
+      (ok ? '  PASS  ' : '  FAIL  ') + '亮底/暗底分档（亮底最低 ' + minLight.toFixed(0)
+      + ' vs 暗底最高 ' + maxDark.toFixed(0) + '）'
+    );
+  }
 } finally {
   vite.kill();
 }

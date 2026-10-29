@@ -489,7 +489,7 @@ export class Engine {
         this._errorCard(rt, item, item.id, t, idx, `场景没有加载成功（setup 失败或 --only 选错了段）`);
         // `_errorCard` 里已经 upload 过图层，所以这里可以安全地提交（见下面的长注释）
         if (layer?._uploaded) this.comp.draw(this.gl, layer, rt, { premult: false });
-        this.gl.paint.markError = true;
+        if (this.gl.paint) this.gl.paint.markError = true;
         under = rt; outTex = rt;
         continue;
       }
@@ -573,7 +573,7 @@ export class Engine {
         post = { ...DEFAULT_POST, ...stylePost };
         this._errorCard(rt, item, item.id, t, idx, msg);
         drewErrorCard = true;
-        this.gl.paint.markError = true;
+        if (this.gl.paint) this.gl.paint.markError = true;
       }
       // 把这一段的 Canvas2D 图层（场景的文字/图形）"提交"进 rt。
       //

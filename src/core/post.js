@@ -238,6 +238,7 @@ export class Post {
       uniform float zoom, flash, fade, blurAmt, radialBlur, seed;
       uniform vec2  center;
       uniform float tonemap, ditherMode, grainDesign;
+      uniform float pixel;
 
       float rand(vec2 co) { return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453); }
 
@@ -274,6 +275,12 @@ export class Post {
 
       void main() {
         vec2 uv = vUv;
+        // **像素化**（post.pixel = 一个像素块占多少物理像素，0 = 关）：
+        // 先把 uv 吸附到 N×N 网格，再采样 —— 等价于"降分辨率再放大"，块状边界干净。
+        if (pixel > 0.5) {
+          vec2 P = outSize / pixel;
+          uv = (floor(uv * P) + 0.5) / P;
+        }
         uv = (uv - center) / zoom + center;
         uv += shake / outSize;
         vec2 d = uv - center;
@@ -348,7 +355,7 @@ export class Post {
         saturation: 1, contrast: 1, lift: 0, invert: 0, tint: [1, 1, 1],
         shake: [0, 0], zoom: 1, flash: 0, fade: 0,
         blurAmt: 0, radialBlur: 0, seed: 0, center: [0.5, 0.5],
-        tonemap: 0, ditherMode: 1, grainDesign: 0,
+        tonemap: 0, ditherMode: 1, grainDesign: 0, pixel: 0,
       }, { key: 'post_final', blend: false, ...pal });
   }
 
@@ -431,6 +438,8 @@ export class Post {
       seed: seed % 1000,
       tonemap: p.tonemap === 'agx' ? 1 : p.tonemap === 'aces' ? 2 : 0,
       ditherMode: p.dither === 'tpdf' ? 2 : p.dither === 'off' ? 0 : 1,
+      // 像素化：一个色块占多少物理像素（0 = 关）。见 shader 里 pixel 那段注释。
+      pixel: Number(p.pixel) > 0 ? Number(p.pixel) : 0,
       grainDesign: grainDesignFor(p, gl),
       center: Array.isArray(c) && c.length >= 2
         ? [c[0] / gl.w, 1 - c[1] / gl.h]

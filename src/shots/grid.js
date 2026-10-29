@@ -42,7 +42,7 @@ export function gridShot(opts = {}) {
       const t = f.lt;
       const a = f.a;
 
-      gl.clear(ctx.out, [P.ink[0], P.ink[1], P.ink[2]]);
+      gl.clear(ctx.out, [P.bg[0], P.bg[1], P.bg[2]]);
 
       // 24×12 的格子，每格的历史波形取自包络数组（真的是「读数据」，不是随机）
       const cols = o.cols, rows = o.rows;
