@@ -38,6 +38,18 @@
     #wbTicks i.cur { background: #ff4d12; width: 2px; }
     #wbTicks b { position: absolute; top: 12px; font-size: 10px; font-weight: 500; color: #8b8b96;
       transform: translateX(2px); white-space: nowrap; }
+    /* 右侧参数抽屉：读任务配置 + 实时覆盖；不做成图形编辑器，只做"改一个数立刻看到" */
+    #wbPanel { position: absolute; right: 10px; bottom: 92px; width: 250px; padding: 10px 12px;
+      background: #101012f2; border: 1px solid #2e2e34; border-radius: 8px; display: grid; gap: 8px; }
+    #wbPanel[hidden] { display: none; }
+    #wbPanel .row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+    #wbPanel .row > span { color: #a9a9b4; white-space: nowrap; }
+    #wbPanel .row > span b { color: #ff4d12; font-weight: 600; }
+    #wbPanel input[type=range] { width: 118px; }
+    #wbPanel input[type=color] { width: 44px; height: 22px; padding: 0; border: 1px solid #2e2e34; background: none; }
+    #wbPanel select { background: #16161a; color: #d8d4c8; border: 1px solid #2e2e34; border-radius: 5px;
+      padding: 2px 4px; font: inherit; max-width: 140px; }
+    #wbPanel .hint { color: #6b6b76; font-size: 11px; line-height: 1.4; }
     #wbScrub { position: absolute; left: 0; right: 0; top: 8px; width: 100%; height: 16px;
       -webkit-appearance: none; appearance: none; background: transparent; }
     #wbScrub::-webkit-slider-runnable-track { height: 4px; background: #26262d; border-radius: 2px; }
@@ -59,6 +71,16 @@
       <button id="wbLoop" title="循环当前段">⟲ 循环</button>
       <button id="wbPrecise" title="按导出路径重渲当前帧（多子帧）">⦿ 精确帧</button>
       <span id="wbReadout">—</span>
+    </div>
+    <div id="wbPanel" hidden>
+      <div class="row"><span>风格</span><select id="wbStyle"></select></div>
+      <div class="row"><span>主色</span><input id="wbSignal" type="color" /></div>
+      <div class="row"><span>泛光 <b id="wbBloomV">0</b></span><input id="wbBloom" type="range" min="0" max="1.5" step="0.01" /></div>
+      <div class="row"><span>颗粒 <b id="wbGrainV">0</b></span><input id="wbGrain" type="range" min="0" max="0.12" step="0.002" /></div>
+      <div class="row"><span>暗角 <b id="wbVigV">0</b></span><input id="wbVig" type="range" min="0" max="1" step="0.01" /></div>
+      <div class="row"><span>像素化 <b id="wbPixelV">0</b></span><input id="wbPixel" type="range" min="0" max="16" step="1" /></div>
+      <div class="row"><button id="wbReset">重置</button></div>
+      <div class="hint">滑块 = 实时（只改预览）；风格/主色 = 重载一次页面</div>
     </div>
     <div id="wbScrubWrap">
       <div id="wbTicks"></div>

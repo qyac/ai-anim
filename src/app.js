@@ -273,6 +273,7 @@ async function boot() {
 
   if (!offline) {
     setupWorkbench(engine);
+    setupPanel(engine);
     requestAnimationFrame(loop);
   }
   return { task, engine, fps, offline };
@@ -1477,4 +1478,71 @@ async function preciseFrame() {
   const ro = wbEl('wbReadout');
   if (ro) ro.textContent = `t ${t.toFixed(2)}s · 精确帧 Δ ${d.mae.toFixed(2)} · PSNR ${d.psnr.toFixed(1)} dB`;
   return d;
+}
+/* ------------------------------------------------------------------ 参数面板 */
+/**
+ * 参数面板（工作台第二阶段）：改一个数，立刻看到。
+ *
+ * 两类参数两条路：
+ *   · 数值项（泛光/颗粒/暗角/像素化）→ 写 engine.livePost，下一帧生效（不重载、不重渲）。
+ *   · 结构项（风格包 / 主色）→ 要重建调色板与 post shader 常量，必须重载一次页面（仍然不重渲整片）。
+ *
+ * 不做成图形编辑器：这一层只要回答「改完好不好看」，不替人做设计。
+ */
+function setupPanel(engineRef) {
+  const box = wbEl('wbPanel');
+  if (!box) return;
+  box.hidden = false;
+  const post = { ...(engineRef.lastPost ?? {}) };
+  const basePost = engineRef.style?.post ?? {};
+  const cur = (k, d) => Number(post[k] ?? basePost[k] ?? d);
+
+  const bind = (id, key, fmt, dflt) => {
+    const el = wbEl(id);
+    const lab = wbEl(id + 'V');
+    if (!el) return;
+    el.value = String(cur(key, dflt));
+    if (lab) lab.textContent = fmt(Number(el.value));
+    el.addEventListener('input', () => {
+      const v = Number(el.value);
+      engineRef.livePost = { ...(engineRef.livePost ?? {}), [key]: v };
+      if (lab) lab.textContent = fmt(v);
+      engineRef.render(clock, { preview: true, toScreen: true, samples: 1 });
+    });
+  };
+  bind('wbBloom', 'bloom', (v) => v.toFixed(2), 0.3);
+  bind('wbGrain', 'grain', (v) => v.toFixed(3), 0.02);
+  bind('wbVig', 'vignette', (v) => v.toFixed(2), 0.4);
+  bind('wbPixel', 'pixel', (v) => String(v), 0);
+
+  const sig = wbEl('wbSignal');
+  if (sig) {
+    sig.value = engineRef.P?.hex?.signal ?? '#ff4d12';
+    sig.addEventListener('change', () => reloadWith({ signal: sig.value }));
+  }
+
+  const sel = wbEl('wbStyle');
+  if (sel) {
+    const names = ['print', 'blueprint', 'paper', 'terminal', 'flat', 'noir',
+      'mg-cel', 'mg-isometric', 'mg-flat-vector', 'mg-lineart', 'mg-soft3d', 'mg-morph', 'mg-sticker',
+      'mg-hud', 'mg-collage', 'mg-aurora', 'mg-bauhaus', 'mg-vhs', 'mg-pixel', 'mg-liquid', 'mg-variety'];
+    const now = engineRef.style?.name ?? 'print';
+    sel.innerHTML = names.map((n) => '<option' + (n === now ? ' selected' : '') + '>' + n + '</option>').join('');
+    sel.addEventListener('change', () => reloadWith({ style: sel.value }));
+  }
+
+  const reset = wbEl('wbReset');
+  if (reset) reset.addEventListener('click', () => {
+    engineRef.livePost = null;
+    box.querySelectorAll('input[type=range]').forEach((el) => el.dispatchEvent(new Event('input')));
+    setMsg('已重置为任务配置里的后处理');
+  });
+}
+
+/** 带参数重载当前页（保留 task 与当前 t，其余参数从现有 query 带过去） */
+function reloadWith(patch) {
+  const q = new URLSearchParams(location.search);
+  for (const [k, v] of Object.entries(patch)) q.set(k, v);
+  q.set('t', String(clock.toFixed(3)));
+  location.search = q.toString();
 }

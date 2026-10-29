@@ -547,6 +547,9 @@ export class Engine {
         const ov = scene.render(ctx);
         if (ov && typeof ov === 'object') post = { ...post, ...(item.post ?? {}), ...ov, ...stylePost };
         else if (item.post) post = { ...post, ...item.post, ...stylePost };
+        // 工作台的实时覆盖：**最后**合并 —— 滑块一拖就变，不用重载页面也不用重渲整片。
+        // 只有 dev 预览会设它；导出路径永远不设，所以成片一个像素都不受影响。
+        if (this.livePost) post = { ...post, ...this.livePost };
       } catch (err) {
         /**
          * 场景抛错 = **硬错误**，绝不能画一帧意思不明的纯色糊过去
