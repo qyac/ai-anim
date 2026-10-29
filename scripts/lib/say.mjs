@@ -269,7 +269,8 @@ export async function loadNarrationScript(taskDir, scriptPath) {
  */
 export function resolveBeat({ taskDir, script, bpm, audioSpec }) {
   if (Number(bpm) > 0) return { beat: 60 / Number(bpm), from: `--bpm ${bpm}` };
-  if (script.beat > 0) return { beat: script.beat, from: 'narration.mjs 的 BPM/BEAT' };
+  // 声明值只是意图，音乐的真值才决定切点落哪（见下面 ① 的实测分支）
+  const declaredBeat = script.beat > 0 ? script.beat : null;
 
   const stripExt = (f) => String(f).replace(/\.[^./\\]+$/, '');
   const analysisOf = (rel) => (rel ? path.join(taskDir, 'audio', `${path.basename(stripExt(rel))}.analysis.json`) : null);
@@ -289,7 +290,31 @@ export function resolveBeat({ taskDir, script, bpm, audioSpec }) {
   if (spec?.music) {
     const f = analysisOf(spec.music);
     const b = readBpm(f);
-    if (b) return { beat: 60 / b, from: `${path.basename(f)} 的 bpm=${b}` };
+    if (b) {
+      // 防呆：分析结果比音频旧（重新生成过床却没重跑 analyze）⇒ 那个 bpm 已经是过去时了。
+      // 实测踩过：改床后忘记 analyze，#说 89bpm，而床其实是 84.5 —— 按 89 排会全盘错位。
+      try {
+        const audioPath = path.join(taskDir, spec.music);
+        if (existsSync(audioPath) && statSync(f).mtimeMs + 1000 < statSync(audioPath).mtimeMs) {
+          return {
+            beat: declaredBeat || FALLBACK_BEAT,
+            from: declaredBeat ? 'narration.mjs 的 BPM（analysis 比音频旧，已忽略）' : null,
+            warning: `${path.basename(f)} 比音频 ${path.basename(spec.music)} 旧 —— 先跑 node scripts/anim.mjs analyze <任务>`
+              + '，否则按旧 bpm 排出来的切点对不上现在的音乐。',
+          };
+        }
+      } catch { /* stat 失败就当它不老 */ }
+      const measured = 60 / b;
+      const out = { beat: measured, from: `${path.basename(f)} 的 bpm=${b}（实测）` };
+      // 声明值与实测差 > 0.3% 就明说：38 秒的片子累积漂 200ms，卡点会从 9/9 掉到 2/9
+      if (declaredBeat && Math.abs(measured - declaredBeat) / declaredBeat > 0.003) {
+        out.warning = 'narration.mjs 写的一拍是 ' + declaredBeat.toFixed(4) + 's（≈' + (60 / declaredBeat).toFixed(2) + 'bpm），'
+          + '音乐实测 ' + measured.toFixed(4) + 's（≈' + b.toFixed(2) + 'bpm），差 '
+          + (Math.abs(measured - declaredBeat) / declaredBeat * 100).toFixed(2)
+          + '% —— 已按实测排时长（按声明值排，切点会随片子变长逐渐漂离拍子）。';
+      }
+      return out;
+    }
     return noBeat(
       `task.audio 里声明了 music 轨（${path.basename(spec.music)}），但没有 ${path.relative(process.cwd(), f)}`
       + ` —— 先跑 node scripts/anim.mjs analyze <任务>；现在按 ${FALLBACK_BEAT}s 一拍兜底。`,
@@ -843,7 +868,10 @@ export async function runSay(task, opts) {
 
   // 1) 逐句合成（带缓存）。⚠ **失败不再让整批停下**（BACKLOG 1-6）：
   //    失败句先记进 `pending`，等整批跑完再统一补跑（补跑各轮见下）。
-  const voDir = path.join(taskDir, 'audio', 'vo');
+  // 逐句音频按表名分目录（多语言/变体）：audio/vo/zh 与 audio/vo/ja 互不覆盖。
+  // 不分的话：同一个 <段>-<句>.mp3 会被后跑的那一版替换，而 timing/<lang> 仍指向它 ⇒ 中文版配日语声。
+  const voStem = opts.table ? String(opts.table).replace(/[^\w.-]/g, '') : '';
+  const voDir = path.join(taskDir, 'audio', 'vo', ...(voStem ? [voStem] : []));
   const scenes = [];
   const pending = [];
   let synthCount = 0;
@@ -870,7 +898,7 @@ export async function runSay(task, opts) {
   for (const sc of script.scenes) {
     const lines = [];
     for (const [i, l] of sc.lines.entries()) {
-      const file = path.join(voDir, `${sc.id}-${i + 1}.mp3`);
+      const file = path.join(voDir, `${sc.id}-${i + 1}.mp3`);   // voDir 已含表名（见上）
       const bail = [];
       const got = collectLine({ sc, i, l, file, voice, rate, force: opts.force, driver, taskDir, log, bail });
       if (got.ok) {
@@ -1060,9 +1088,11 @@ export async function runSay(task, opts) {
       })),
     })),
   };
+  // 表名（多语言/多变体）要提前算：narration.source 与 VO 文件名都用它
+  const table = opts.table ? String(opts.table).replace(/[^\w.-]/g, '') : '';
   const narration = {
     // `source` 只是给人看的出处（A 档的 `ctx.narration.source`）；真正交给引擎的轨在 task.audio 里
-    source: `./audio/${task}-vo.mp3`,
+    source: `./audio/${table ? table + '-vo.mp3' : task + '-vo.mp3'}`,
     lines: solved.scenes.flatMap((s) => s.lines.map((l, i) => ({
       id: `${s.id}-${i + 1}`,
       text: l.text,
@@ -1088,7 +1118,6 @@ export async function runSay(task, opts) {
    * 于是"另一份表"成为可能：`task.config.mjs` 的 `narration` 是个普通字符串路径，
    * 指向哪一份就用哪一份 —— 多语言、剪短版、或者把上一轮解好的表原样回放（零 TTS 成本）。
    */
-  const table = opts.table ? String(opts.table).replace(/[^\w.-]/g, '') : '';
   const timingName = table ? `${table}.timing.json` : 'timing.json';
   const narrationName = table ? `${table}.narration.json` : 'narration.json';
   if (table && !timingName.startsWith(table)) {
@@ -1121,7 +1150,8 @@ export async function runSay(task, opts) {
   }
 
   if (!opts.noVo) {
-    const voOut = path.join(taskDir, 'audio', `${task}-vo.mp3`);
+    // 多语言/多变体：VO 名跟随 --table，否则 ja/zh 会互相覆盖（1-23③ 的同一件事）
+    const voOut = path.join(taskDir, 'audio', table ? `${table}-vo.mp3` : `${task}-vo.mp3`);
     const r = renderVo({ timing, taskDir, out: voOut });
     log(`✓ ${path.relative(process.cwd(), r.file)}  ${r.duration.toFixed(2)}s（只有旁白；和音乐混音跑 anim mix <任务>）`);
   }

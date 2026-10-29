@@ -1,0 +1,467 @@
+{
+  "voice": "cotton-ja",
+  "rate": "+10%",
+  "bpm": 196.88,
+  "beat": 0.304754164973588,
+  "overlap": 0,
+  "tail": 0.3,
+  "maxStretch": 1.3,
+  "total": 20.419,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "s1",
+      "start": 0,
+      "slot": 4.571,
+      "stretch": 1.16,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "猫娘の取扱説明書。",
+          "file": "audio/vo/ja/s1-1.mp3",
+          "dur": 3.675,
+          "offset": 0.232,
+          "start": 0.232,
+          "words": [
+            {
+              "w": "猫",
+              "start": 0.232,
+              "end": 0.667,
+              "approx": true
+            },
+            {
+              "w": "娘",
+              "start": 0.667,
+              "end": 1.102,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 1.102,
+              "end": 1.537,
+              "approx": true
+            },
+            {
+              "w": "取",
+              "start": 1.537,
+              "end": 1.972,
+              "approx": true
+            },
+            {
+              "w": "扱",
+              "start": 1.972,
+              "end": 2.407,
+              "approx": true
+            },
+            {
+              "w": "説",
+              "start": 2.407,
+              "end": 2.841,
+              "approx": true
+            },
+            {
+              "w": "明",
+              "start": 2.841,
+              "end": 3.276,
+              "approx": true
+            },
+            {
+              "w": "書",
+              "start": 3.276,
+              "end": 3.711,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 3.711,
+              "end": 3.907,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "start": 4.571,
+      "slot": 3.962,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "鈴は飾りじゃなくて、ソナー。",
+          "file": "audio/vo/ja/s2-1.mp3",
+          "dur": 2.714,
+          "offset": 0.2,
+          "start": 4.771,
+          "words": [
+            {
+              "w": "鈴",
+              "start": 4.771,
+              "end": 4.981,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 4.981,
+              "end": 5.192,
+              "approx": true
+            },
+            {
+              "w": "飾",
+              "start": 5.192,
+              "end": 5.402,
+              "approx": true
+            },
+            {
+              "w": "り",
+              "start": 5.402,
+              "end": 5.613,
+              "approx": true
+            },
+            {
+              "w": "じ",
+              "start": 5.613,
+              "end": 5.823,
+              "approx": true
+            },
+            {
+              "w": "ゃ",
+              "start": 5.823,
+              "end": 6.033,
+              "approx": true
+            },
+            {
+              "w": "な",
+              "start": 6.033,
+              "end": 6.244,
+              "approx": true
+            },
+            {
+              "w": "く",
+              "start": 6.244,
+              "end": 6.454,
+              "approx": true
+            },
+            {
+              "w": "て",
+              "start": 6.454,
+              "end": 6.664,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 6.664,
+              "end": 6.759,
+              "approx": true
+            },
+            {
+              "w": "ソ",
+              "start": 6.759,
+              "end": 6.97,
+              "approx": true
+            },
+            {
+              "w": "ナ",
+              "start": 6.97,
+              "end": 7.18,
+              "approx": true
+            },
+            {
+              "w": "ー",
+              "start": 7.18,
+              "end": 7.39,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 7.39,
+              "end": 7.485,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "start": 8.533,
+      "slot": 3.962,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "日が出たら、床で溶けます。",
+          "file": "audio/vo/ja/s3-1.mp3",
+          "dur": 2.646,
+          "offset": 0.2,
+          "start": 8.733,
+          "words": [
+            {
+              "w": "日",
+              "start": 8.733,
+              "end": 8.955,
+              "approx": true
+            },
+            {
+              "w": "が",
+              "start": 8.955,
+              "end": 9.178,
+              "approx": true
+            },
+            {
+              "w": "出",
+              "start": 9.178,
+              "end": 9.4,
+              "approx": true
+            },
+            {
+              "w": "た",
+              "start": 9.4,
+              "end": 9.622,
+              "approx": true
+            },
+            {
+              "w": "ら",
+              "start": 9.622,
+              "end": 9.845,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 9.845,
+              "end": 9.945,
+              "approx": true
+            },
+            {
+              "w": "床",
+              "start": 9.945,
+              "end": 10.167,
+              "approx": true
+            },
+            {
+              "w": "で",
+              "start": 10.167,
+              "end": 10.39,
+              "approx": true
+            },
+            {
+              "w": "溶",
+              "start": 10.39,
+              "end": 10.612,
+              "approx": true
+            },
+            {
+              "w": "け",
+              "start": 10.612,
+              "end": 10.834,
+              "approx": true
+            },
+            {
+              "w": "ま",
+              "start": 10.834,
+              "end": 11.057,
+              "approx": true
+            },
+            {
+              "w": "す",
+              "start": 11.057,
+              "end": 11.279,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 11.279,
+              "end": 11.379,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "start": 12.495,
+      "slot": 3.962,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "おやつは、数えてあります。",
+          "file": "audio/vo/ja/s4-1.mp3",
+          "dur": 2.463,
+          "offset": 0.2,
+          "start": 12.695,
+          "words": [
+            {
+              "w": "お",
+              "start": 12.695,
+              "end": 12.902,
+              "approx": true
+            },
+            {
+              "w": "や",
+              "start": 12.902,
+              "end": 13.109,
+              "approx": true
+            },
+            {
+              "w": "つ",
+              "start": 13.109,
+              "end": 13.316,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 13.316,
+              "end": 13.523,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 13.523,
+              "end": 13.616,
+              "approx": true
+            },
+            {
+              "w": "数",
+              "start": 13.616,
+              "end": 13.823,
+              "approx": true
+            },
+            {
+              "w": "え",
+              "start": 13.823,
+              "end": 14.03,
+              "approx": true
+            },
+            {
+              "w": "て",
+              "start": 14.03,
+              "end": 14.237,
+              "approx": true
+            },
+            {
+              "w": "あ",
+              "start": 14.237,
+              "end": 14.444,
+              "approx": true
+            },
+            {
+              "w": "り",
+              "start": 14.444,
+              "end": 14.651,
+              "approx": true
+            },
+            {
+              "w": "ま",
+              "start": 14.651,
+              "end": 14.858,
+              "approx": true
+            },
+            {
+              "w": "す",
+              "start": 14.858,
+              "end": 15.065,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 15.065,
+              "end": 15.158,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "start": 16.457,
+      "slot": 3.962,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "鈴と、太陽と、小魚。",
+          "file": "audio/vo/ja/s5-1.mp3",
+          "dur": 2.799,
+          "offset": 0.2,
+          "start": 16.657,
+          "words": [
+            {
+              "w": "鈴",
+              "start": 16.657,
+              "end": 16.992,
+              "approx": true
+            },
+            {
+              "w": "と",
+              "start": 16.992,
+              "end": 17.327,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 17.327,
+              "end": 17.478,
+              "approx": true
+            },
+            {
+              "w": "太",
+              "start": 17.478,
+              "end": 17.813,
+              "approx": true
+            },
+            {
+              "w": "陽",
+              "start": 17.813,
+              "end": 18.149,
+              "approx": true
+            },
+            {
+              "w": "と",
+              "start": 18.149,
+              "end": 18.484,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 18.484,
+              "end": 18.635,
+              "approx": true
+            },
+            {
+              "w": "小",
+              "start": 18.635,
+              "end": 18.97,
+              "approx": true
+            },
+            {
+              "w": "魚",
+              "start": 18.97,
+              "end": 19.305,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 19.305,
+              "end": 19.456,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

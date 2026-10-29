@@ -1,0 +1,546 @@
+// 由 `node scripts/anim.mjs say <任务>` 生成，不要手改；改旁白请改 narration.mjs 再重跑。
+export default {
+  "voice": "cotton-ja",
+  "rate": "+10%",
+  "bpm": 191.84,
+  "beat": 0.3127606338615513,
+  "overlap": 0,
+  "tail": 0.3,
+  "maxStretch": 1.3,
+  "total": 25.334,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "s1",
+      "start": 0,
+      "slot": 4.379,
+      "stretch": 1.109,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "冬の猫は、何を計算してる？",
+          "file": "audio/vo/ja/s1-1.mp3",
+          "dur": 3.493,
+          "offset": 0.222,
+          "start": 0.222,
+          "words": [
+            {
+              "w": "冬",
+              "start": 0.222,
+              "end": 0.516,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 0.516,
+              "end": 0.809,
+              "approx": true
+            },
+            {
+              "w": "猫",
+              "start": 0.809,
+              "end": 1.103,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 1.103,
+              "end": 1.396,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 1.396,
+              "end": 1.528,
+              "approx": true
+            },
+            {
+              "w": "何",
+              "start": 1.528,
+              "end": 1.822,
+              "approx": true
+            },
+            {
+              "w": "を",
+              "start": 1.822,
+              "end": 2.115,
+              "approx": true
+            },
+            {
+              "w": "計",
+              "start": 2.115,
+              "end": 2.409,
+              "approx": true
+            },
+            {
+              "w": "算",
+              "start": 2.409,
+              "end": 2.702,
+              "approx": true
+            },
+            {
+              "w": "し",
+              "start": 2.702,
+              "end": 2.996,
+              "approx": true
+            },
+            {
+              "w": "て",
+              "start": 2.996,
+              "end": 3.289,
+              "approx": true
+            },
+            {
+              "w": "る",
+              "start": 3.289,
+              "end": 3.583,
+              "approx": true
+            },
+            {
+              "w": "？",
+              "start": 3.583,
+              "end": 3.715,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "start": 4.379,
+      "slot": 5.63,
+      "stretch": 1.3,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "寒いのは平気。コタツを出るのが問題。",
+          "file": "audio/vo/ja/s2-1.mp3",
+          "dur": 4.837,
+          "offset": 0.26,
+          "start": 4.639,
+          "words": [
+            {
+              "w": "寒",
+              "start": 4.639,
+              "end": 4.925,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 4.925,
+              "end": 5.211,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 5.211,
+              "end": 5.498,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 5.498,
+              "end": 5.784,
+              "approx": true
+            },
+            {
+              "w": "平",
+              "start": 5.784,
+              "end": 6.07,
+              "approx": true
+            },
+            {
+              "w": "気",
+              "start": 6.07,
+              "end": 6.356,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 6.356,
+              "end": 6.485,
+              "approx": true
+            },
+            {
+              "w": "コ",
+              "start": 6.485,
+              "end": 6.771,
+              "approx": true
+            },
+            {
+              "w": "タ",
+              "start": 6.771,
+              "end": 7.058,
+              "approx": true
+            },
+            {
+              "w": "ツ",
+              "start": 7.058,
+              "end": 7.344,
+              "approx": true
+            },
+            {
+              "w": "を",
+              "start": 7.344,
+              "end": 7.63,
+              "approx": true
+            },
+            {
+              "w": "出",
+              "start": 7.63,
+              "end": 7.916,
+              "approx": true
+            },
+            {
+              "w": "る",
+              "start": 7.916,
+              "end": 8.202,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 8.202,
+              "end": 8.489,
+              "approx": true
+            },
+            {
+              "w": "が",
+              "start": 8.489,
+              "end": 8.775,
+              "approx": true
+            },
+            {
+              "w": "問",
+              "start": 8.775,
+              "end": 9.061,
+              "approx": true
+            },
+            {
+              "w": "題",
+              "start": 9.061,
+              "end": 9.347,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 9.347,
+              "end": 9.476,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "start": 10.008,
+      "slot": 6.881,
+      "stretch": 1.3,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "六時半、十一時、十五時、二十三時。",
+          "file": "audio/vo/ja/s3-1.mp3",
+          "dur": 6.205,
+          "offset": 0.26,
+          "start": 10.268,
+          "words": [
+            {
+              "w": "六",
+              "start": 10.268,
+              "end": 10.687,
+              "approx": true
+            },
+            {
+              "w": "時",
+              "start": 10.687,
+              "end": 11.107,
+              "approx": true
+            },
+            {
+              "w": "半",
+              "start": 11.107,
+              "end": 11.526,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 11.526,
+              "end": 11.714,
+              "approx": true
+            },
+            {
+              "w": "十",
+              "start": 11.714,
+              "end": 12.134,
+              "approx": true
+            },
+            {
+              "w": "一",
+              "start": 12.134,
+              "end": 12.553,
+              "approx": true
+            },
+            {
+              "w": "時",
+              "start": 12.553,
+              "end": 12.972,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 12.972,
+              "end": 13.161,
+              "approx": true
+            },
+            {
+              "w": "十",
+              "start": 13.161,
+              "end": 13.58,
+              "approx": true
+            },
+            {
+              "w": "五",
+              "start": 13.58,
+              "end": 13.999,
+              "approx": true
+            },
+            {
+              "w": "時",
+              "start": 13.999,
+              "end": 14.419,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 14.419,
+              "end": 14.607,
+              "approx": true
+            },
+            {
+              "w": "二",
+              "start": 14.607,
+              "end": 15.027,
+              "approx": true
+            },
+            {
+              "w": "十",
+              "start": 15.027,
+              "end": 15.446,
+              "approx": true
+            },
+            {
+              "w": "三",
+              "start": 15.446,
+              "end": 15.865,
+              "approx": true
+            },
+            {
+              "w": "時",
+              "start": 15.865,
+              "end": 16.284,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 16.284,
+              "end": 16.473,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "start": 16.889,
+      "slot": 4.066,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "日向ぼっこは、充電。",
+          "file": "audio/vo/ja/s4-1.mp3",
+          "dur": 2.426,
+          "offset": 0.2,
+          "start": 17.089,
+          "words": [
+            {
+              "w": "日",
+              "start": 17.089,
+              "end": 17.362,
+              "approx": true
+            },
+            {
+              "w": "向",
+              "start": 17.362,
+              "end": 17.634,
+              "approx": true
+            },
+            {
+              "w": "ぼ",
+              "start": 17.634,
+              "end": 17.907,
+              "approx": true
+            },
+            {
+              "w": "っ",
+              "start": 17.907,
+              "end": 18.179,
+              "approx": true
+            },
+            {
+              "w": "こ",
+              "start": 18.179,
+              "end": 18.452,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 18.452,
+              "end": 18.725,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 18.725,
+              "end": 18.847,
+              "approx": true
+            },
+            {
+              "w": "充",
+              "start": 18.847,
+              "end": 19.12,
+              "approx": true
+            },
+            {
+              "w": "電",
+              "start": 19.12,
+              "end": 19.392,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 19.392,
+              "end": 19.515,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "start": 20.955,
+      "slot": 4.379,
+      "stretch": 1.048,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "日向ぼっこは、まじめな科学。",
+          "file": "audio/vo/ja/s5-1.mp3",
+          "dur": 3.274,
+          "offset": 0.21,
+          "start": 21.165,
+          "words": [
+            {
+              "w": "日",
+              "start": 21.165,
+              "end": 21.419,
+              "approx": true
+            },
+            {
+              "w": "向",
+              "start": 21.419,
+              "end": 21.673,
+              "approx": true
+            },
+            {
+              "w": "ぼ",
+              "start": 21.673,
+              "end": 21.926,
+              "approx": true
+            },
+            {
+              "w": "っ",
+              "start": 21.926,
+              "end": 22.18,
+              "approx": true
+            },
+            {
+              "w": "こ",
+              "start": 22.18,
+              "end": 22.434,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 22.434,
+              "end": 22.688,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 22.688,
+              "end": 22.802,
+              "approx": true
+            },
+            {
+              "w": "ま",
+              "start": 22.802,
+              "end": 23.056,
+              "approx": true
+            },
+            {
+              "w": "じ",
+              "start": 23.056,
+              "end": 23.31,
+              "approx": true
+            },
+            {
+              "w": "め",
+              "start": 23.31,
+              "end": 23.563,
+              "approx": true
+            },
+            {
+              "w": "な",
+              "start": 23.563,
+              "end": 23.817,
+              "approx": true
+            },
+            {
+              "w": "科",
+              "start": 23.817,
+              "end": 24.071,
+              "approx": true
+            },
+            {
+              "w": "学",
+              "start": 24.071,
+              "end": 24.325,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 24.325,
+              "end": 24.439,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};

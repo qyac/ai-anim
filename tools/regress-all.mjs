@@ -59,6 +59,8 @@ const ITEMS = [
   { name: 'unit:cam-math', cmd: ['tools/test-cam-math.mjs'], note: '3D 相机/投影/透视变换 + **手性**（33 项）' },
   { name: 'unit:segment-cuts', cmd: ['tools/test-segment-cuts.mjs'], note: 'P2-4 分块切点只落在安全处' },
   { name: 'unit:shots', cmd: ['tools/test-shots.mjs'], note: 'A 档镜头库：模板登记/参数名/任务段名（写错就响）' },
+  { name: 'unit:event-density', cmd: ['tools/test-event-density.mjs'], note: '事件密度判据回归（合成静止/运动片）：静止跨度与稀薄窗口必须分开报对，纯静止片必须被报成问题' },
+  { name: 'unit:tempo', cmd: ['tools/test-tempo.mjs'], note: 'tempo 估计回归（合成鼓 80/96/120/140 + 半拍踩镲诱饵）：bpm 偏 ≤0.6%、网格间隔偏 ≤1% —— 修的是「analyze 把 80bpm 报成 83.3」那个 4% 偏差' },
   { name: 'unit:tasks-meta', cmd: ['tools/test-tasks-meta.mjs'], note: 'tasks --json（1-58）的字段解析 + 变体块不许污染任务级字段 + 真实任务能解析；--table 表路径（1-23③）的接线自检' },
   { name: 'unit:motion-caps', cmd: ['tools/test-motion-caps.mjs'], note: '运动上限静态扫描（BACKLOG 1-33）：判据与 waterfallOver 同口径（items × stagger > 0.5）/ 元素个数怎么读（const 字符串、数组，别抓 family 样式值）/ 读不出进 unchecked（含简写）/ 接线自检 + 夹具 _motion-lab 的 --strict 红证明' },
   { name: 'unit:transition-collision', cmd: ['tools/test-transition-collision.mjs'], note: '碰撞式转场（BACKLOG 1-33 ③ / MOTION.md §3.5）：受害者时长 = 入侵者 × 0.40–0.50 —— 区间内原样返回 / 越界夹回并给说明（不静默）/ NaN·±Inf 当场抛 / enterDur ≤ 0 ⇒ 时长记 0 / victimSpan 与 planCollision 同口径 / **不传 victimRatio ⇒ shader 源码与四个 uniform 逐字不变**（已交付片子的画面一个像素都不许动）+ kit 转发与回归清单接线自检' },

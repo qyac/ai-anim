@@ -1,0 +1,480 @@
+// 由 `node scripts/anim.mjs say <任务>` 生成，不要手改；改旁白请改 narration.mjs 再重跑。
+export default {
+  "voice": "zh-CN-XiaoyiNeural",
+  "rate": "+6%",
+  "bpm": 211.62,
+  "beat": 0.28352707683583783,
+  "overlap": 0,
+  "tail": 0.3,
+  "maxStretch": 1.25,
+  "total": 20.697,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "s1",
+      "start": 0,
+      "slot": 2.835,
+      "stretch": 1,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "晒太阳的物理学",
+          "file": "audio/vo/s1-1.mp3",
+          "dur": 1.797,
+          "offset": 0.2,
+          "start": 0.2,
+          "words": [
+            {
+              "w": "晒",
+              "start": 0.2,
+              "end": 0.457,
+              "approx": true
+            },
+            {
+              "w": "太",
+              "start": 0.457,
+              "end": 0.713,
+              "approx": true
+            },
+            {
+              "w": "阳",
+              "start": 0.713,
+              "end": 0.97,
+              "approx": true
+            },
+            {
+              "w": "的",
+              "start": 0.97,
+              "end": 1.227,
+              "approx": true
+            },
+            {
+              "w": "物",
+              "start": 1.227,
+              "end": 1.484,
+              "approx": true
+            },
+            {
+              "w": "理",
+              "start": 1.484,
+              "end": 1.74,
+              "approx": true
+            },
+            {
+              "w": "学",
+              "start": 1.74,
+              "end": 1.997,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "start": 2.835,
+      "slot": 4.536,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "一天的位移，全是追着太阳",
+          "file": "audio/vo/s2-1.mp3",
+          "dur": 3.877,
+          "offset": 0.25,
+          "start": 3.085,
+          "words": [
+            {
+              "w": "一",
+              "start": 3.085,
+              "end": 3.424,
+              "approx": true
+            },
+            {
+              "w": "天",
+              "start": 3.424,
+              "end": 3.762,
+              "approx": true
+            },
+            {
+              "w": "的",
+              "start": 3.762,
+              "end": 4.101,
+              "approx": true
+            },
+            {
+              "w": "位",
+              "start": 4.101,
+              "end": 4.439,
+              "approx": true
+            },
+            {
+              "w": "移",
+              "start": 4.439,
+              "end": 4.778,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 4.778,
+              "end": 4.93,
+              "approx": true
+            },
+            {
+              "w": "全",
+              "start": 4.93,
+              "end": 5.269,
+              "approx": true
+            },
+            {
+              "w": "是",
+              "start": 5.269,
+              "end": 5.608,
+              "approx": true
+            },
+            {
+              "w": "追",
+              "start": 5.608,
+              "end": 5.946,
+              "approx": true
+            },
+            {
+              "w": "着",
+              "start": 5.946,
+              "end": 6.285,
+              "approx": true
+            },
+            {
+              "w": "太",
+              "start": 6.285,
+              "end": 6.623,
+              "approx": true
+            },
+            {
+              "w": "阳",
+              "start": 6.623,
+              "end": 6.962,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "start": 7.372,
+      "slot": 4.536,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "太阳走到哪，猫就挪到哪 —— 这是常",
+          "file": "audio/vo/s3-1.mp3",
+          "dur": 3.713,
+          "offset": 0.25,
+          "start": 7.622,
+          "words": [
+            {
+              "w": "太",
+              "start": 7.622,
+              "end": 7.874,
+              "approx": true
+            },
+            {
+              "w": "阳",
+              "start": 7.874,
+              "end": 8.125,
+              "approx": true
+            },
+            {
+              "w": "走",
+              "start": 8.125,
+              "end": 8.377,
+              "approx": true
+            },
+            {
+              "w": "到",
+              "start": 8.377,
+              "end": 8.629,
+              "approx": true
+            },
+            {
+              "w": "哪",
+              "start": 8.629,
+              "end": 8.881,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 8.881,
+              "end": 8.994,
+              "approx": true
+            },
+            {
+              "w": "猫",
+              "start": 8.994,
+              "end": 9.246,
+              "approx": true
+            },
+            {
+              "w": "就",
+              "start": 9.246,
+              "end": 9.497,
+              "approx": true
+            },
+            {
+              "w": "挪",
+              "start": 9.497,
+              "end": 9.749,
+              "approx": true
+            },
+            {
+              "w": "到",
+              "start": 9.749,
+              "end": 10.001,
+              "approx": true
+            },
+            {
+              "w": "哪",
+              "start": 10.001,
+              "end": 10.253,
+              "approx": true
+            },
+            {
+              "w": " ",
+              "start": 10.253,
+              "end": 10.303,
+              "approx": true
+            },
+            {
+              "w": "—",
+              "start": 10.303,
+              "end": 10.416,
+              "approx": true
+            },
+            {
+              "w": "—",
+              "start": 10.416,
+              "end": 10.529,
+              "approx": true
+            },
+            {
+              "w": " ",
+              "start": 10.529,
+              "end": 10.58,
+              "approx": true
+            },
+            {
+              "w": "这",
+              "start": 10.58,
+              "end": 10.832,
+              "approx": true
+            },
+            {
+              "w": "是",
+              "start": 10.832,
+              "end": 11.083,
+              "approx": true
+            },
+            {
+              "w": "常",
+              "start": 11.083,
+              "end": 11.335,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "start": 11.908,
+      "slot": 3.402,
+      "stretch": 1.247,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "今天囤下来的小鱼干",
+          "file": "audio/vo/s4-1.mp3",
+          "dur": 2.493,
+          "offset": 0.249,
+          "start": 12.157,
+          "words": [
+            {
+              "w": "今",
+              "start": 12.157,
+              "end": 12.434,
+              "approx": true
+            },
+            {
+              "w": "天",
+              "start": 12.434,
+              "end": 12.711,
+              "approx": true
+            },
+            {
+              "w": "囤",
+              "start": 12.711,
+              "end": 12.988,
+              "approx": true
+            },
+            {
+              "w": "下",
+              "start": 12.988,
+              "end": 13.265,
+              "approx": true
+            },
+            {
+              "w": "来",
+              "start": 13.265,
+              "end": 13.542,
+              "approx": true
+            },
+            {
+              "w": "的",
+              "start": 13.542,
+              "end": 13.819,
+              "approx": true
+            },
+            {
+              "w": "小",
+              "start": 13.819,
+              "end": 14.096,
+              "approx": true
+            },
+            {
+              "w": "鱼",
+              "start": 14.096,
+              "end": 14.373,
+              "approx": true
+            },
+            {
+              "w": "干",
+              "start": 14.373,
+              "end": 14.65,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "start": 15.31,
+      "slot": 5.387,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "冰箱里明明还有三包，别装没看见",
+          "file": "audio/vo/s5-1.mp3",
+          "dur": 4.647,
+          "offset": 0.25,
+          "start": 15.56,
+          "words": [
+            {
+              "w": "冰",
+              "start": 15.56,
+              "end": 15.882,
+              "approx": true
+            },
+            {
+              "w": "箱",
+              "start": 15.882,
+              "end": 16.203,
+              "approx": true
+            },
+            {
+              "w": "里",
+              "start": 16.203,
+              "end": 16.525,
+              "approx": true
+            },
+            {
+              "w": "明",
+              "start": 16.525,
+              "end": 16.846,
+              "approx": true
+            },
+            {
+              "w": "明",
+              "start": 16.846,
+              "end": 17.168,
+              "approx": true
+            },
+            {
+              "w": "还",
+              "start": 17.168,
+              "end": 17.49,
+              "approx": true
+            },
+            {
+              "w": "有",
+              "start": 17.49,
+              "end": 17.811,
+              "approx": true
+            },
+            {
+              "w": "三",
+              "start": 17.811,
+              "end": 18.133,
+              "approx": true
+            },
+            {
+              "w": "包",
+              "start": 18.133,
+              "end": 18.454,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 18.454,
+              "end": 18.599,
+              "approx": true
+            },
+            {
+              "w": "别",
+              "start": 18.599,
+              "end": 18.921,
+              "approx": true
+            },
+            {
+              "w": "装",
+              "start": 18.921,
+              "end": 19.242,
+              "approx": true
+            },
+            {
+              "w": "没",
+              "start": 19.242,
+              "end": 19.564,
+              "approx": true
+            },
+            {
+              "w": "看",
+              "start": 19.564,
+              "end": 19.885,
+              "approx": true
+            },
+            {
+              "w": "见",
+              "start": 19.885,
+              "end": 20.207,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};

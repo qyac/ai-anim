@@ -1,0 +1,1023 @@
+{
+  "voice": "cotton-ja",
+  "rate": "+8%",
+  "bpm": 80.01,
+  "beat": 0.7499062617172852,
+  "overlap": 0,
+  "tail": 0.5,
+  "maxStretch": 1.3,
+  "total": 47.244,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "open",
+      "start": 0,
+      "slot": 8.249,
+      "stretch": 1.115,
+      "internal": 6.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.3,
+          "text": "うちの子を、紹介させてください。",
+          "file": "audio/vo/ja/open-1.mp3",
+          "dur": 3.072,
+          "offset": 0.335,
+          "start": 0.335,
+          "words": [
+            {
+              "w": "う",
+              "start": 0.335,
+              "end": 0.541,
+              "approx": true
+            },
+            {
+              "w": "ち",
+              "start": 0.541,
+              "end": 0.747,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 0.747,
+              "end": 0.954,
+              "approx": true
+            },
+            {
+              "w": "子",
+              "start": 0.954,
+              "end": 1.16,
+              "approx": true
+            },
+            {
+              "w": "を",
+              "start": 1.16,
+              "end": 1.366,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 1.366,
+              "end": 1.459,
+              "approx": true
+            },
+            {
+              "w": "紹",
+              "start": 1.459,
+              "end": 1.665,
+              "approx": true
+            },
+            {
+              "w": "介",
+              "start": 1.665,
+              "end": 1.871,
+              "approx": true
+            },
+            {
+              "w": "さ",
+              "start": 1.871,
+              "end": 2.077,
+              "approx": true
+            },
+            {
+              "w": "せ",
+              "start": 2.077,
+              "end": 2.283,
+              "approx": true
+            },
+            {
+              "w": "て",
+              "start": 2.283,
+              "end": 2.49,
+              "approx": true
+            },
+            {
+              "w": "く",
+              "start": 2.49,
+              "end": 2.696,
+              "approx": true
+            },
+            {
+              "w": "だ",
+              "start": 2.696,
+              "end": 2.902,
+              "approx": true
+            },
+            {
+              "w": "さ",
+              "start": 2.902,
+              "end": 3.108,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 3.108,
+              "end": 3.314,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 3.314,
+              "end": 3.407,
+              "approx": true
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "cue": 3.45,
+          "text": "コードで描いた猫娘です。",
+          "file": "audio/vo/ja/open-2.mp3",
+          "dur": 3.187,
+          "offset": 3.847,
+          "start": 3.847,
+          "words": [
+            {
+              "w": "コ",
+              "start": 3.847,
+              "end": 4.125,
+              "approx": true
+            },
+            {
+              "w": "ー",
+              "start": 4.125,
+              "end": 4.404,
+              "approx": true
+            },
+            {
+              "w": "ド",
+              "start": 4.404,
+              "end": 4.682,
+              "approx": true
+            },
+            {
+              "w": "で",
+              "start": 4.682,
+              "end": 4.96,
+              "approx": true
+            },
+            {
+              "w": "描",
+              "start": 4.96,
+              "end": 5.239,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 5.239,
+              "end": 5.517,
+              "approx": true
+            },
+            {
+              "w": "た",
+              "start": 5.517,
+              "end": 5.795,
+              "approx": true
+            },
+            {
+              "w": "猫",
+              "start": 5.795,
+              "end": 6.074,
+              "approx": true
+            },
+            {
+              "w": "娘",
+              "start": 6.074,
+              "end": 6.352,
+              "approx": true
+            },
+            {
+              "w": "で",
+              "start": 6.352,
+              "end": 6.63,
+              "approx": true
+            },
+            {
+              "w": "す",
+              "start": 6.63,
+              "end": 6.909,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 6.909,
+              "end": 7.034,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nuomi",
+      "start": 8.249,
+      "slot": 10.499,
+      "stretch": 1.17,
+      "internal": 8,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.3,
+          "text": "オレンジに白、琥珀の目、首に鈴。",
+          "file": "audio/vo/ja/nuomi-1.mp3",
+          "dur": 4.648,
+          "offset": 0.351,
+          "start": 8.6,
+          "words": [
+            {
+              "w": "オ",
+              "start": 8.6,
+              "end": 8.924,
+              "approx": true
+            },
+            {
+              "w": "レ",
+              "start": 8.924,
+              "end": 9.248,
+              "approx": true
+            },
+            {
+              "w": "ン",
+              "start": 9.248,
+              "end": 9.572,
+              "approx": true
+            },
+            {
+              "w": "ジ",
+              "start": 9.572,
+              "end": 9.896,
+              "approx": true
+            },
+            {
+              "w": "に",
+              "start": 9.896,
+              "end": 10.22,
+              "approx": true
+            },
+            {
+              "w": "白",
+              "start": 10.22,
+              "end": 10.543,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 10.543,
+              "end": 10.689,
+              "approx": true
+            },
+            {
+              "w": "琥",
+              "start": 10.689,
+              "end": 11.013,
+              "approx": true
+            },
+            {
+              "w": "珀",
+              "start": 11.013,
+              "end": 11.337,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 11.337,
+              "end": 11.661,
+              "approx": true
+            },
+            {
+              "w": "目",
+              "start": 11.661,
+              "end": 11.985,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 11.985,
+              "end": 12.131,
+              "approx": true
+            },
+            {
+              "w": "首",
+              "start": 12.131,
+              "end": 12.454,
+              "approx": true
+            },
+            {
+              "w": "に",
+              "start": 12.454,
+              "end": 12.778,
+              "approx": true
+            },
+            {
+              "w": "鈴",
+              "start": 12.778,
+              "end": 13.102,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 13.102,
+              "end": 13.248,
+              "approx": true
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "cue": 5.1,
+          "text": "よく喋って、ちょっとツンデレ。",
+          "file": "audio/vo/ja/nuomi-2.mp3",
+          "dur": 3.76,
+          "offset": 5.967,
+          "start": 14.216,
+          "words": [
+            {
+              "w": "よ",
+              "start": 14.216,
+              "end": 14.487,
+              "approx": true
+            },
+            {
+              "w": "く",
+              "start": 14.487,
+              "end": 14.757,
+              "approx": true
+            },
+            {
+              "w": "喋",
+              "start": 14.757,
+              "end": 15.028,
+              "approx": true
+            },
+            {
+              "w": "っ",
+              "start": 15.028,
+              "end": 15.298,
+              "approx": true
+            },
+            {
+              "w": "て",
+              "start": 15.298,
+              "end": 15.569,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 15.569,
+              "end": 15.69,
+              "approx": true
+            },
+            {
+              "w": "ち",
+              "start": 15.69,
+              "end": 15.961,
+              "approx": true
+            },
+            {
+              "w": "ょ",
+              "start": 15.961,
+              "end": 16.231,
+              "approx": true
+            },
+            {
+              "w": "っ",
+              "start": 16.231,
+              "end": 16.502,
+              "approx": true
+            },
+            {
+              "w": "と",
+              "start": 16.502,
+              "end": 16.772,
+              "approx": true
+            },
+            {
+              "w": "ツ",
+              "start": 16.772,
+              "end": 17.043,
+              "approx": true
+            },
+            {
+              "w": "ン",
+              "start": 17.043,
+              "end": 17.313,
+              "approx": true
+            },
+            {
+              "w": "デ",
+              "start": 17.313,
+              "end": 17.584,
+              "approx": true
+            },
+            {
+              "w": "レ",
+              "start": 17.584,
+              "end": 17.854,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 17.854,
+              "end": 17.976,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tsundere",
+      "start": 18.748,
+      "slot": 9.749,
+      "stretch": 1.072,
+      "internal": 8,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.3,
+          "text": "なでられたいくせに、逃げる。",
+          "file": "audio/vo/ja/tsundere-1.mp3",
+          "dur": 3.139,
+          "offset": 0.322,
+          "start": 19.07,
+          "words": [
+            {
+              "w": "な",
+              "start": 19.07,
+              "end": 19.313,
+              "approx": true
+            },
+            {
+              "w": "で",
+              "start": 19.313,
+              "end": 19.557,
+              "approx": true
+            },
+            {
+              "w": "ら",
+              "start": 19.557,
+              "end": 19.8,
+              "approx": true
+            },
+            {
+              "w": "れ",
+              "start": 19.8,
+              "end": 20.043,
+              "approx": true
+            },
+            {
+              "w": "た",
+              "start": 20.043,
+              "end": 20.287,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 20.287,
+              "end": 20.53,
+              "approx": true
+            },
+            {
+              "w": "く",
+              "start": 20.53,
+              "end": 20.773,
+              "approx": true
+            },
+            {
+              "w": "せ",
+              "start": 20.773,
+              "end": 21.017,
+              "approx": true
+            },
+            {
+              "w": "に",
+              "start": 21.017,
+              "end": 21.26,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 21.26,
+              "end": 21.37,
+              "approx": true
+            },
+            {
+              "w": "逃",
+              "start": 21.37,
+              "end": 21.613,
+              "approx": true
+            },
+            {
+              "w": "げ",
+              "start": 21.613,
+              "end": 21.856,
+              "approx": true
+            },
+            {
+              "w": "る",
+              "start": 21.856,
+              "end": 22.1,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 22.1,
+              "end": 22.209,
+              "approx": true
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "cue": 3.6,
+          "text": "で、無視すると、こっそり見てる。",
+          "file": "audio/vo/ja/tsundere-2.mp3",
+          "dur": 4.475,
+          "offset": 3.859,
+          "start": 22.607,
+          "words": [
+            {
+              "w": "で",
+              "start": 22.607,
+              "end": 22.919,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 22.919,
+              "end": 23.059,
+              "approx": true
+            },
+            {
+              "w": "無",
+              "start": 23.059,
+              "end": 23.371,
+              "approx": true
+            },
+            {
+              "w": "視",
+              "start": 23.371,
+              "end": 23.683,
+              "approx": true
+            },
+            {
+              "w": "す",
+              "start": 23.683,
+              "end": 23.995,
+              "approx": true
+            },
+            {
+              "w": "る",
+              "start": 23.995,
+              "end": 24.307,
+              "approx": true
+            },
+            {
+              "w": "と",
+              "start": 24.307,
+              "end": 24.618,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 24.618,
+              "end": 24.759,
+              "approx": true
+            },
+            {
+              "w": "こ",
+              "start": 24.759,
+              "end": 25.071,
+              "approx": true
+            },
+            {
+              "w": "っ",
+              "start": 25.071,
+              "end": 25.382,
+              "approx": true
+            },
+            {
+              "w": "そ",
+              "start": 25.382,
+              "end": 25.694,
+              "approx": true
+            },
+            {
+              "w": "り",
+              "start": 25.694,
+              "end": 26.006,
+              "approx": true
+            },
+            {
+              "w": "見",
+              "start": 26.006,
+              "end": 26.318,
+              "approx": true
+            },
+            {
+              "w": "て",
+              "start": 26.318,
+              "end": 26.63,
+              "approx": true
+            },
+            {
+              "w": "る",
+              "start": 26.63,
+              "end": 26.942,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 26.942,
+              "end": 27.082,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "xiaoying",
+      "start": 28.496,
+      "slot": 10.499,
+      "stretch": 1,
+      "internal": 9.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.3,
+          "text": "シャオイン。いつも一緒にいる人。",
+          "file": "audio/vo/ja/xiaoying-1.mp3",
+          "dur": 3.632,
+          "offset": 0.3,
+          "start": 28.796,
+          "words": [
+            {
+              "w": "シ",
+              "start": 28.796,
+              "end": 29.04,
+              "approx": true
+            },
+            {
+              "w": "ャ",
+              "start": 29.04,
+              "end": 29.284,
+              "approx": true
+            },
+            {
+              "w": "オ",
+              "start": 29.284,
+              "end": 29.527,
+              "approx": true
+            },
+            {
+              "w": "イ",
+              "start": 29.527,
+              "end": 29.771,
+              "approx": true
+            },
+            {
+              "w": "ン",
+              "start": 29.771,
+              "end": 30.015,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 30.015,
+              "end": 30.124,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 30.124,
+              "end": 30.368,
+              "approx": true
+            },
+            {
+              "w": "つ",
+              "start": 30.368,
+              "end": 30.612,
+              "approx": true
+            },
+            {
+              "w": "も",
+              "start": 30.612,
+              "end": 30.856,
+              "approx": true
+            },
+            {
+              "w": "一",
+              "start": 30.856,
+              "end": 31.1,
+              "approx": true
+            },
+            {
+              "w": "緒",
+              "start": 31.1,
+              "end": 31.343,
+              "approx": true
+            },
+            {
+              "w": "に",
+              "start": 31.343,
+              "end": 31.587,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 31.587,
+              "end": 31.831,
+              "approx": true
+            },
+            {
+              "w": "る",
+              "start": 31.831,
+              "end": 32.075,
+              "approx": true
+            },
+            {
+              "w": "人",
+              "start": 32.075,
+              "end": 32.318,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 32.318,
+              "end": 32.428,
+              "approx": true
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "cue": 4.2,
+          "text": "日本語の勉強中。糯米が好き。",
+          "file": "audio/vo/ja/xiaoying-2.mp3",
+          "dur": 3.897,
+          "offset": 4.2,
+          "start": 32.696,
+          "words": [
+            {
+              "w": "日",
+              "start": 32.696,
+              "end": 32.998,
+              "approx": true
+            },
+            {
+              "w": "本",
+              "start": 32.998,
+              "end": 33.3,
+              "approx": true
+            },
+            {
+              "w": "語",
+              "start": 33.3,
+              "end": 33.602,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 33.602,
+              "end": 33.904,
+              "approx": true
+            },
+            {
+              "w": "勉",
+              "start": 33.904,
+              "end": 34.206,
+              "approx": true
+            },
+            {
+              "w": "強",
+              "start": 34.206,
+              "end": 34.509,
+              "approx": true
+            },
+            {
+              "w": "中",
+              "start": 34.509,
+              "end": 34.811,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 34.811,
+              "end": 34.947,
+              "approx": true
+            },
+            {
+              "w": "糯",
+              "start": 34.947,
+              "end": 35.249,
+              "approx": true
+            },
+            {
+              "w": "米",
+              "start": 35.249,
+              "end": 35.551,
+              "approx": true
+            },
+            {
+              "w": "が",
+              "start": 35.551,
+              "end": 35.853,
+              "approx": true
+            },
+            {
+              "w": "好",
+              "start": 35.853,
+              "end": 36.155,
+              "approx": true
+            },
+            {
+              "w": "き",
+              "start": 36.155,
+              "end": 36.457,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 36.457,
+              "end": 36.593,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phrases",
+      "start": 38.995,
+      "slot": 3.75,
+      "stretch": 1.127,
+      "internal": 2.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "口ぐせは、隠せません。",
+          "file": "audio/vo/ja/phrases-1.mp3",
+          "dur": 2.231,
+          "offset": 0.225,
+          "start": 39.22,
+          "words": [
+            {
+              "w": "口",
+              "start": 39.22,
+              "end": 39.445,
+              "approx": true
+            },
+            {
+              "w": "ぐ",
+              "start": 39.445,
+              "end": 39.671,
+              "approx": true
+            },
+            {
+              "w": "せ",
+              "start": 39.671,
+              "end": 39.896,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 39.896,
+              "end": 40.121,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 40.121,
+              "end": 40.223,
+              "approx": true
+            },
+            {
+              "w": "隠",
+              "start": 40.223,
+              "end": 40.448,
+              "approx": true
+            },
+            {
+              "w": "せ",
+              "start": 40.448,
+              "end": 40.674,
+              "approx": true
+            },
+            {
+              "w": "ま",
+              "start": 40.674,
+              "end": 40.899,
+              "approx": true
+            },
+            {
+              "w": "せ",
+              "start": 40.899,
+              "end": 41.124,
+              "approx": true
+            },
+            {
+              "w": "ん",
+              "start": 41.124,
+              "end": 41.35,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 41.35,
+              "end": 41.451,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "end",
+      "start": 42.745,
+      "slot": 4.499,
+      "stretch": 1.035,
+      "internal": 3.2,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "以上、うちの子でした。",
+          "file": "audio/vo/ja/end-1.mp3",
+          "dur": 2.611,
+          "offset": 0.207,
+          "start": 42.952,
+          "words": [
+            {
+              "w": "以",
+              "start": 42.952,
+              "end": 43.216,
+              "approx": true
+            },
+            {
+              "w": "上",
+              "start": 43.216,
+              "end": 43.479,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 43.479,
+              "end": 43.598,
+              "approx": true
+            },
+            {
+              "w": "う",
+              "start": 43.598,
+              "end": 43.862,
+              "approx": true
+            },
+            {
+              "w": "ち",
+              "start": 43.862,
+              "end": 44.126,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 44.126,
+              "end": 44.389,
+              "approx": true
+            },
+            {
+              "w": "子",
+              "start": 44.389,
+              "end": 44.653,
+              "approx": true
+            },
+            {
+              "w": "で",
+              "start": 44.653,
+              "end": 44.917,
+              "approx": true
+            },
+            {
+              "w": "し",
+              "start": 44.917,
+              "end": 45.181,
+              "approx": true
+            },
+            {
+              "w": "た",
+              "start": 45.181,
+              "end": 45.444,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 45.444,
+              "end": 45.563,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

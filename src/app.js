@@ -644,7 +644,8 @@ const api = {
       c.font = '400 ' + subSize + 'px ' + fam('mono');
       c.fillStyle = 'rgba(255,77,18,0.92)';
       c.fillText(sub, px, baseline);
-      baseline -= 46 * k;
+      // ⚠ 原来只上移 46px，而标题 96px —— 副标会压在标题字身上（实测踩过）
+      baseline -= 92 * k;
     }
     if (title) {
       // 3) 主标题：大字、自动缩到 78% 宽以内（长标题不被裁）

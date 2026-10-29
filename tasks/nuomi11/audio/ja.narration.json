@@ -1,0 +1,449 @@
+{
+  "source": "./audio/ja-vo.mp3",
+  "lines": [
+    {
+      "id": "s1-1",
+      "text": "一声の「にゃ」、いくつかの意味。",
+      "start": 0.2,
+      "dur": 2.964,
+      "words": [
+        {
+          "w": "一",
+          "start": 0.2,
+          "end": 0.415,
+          "approx": true
+        },
+        {
+          "w": "声",
+          "start": 0.415,
+          "end": 0.63,
+          "approx": true
+        },
+        {
+          "w": "の",
+          "start": 0.63,
+          "end": 0.844,
+          "approx": true
+        },
+        {
+          "w": "「",
+          "start": 0.844,
+          "end": 0.941,
+          "approx": true
+        },
+        {
+          "w": "に",
+          "start": 0.941,
+          "end": 1.156,
+          "approx": true
+        },
+        {
+          "w": "ゃ",
+          "start": 1.156,
+          "end": 1.371,
+          "approx": true
+        },
+        {
+          "w": "」",
+          "start": 1.371,
+          "end": 1.467,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 1.467,
+          "end": 1.564,
+          "approx": true
+        },
+        {
+          "w": "い",
+          "start": 1.564,
+          "end": 1.779,
+          "approx": true
+        },
+        {
+          "w": "く",
+          "start": 1.779,
+          "end": 1.993,
+          "approx": true
+        },
+        {
+          "w": "つ",
+          "start": 1.993,
+          "end": 2.208,
+          "approx": true
+        },
+        {
+          "w": "か",
+          "start": 2.208,
+          "end": 2.423,
+          "approx": true
+        },
+        {
+          "w": "の",
+          "start": 2.423,
+          "end": 2.638,
+          "approx": true
+        },
+        {
+          "w": "意",
+          "start": 2.638,
+          "end": 2.853,
+          "approx": true
+        },
+        {
+          "w": "味",
+          "start": 2.853,
+          "end": 3.067,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 3.067,
+          "end": 3.164,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s2-1",
+      "text": "三つの層で、機嫌を読む。",
+      "start": 4.113,
+      "dur": 3.273,
+      "words": [
+        {
+          "w": "三",
+          "start": 4.113,
+          "end": 4.413,
+          "approx": true
+        },
+        {
+          "w": "つ",
+          "start": 4.413,
+          "end": 4.714,
+          "approx": true
+        },
+        {
+          "w": "の",
+          "start": 4.714,
+          "end": 5.014,
+          "approx": true
+        },
+        {
+          "w": "層",
+          "start": 5.014,
+          "end": 5.314,
+          "approx": true
+        },
+        {
+          "w": "で",
+          "start": 5.314,
+          "end": 5.614,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 5.614,
+          "end": 5.75,
+          "approx": true
+        },
+        {
+          "w": "機",
+          "start": 5.75,
+          "end": 6.05,
+          "approx": true
+        },
+        {
+          "w": "嫌",
+          "start": 6.05,
+          "end": 6.35,
+          "approx": true
+        },
+        {
+          "w": "を",
+          "start": 6.35,
+          "end": 6.65,
+          "approx": true
+        },
+        {
+          "w": "読",
+          "start": 6.65,
+          "end": 6.951,
+          "approx": true
+        },
+        {
+          "w": "む",
+          "start": 6.951,
+          "end": 7.251,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 7.251,
+          "end": 7.386,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s3-1",
+      "text": "朝から夜まで、順番に。",
+      "start": 8.285,
+      "dur": 2.773,
+      "words": [
+        {
+          "w": "朝",
+          "start": 8.285,
+          "end": 8.565,
+          "approx": true
+        },
+        {
+          "w": "か",
+          "start": 8.565,
+          "end": 8.845,
+          "approx": true
+        },
+        {
+          "w": "ら",
+          "start": 8.845,
+          "end": 9.125,
+          "approx": true
+        },
+        {
+          "w": "夜",
+          "start": 9.125,
+          "end": 9.405,
+          "approx": true
+        },
+        {
+          "w": "ま",
+          "start": 9.405,
+          "end": 9.686,
+          "approx": true
+        },
+        {
+          "w": "で",
+          "start": 9.686,
+          "end": 9.966,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 9.966,
+          "end": 10.092,
+          "approx": true
+        },
+        {
+          "w": "順",
+          "start": 10.092,
+          "end": 10.372,
+          "approx": true
+        },
+        {
+          "w": "番",
+          "start": 10.372,
+          "end": 10.652,
+          "approx": true
+        },
+        {
+          "w": "に",
+          "start": 10.652,
+          "end": 10.932,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 10.932,
+          "end": 11.058,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s4-1",
+      "text": "貯金は、小魚で。",
+      "start": 12.188,
+      "dur": 2.508,
+      "words": [
+        {
+          "w": "貯",
+          "start": 12.188,
+          "end": 12.551,
+          "approx": true
+        },
+        {
+          "w": "金",
+          "start": 12.551,
+          "end": 12.915,
+          "approx": true
+        },
+        {
+          "w": "は",
+          "start": 12.915,
+          "end": 13.278,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 13.278,
+          "end": 13.442,
+          "approx": true
+        },
+        {
+          "w": "小",
+          "start": 13.442,
+          "end": 13.805,
+          "approx": true
+        },
+        {
+          "w": "魚",
+          "start": 13.805,
+          "end": 14.169,
+          "approx": true
+        },
+        {
+          "w": "で",
+          "start": 14.169,
+          "end": 14.532,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 14.532,
+          "end": 14.696,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s5-1",
+      "text": "すべての容器の、入居率。",
+      "start": 16.091,
+      "dur": 2.826,
+      "words": [
+        {
+          "w": "す",
+          "start": 16.091,
+          "end": 16.35,
+          "approx": true
+        },
+        {
+          "w": "べ",
+          "start": 16.35,
+          "end": 16.61,
+          "approx": true
+        },
+        {
+          "w": "て",
+          "start": 16.61,
+          "end": 16.869,
+          "approx": true
+        },
+        {
+          "w": "の",
+          "start": 16.869,
+          "end": 17.128,
+          "approx": true
+        },
+        {
+          "w": "容",
+          "start": 17.128,
+          "end": 17.387,
+          "approx": true
+        },
+        {
+          "w": "器",
+          "start": 17.387,
+          "end": 17.647,
+          "approx": true
+        },
+        {
+          "w": "の",
+          "start": 17.647,
+          "end": 17.906,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 17.906,
+          "end": 18.023,
+          "approx": true
+        },
+        {
+          "w": "入",
+          "start": 18.023,
+          "end": 18.282,
+          "approx": true
+        },
+        {
+          "w": "居",
+          "start": 18.282,
+          "end": 18.541,
+          "approx": true
+        },
+        {
+          "w": "率",
+          "start": 18.541,
+          "end": 18.8,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 18.8,
+          "end": 18.917,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s6-1",
+      "text": "機嫌は、良好。",
+      "start": 19.994,
+      "dur": 2.086,
+      "words": [
+        {
+          "w": "機",
+          "start": 19.994,
+          "end": 20.348,
+          "approx": true
+        },
+        {
+          "w": "嫌",
+          "start": 20.348,
+          "end": 20.701,
+          "approx": true
+        },
+        {
+          "w": "は",
+          "start": 20.701,
+          "end": 21.055,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 21.055,
+          "end": 21.214,
+          "approx": true
+        },
+        {
+          "w": "良",
+          "start": 21.214,
+          "end": 21.567,
+          "approx": true
+        },
+        {
+          "w": "好",
+          "start": 21.567,
+          "end": 21.921,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 21.921,
+          "end": 22.08,
+          "approx": true
+        }
+      ]
+    }
+  ]
+}

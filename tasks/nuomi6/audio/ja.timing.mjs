@@ -1,0 +1,516 @@
+// 由 `node scripts/anim.mjs say <任务>` 生成，不要手改；改旁白请改 narration.mjs 再重跑。
+export default {
+  "voice": "cotton-ja",
+  "rate": "+10%",
+  "bpm": 212.48,
+  "beat": 0.28237951807228917,
+  "overlap": 0,
+  "tail": 0.3,
+  "maxStretch": 1.3,
+  "total": 22.59,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "s1",
+      "start": 0,
+      "slot": 4.236,
+      "stretch": 1.022,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "猫の目にも、フレームがある。",
+          "file": "audio/vo/ja/s1-1.mp3",
+          "dur": 3.18,
+          "offset": 0.204,
+          "start": 0.204,
+          "words": [
+            {
+              "w": "猫",
+              "start": 0.204,
+              "end": 0.451,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 0.451,
+              "end": 0.697,
+              "approx": true
+            },
+            {
+              "w": "目",
+              "start": 0.697,
+              "end": 0.944,
+              "approx": true
+            },
+            {
+              "w": "に",
+              "start": 0.944,
+              "end": 1.19,
+              "approx": true
+            },
+            {
+              "w": "も",
+              "start": 1.19,
+              "end": 1.437,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 1.437,
+              "end": 1.547,
+              "approx": true
+            },
+            {
+              "w": "フ",
+              "start": 1.547,
+              "end": 1.794,
+              "approx": true
+            },
+            {
+              "w": "レ",
+              "start": 1.794,
+              "end": 2.041,
+              "approx": true
+            },
+            {
+              "w": "ー",
+              "start": 2.041,
+              "end": 2.287,
+              "approx": true
+            },
+            {
+              "w": "ム",
+              "start": 2.287,
+              "end": 2.534,
+              "approx": true
+            },
+            {
+              "w": "が",
+              "start": 2.534,
+              "end": 2.78,
+              "approx": true
+            },
+            {
+              "w": "あ",
+              "start": 2.78,
+              "end": 3.027,
+              "approx": true
+            },
+            {
+              "w": "る",
+              "start": 3.027,
+              "end": 3.273,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 3.273,
+              "end": 3.384,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "start": 4.236,
+      "slot": 5.365,
+      "stretch": 1.3,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "一秒に六十。間違えたら最初から。",
+          "file": "audio/vo/ja/s2-1.mp3",
+          "dur": 4.715,
+          "offset": 0.26,
+          "start": 4.496,
+          "words": [
+            {
+              "w": "一",
+              "start": 4.496,
+              "end": 4.812,
+              "approx": true
+            },
+            {
+              "w": "秒",
+              "start": 4.812,
+              "end": 5.129,
+              "approx": true
+            },
+            {
+              "w": "に",
+              "start": 5.129,
+              "end": 5.445,
+              "approx": true
+            },
+            {
+              "w": "六",
+              "start": 5.445,
+              "end": 5.762,
+              "approx": true
+            },
+            {
+              "w": "十",
+              "start": 5.762,
+              "end": 6.078,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 6.078,
+              "end": 6.221,
+              "approx": true
+            },
+            {
+              "w": "間",
+              "start": 6.221,
+              "end": 6.537,
+              "approx": true
+            },
+            {
+              "w": "違",
+              "start": 6.537,
+              "end": 6.854,
+              "approx": true
+            },
+            {
+              "w": "え",
+              "start": 6.854,
+              "end": 7.17,
+              "approx": true
+            },
+            {
+              "w": "た",
+              "start": 7.17,
+              "end": 7.486,
+              "approx": true
+            },
+            {
+              "w": "ら",
+              "start": 7.486,
+              "end": 7.803,
+              "approx": true
+            },
+            {
+              "w": "最",
+              "start": 7.803,
+              "end": 8.119,
+              "approx": true
+            },
+            {
+              "w": "初",
+              "start": 8.119,
+              "end": 8.436,
+              "approx": true
+            },
+            {
+              "w": "か",
+              "start": 8.436,
+              "end": 8.752,
+              "approx": true
+            },
+            {
+              "w": "ら",
+              "start": 8.752,
+              "end": 9.069,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 9.069,
+              "end": 9.211,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "start": 9.601,
+      "slot": 4.518,
+      "stretch": 1.146,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "昼と夜、同じ目で二つの光。",
+          "file": "audio/vo/ja/s3-1.mp3",
+          "dur": 3.626,
+          "offset": 0.229,
+          "start": 9.83,
+          "words": [
+            {
+              "w": "昼",
+              "start": 9.83,
+              "end": 10.135,
+              "approx": true
+            },
+            {
+              "w": "と",
+              "start": 10.135,
+              "end": 10.439,
+              "approx": true
+            },
+            {
+              "w": "夜",
+              "start": 10.439,
+              "end": 10.744,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 10.744,
+              "end": 10.881,
+              "approx": true
+            },
+            {
+              "w": "同",
+              "start": 10.881,
+              "end": 11.186,
+              "approx": true
+            },
+            {
+              "w": "じ",
+              "start": 11.186,
+              "end": 11.491,
+              "approx": true
+            },
+            {
+              "w": "目",
+              "start": 11.491,
+              "end": 11.795,
+              "approx": true
+            },
+            {
+              "w": "で",
+              "start": 11.795,
+              "end": 12.1,
+              "approx": true
+            },
+            {
+              "w": "二",
+              "start": 12.1,
+              "end": 12.405,
+              "approx": true
+            },
+            {
+              "w": "つ",
+              "start": 12.405,
+              "end": 12.709,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 12.709,
+              "end": 13.014,
+              "approx": true
+            },
+            {
+              "w": "光",
+              "start": 13.014,
+              "end": 13.319,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 13.319,
+              "end": 13.456,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "start": 14.119,
+      "slot": 4.236,
+      "stretch": 1.091,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "一秒、一コマも残さない。",
+          "file": "audio/vo/ja/s4-1.mp3",
+          "dur": 3.429,
+          "offset": 0.218,
+          "start": 14.337,
+          "words": [
+            {
+              "w": "一",
+              "start": 14.337,
+              "end": 14.652,
+              "approx": true
+            },
+            {
+              "w": "秒",
+              "start": 14.652,
+              "end": 14.966,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 14.966,
+              "end": 15.108,
+              "approx": true
+            },
+            {
+              "w": "一",
+              "start": 15.108,
+              "end": 15.422,
+              "approx": true
+            },
+            {
+              "w": "コ",
+              "start": 15.422,
+              "end": 15.737,
+              "approx": true
+            },
+            {
+              "w": "マ",
+              "start": 15.737,
+              "end": 16.052,
+              "approx": true
+            },
+            {
+              "w": "も",
+              "start": 16.052,
+              "end": 16.366,
+              "approx": true
+            },
+            {
+              "w": "残",
+              "start": 16.366,
+              "end": 16.681,
+              "approx": true
+            },
+            {
+              "w": "さ",
+              "start": 16.681,
+              "end": 16.995,
+              "approx": true
+            },
+            {
+              "w": "な",
+              "start": 16.995,
+              "end": 17.31,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 17.31,
+              "end": 17.624,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 17.624,
+              "end": 17.766,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "start": 18.355,
+      "slot": 4.236,
+      "stretch": 1.09,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "瞳の中の、六十フレーム。",
+          "file": "audio/vo/ja/s5-1.mp3",
+          "dur": 3.423,
+          "offset": 0.218,
+          "start": 18.573,
+          "words": [
+            {
+              "w": "瞳",
+              "start": 18.573,
+              "end": 18.887,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 18.887,
+              "end": 19.201,
+              "approx": true
+            },
+            {
+              "w": "中",
+              "start": 19.201,
+              "end": 19.515,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 19.515,
+              "end": 19.829,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 19.829,
+              "end": 19.97,
+              "approx": true
+            },
+            {
+              "w": "六",
+              "start": 19.97,
+              "end": 20.285,
+              "approx": true
+            },
+            {
+              "w": "十",
+              "start": 20.285,
+              "end": 20.599,
+              "approx": true
+            },
+            {
+              "w": "フ",
+              "start": 20.599,
+              "end": 20.913,
+              "approx": true
+            },
+            {
+              "w": "レ",
+              "start": 20.913,
+              "end": 21.227,
+              "approx": true
+            },
+            {
+              "w": "ー",
+              "start": 21.227,
+              "end": 21.541,
+              "approx": true
+            },
+            {
+              "w": "ム",
+              "start": 21.541,
+              "end": 21.855,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 21.855,
+              "end": 21.996,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};

@@ -14,6 +14,7 @@
 import timing from './audio/timing.mjs';
 import { seq, cut } from '../../src/timeline.js';
 import { stClick, stLike } from './scenes/sticker.js';
+import { packFlash } from './scenes/packflash.js';
 
 const dur = (id) => {
   const s = timing.scenes.find((x) => x.id === id);
@@ -34,60 +35,41 @@ export default {
   captions: true,
   timeline: seq([
     {
-      type: 'title', id: 'open', dur: dur('open'), focus: 'center',
+      type: 'title', id: 'open', dur: dur('open'), focus: 'center', maxSamples: 16,
       eyebrow: 'NEKOCLICKER / C# · .NET 8',
       title: 'NekoClicker',
       sub: '增量游戏框架 · 零第三方依赖',
       blur: 14,
     },
     {
-      type: 'bigtype', id: 'what', dur: dur('what'), focus: 'center',
+      type: 'bigtype', id: 'what', dur: dur('what'), focus: 'center', maxSamples: 16,
       kicker: 'WHAT / 01',
       line1: '点一下，', line2: '猫就开始自己干活',
       mark: '自己',
       footer: '参考 Cookie Clicker 的机制设计',
     },
     {
-      type: 'timeline', id: 'loop', dur: dur('loop'), focus: 'center',
+      type: 'timeline', id: 'loop', dur: dur('loop'), focus: 'center', maxSamples: 16,
       kicker: 'LOOP / 02',
       title: '一层的玩法循环',
       events: ['点击', '建筑产速', '升级', '成就', '纪元'],
       footer: '每座建筑 +0.5% 点击收益（最多算 120 座）',
     },
     // 表情包：蓝色大肥鱼按按钮（1 段 ~2s，装饰，不是主体）
-    cut(stClick, { dur: dur('st_click'), focus: 'center' }),
+    cut(stClick, { dur: dur('st_click'), focus: 'center', maxSamples: 16 }),
+    // 十一个内容包快闪：一段里切 11 个名字（0.45s 一闪）
+    cut(packFlash, { dur: dur('packs'), focus: 'center', maxSamples: 16 }),
     {
-      type: 'bigtype', id: 'pack1', dur: dur('pack1'), focus: 'center',
-      kicker: 'PACK / 03',
-      line1: '猫咖物语', line2: '与猫娘咖啡馆',
-      mark: '猫娘',
-      footer: '示例包 + #1',
-    },
-    {
-      type: 'bigtype', id: 'pack2', dur: dur('pack2'), focus: 'center',
-      kicker: 'PACK / 03',
-      line1: '九命轮回', line2: '与猫娘实验室',
-      mark: '九命',
-      footer: 'PACK #2 / #3',
-    },
-    {
-      type: 'bigtype', id: 'pack3', dur: dur('pack3'), focus: 'center',
-      kicker: 'PACK / 04',
-      line1: '赛博猫娘', line2: '与猫娘梦境',
-      mark: '梦境',
-      footer: '还有公司 / 末世 / 图书馆 / 神明 / 文明',
-    },
-    {
-      type: 'counter', id: 'tests', dur: dur('tests'), focus: 'center',
+      type: 'counter', id: 'tests', dur: dur('tests'), focus: 'center', maxSamples: 16,
       from: 0, to: 602, decimals: 0,
       label: '引擎用例',
       sub: '自研迷你运行器 · 一条命令全跑',
       footer: 'neko-clicker/STATUS.md',
     },
     // 表情包：点赞（"都测过了"）
-    cut(stLike, { dur: dur('st_like'), focus: 'center' }),
+    cut(stLike, { dur: dur('st_like'), focus: 'center', maxSamples: 16 }),
     {
-      type: 'device', id: 'hosts', dur: dur('hosts'), focus: 'center',
+      type: 'device', id: 'hosts', dur: dur('hosts'), focus: 'center', maxSamples: 16,
       kicker: 'HOST / 06',
       chrome: 'nekoclicker',
       // ⚠ 不许写「终端与网页，同一份引擎」——那是旁白原句（lint-narration-dup 会点名）；
@@ -97,12 +79,12 @@ export default {
       footer: '离线也照样累积，回来结算',
     },
     {
-      type: 'kinetic', id: 'api', dur: dur('api'), focus: 'center',
+      type: 'kinetic', id: 'api', dur: dur('api'), focus: 'center', maxSamples: 16,
       headline: ['公开 API', '只增不改'],
       sub: '从 1.0.0 起，有测试守着',
     },
     {
-      type: 'outro', id: 'end', dur: dur('end'), focus: 'center',
+      type: 'outro', id: 'end', dur: dur('end'), focus: 'center', maxSamples: 16,
       title: 'NekoClicker',
       sub: 'v1.13.0 · C# / .NET 8',
       signature: '零第三方依赖 · 十一个内容包',

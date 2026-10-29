@@ -2195,6 +2195,105 @@ async function cmdCheck() {
     }
   }
 
+  // 1.54) **卡点**：切点有没有落在拍上（tools/lint-beat-align.mjs）。
+  //
+  // 为什么放在 check 里：切点差 60ms 观众说不出哪里怪，只会觉得"没跟着音乐走"。
+  // 判据用**从音频自己重建的网格**（不信 analysis.json 的 bpm 估计 —— 实测它对合成床偏 4%）。
+  {
+    const tool = path.join(ROOT, 'tools', 'lint-beat-align.mjs');
+    try {
+      const { spawnSync } = await import('node:child_process');
+      // 多语言任务（nekohome-intro-ja）的段长来自 ../nekohome-intro/audio/ja.timing.json ——
+      // 这里把"可用的 timing 文件"交给工具，别因为它不在本任务目录就跳过卡点
+      const timingCandidates = [
+        path.join(ROOT, 'tasks', task, 'audio', 'timing.json'),
+        path.join(ROOT, 'tasks', task, 'audio', 'ja.timing.json'),
+      ];
+      const timingForBeat = timingCandidates.find((p) => existsSync(p)) ?? null;
+      if (existsSync(tool) && timingForBeat) {
+        const r = spawnSync(process.execPath, [tool, task, '--json', '--timing', timingForBeat], { encoding: 'utf8', timeout: 60000 });
+        let j = null;
+        try { j = JSON.parse(`${r.stdout ?? ''}${r.stderr ?? ''}`); } catch { j = null; }
+        if (j && j.rows) {
+          const bad = j.rows.filter((x) => !x.ok);
+          // 硬门（--strict）：交付前要求 ≥90% 的切点落在拍上（4-6 段的短片允许一个例外）
+          const need = Math.max(1, Math.ceil(j.rows.length * 0.9));
+          if (bad.length) {
+            const worst = bad.slice().sort((a, b) => Math.abs(b.offMs) - Math.abs(a.offMs))[0];
+            warn(`⚠ 卡点：${bad.length}/${j.rows.length} 个切点没落在拍上（判据 ±${j.tolMs}ms，实测 ${j.bpm.toFixed(2)} BPM）`);
+            for (const b of bad.slice(0, 4)) warn(`  · ${b.id}  ${b.offMs >= 0 ? '+' : ''}${b.offMs.toFixed(0)}ms 离最近拍`);
+            warn(`  → 段长改用 { beat: n } / { bar: n }，或把 narration.mjs 的 BPM 设成实测的 ${j.bpm.toFixed(2)}`);
+            if (strict && j.rows.length - bad.length < need) {
+              staticErrs.push(`[卡点] 只有 ${j.rows.length - bad.length}/${j.rows.length} 个切点对得上拍子（要求 ≥${need}，最差 ${Math.abs(worst.offMs).toFixed(0)}ms）`);
+            }
+          } else {
+            log(`  ✓ 卡点：${j.rows.length}/${j.rows.length} 个切点都在 ±${j.tolMs}ms 内（实测 ${j.bpm.toFixed(2)} BPM）`);
+          }
+        } else if (r.status === 2) {
+          pushSkipped(skipped, '卡点（beat-align）', `这条片子没有可检测的音轨或起音太少：${firstLine(`${r.stdout ?? ''}${r.stderr ?? ''}`)}`);
+        }
+        // 分析器给出的拍网格置信度（软失败：bpm 有值但网格不可信）
+        if (j && j.track) {
+          const ap = path.join(ROOT, j.track.replace(/\.[^.]+$/, '.analysis.json'));
+          if (existsSync(ap)) {
+            try {
+              const tq = JSON.parse(readFileSync(ap, 'utf8')).tempo;
+              if (tq && typeof tq.score === 'number' && tq.score < 0.75) {
+                warn(`⚠ 拍网格置信度偏低（${(tq.score * 100).toFixed(0)}%，精确率 ${(tq.precision * 100).toFixed(0)}% / 召回 ${(tq.recall * 100).toFixed(0)}%）`
+                  + ` —— bpm 有值不等于可信，别让画面重度依赖 f.beat`);
+                if (strict) staticErrs.push(`[拍网格] 置信度 ${(tq.score * 100).toFixed(0)}% < 75%`);
+              }
+            } catch { /* 读不出来就算了 */ }
+          }
+        }
+      } else if (!existsSync(path.join(ROOT, 'tasks', task, 'audio', 'timing.json'))) {
+        pushSkipped(skipped, '卡点（beat-align）', '没有 audio/timing.json —— 这条片子的段长不是由旁白/节拍解出来的，没得对');
+      } else {
+        pushSkipped(skipped, '卡点（beat-align）', '工具不存在：tools/lint-beat-align.mjs');
+      }
+    } catch (err) {
+      pushSkipped(skipped, '卡点（beat-align）', `起不了这个子进程：${firstLine(err)}`);
+    }
+  }
+
+  // 1.545) **事件密度**：观众每一秒有没有新东西看（tools/lint-event-density.mjs）。
+  //
+  // 为什么在 check 里：片子可以零报错、qa 全绿，但观众第 8 秒就走人。
+  // 实测 nekohome-intro-ja：8–15s 连续 7 秒帧间差 < 0.3，全片 44% 的 2 秒窗口低于均值一半。
+  // ⚠ 它量的是**成片**（mp4 的帧间差）—— 还没出片时只报 skipped，不当失败。
+  {
+    const tool = path.join(ROOT, 'tools', 'lint-event-density.mjs');
+    const outDir = path.join(ROOT, 'out', task);
+    const mp4 = existsSync(outDir)
+      ? readdirSync(outDir).filter((f) => f.endsWith('.mp4') && !/^part_|_stitched/.test(f))[0]
+      : null;
+    if (!existsSync(tool)) {
+      pushSkipped(skipped, '事件密度（event-density）', '工具不存在：tools/lint-event-density.mjs');
+    } else if (!mp4) {
+      pushSkipped(skipped, '事件密度（event-density）',
+        '还没有成片可量 —— 先跑 anim video，再回头体检（它看的是 mp4 的帧间差）');
+    } else {
+      try {
+        const { spawnSync } = await import('node:child_process');
+        const r = spawnSync(process.execPath, [tool, task, '--json'], { encoding: 'utf8', timeout: 120000 });
+        let j = null;
+        try { j = JSON.parse(r.stdout ?? ''); } catch { j = null; }
+        if (j && j.windows) {
+          if (j.problems?.length) {
+            warn(`⚠ 事件密度：${j.problems.join('；')}`);
+            warn(`  → 最静的窗口：${j.worst.map((w) => w.t + 's(' + w.v + ')').join('  ')}`);
+            warn('  → 补法：给这几段加持续运动（推近/逐条落位/扫描线），或把段缩短、并进相邻段');
+            if (strict) staticErrs.push(`[事件密度] ${j.problems.join('；')}`);
+          } else {
+            log(`  ✓ 事件密度：最长静止 ${j.staticSpan.toFixed(1)}s · 稀薄窗口 ${(j.thinShare * 100).toFixed(0)}%（平均帧间差 ${j.mean}）`);
+          }
+        }
+      } catch (err) {
+        pushSkipped(skipped, '事件密度（event-density）', `起不了子进程：${firstLine(err)}`);
+      }
+    }
+  }
+
   // 1.55) 静态：**运动上限**（BACKLOG 1-33；判据与 src/kit/motion.js 的 waterfallOver 逐字一致）。
   //
   // 为什么放在 check 里：错峰跨度「items × stagger ≤ 0.5s」是"一组元素像一个节拍到达"的判据，
@@ -4655,6 +4754,18 @@ async function renderSegments({ task, info, out, from, to, fps, samples, shutter
   const force = flag('force');
   const engineSig = engineSignature();
   const sceneIndex = sceneFileIndex(path.join(ROOT, 'tasks', task), ROOT);
+  /**
+   * 字幕表（task.narration）的绝对路径 —— 进块签名用。
+   * 为什么现算：改字幕不会动任何场景文件，块签名不变就会整批复用，
+   * 结果是「5.8 秒渲完」但画面还是旧字幕（实测：把日文字幕换成中文时踩到）。
+   */
+  const narrationFile = (() => {
+    try {
+      const cfgText = readFileSync(path.join(ROOT, 'tasks', task, 'task.config.mjs'), 'utf8');
+      const m = /narration:\s*['"]\.\/([^'"]+)['"]/.exec(cfgText);
+      return m ? path.join(ROOT, 'tasks', task, m[1]) : null;
+    } catch { return null; }
+  })();
   const prevBlocks = man.prev?.blocks ?? null;
   /** 这一批块的签名（收尾写进 params.json，下一次拿来比） */
   /** @type {Record<string, string>} */
@@ -4694,6 +4805,8 @@ async function renderSegments({ task, info, out, from, to, fps, samples, shutter
     const sig = blockSignature({
       root: ROOT, engineSig, paramsText: man.fp.text, timeline: info.timeline,
       index: sceneIndex, from: c.from, to: c.to,
+      // 字幕改了就重渲：字幕层是引擎画的（task.narration → 每帧文字），不是 ffmpeg 烧的
+      narrationFile,
     });
     blockSigs[key] = sig;
     // 已经渲好的块直接复用（改一个镜头就只重渲它所在的那块）
@@ -6179,6 +6292,7 @@ async function analyzeTaskAudio(task) {
   const envKeys = ['rms', 'low', 'bass', 'mid', 'high', 'vocal', 'flux', 'centroid'];
   const out = {
     duration: a.duration, fps: a.fps, bpm: Math.round(a.bpm * 1000) / 1000,
+    tempo: a.tempo,
     beats: a.beats, downbeats: a.downbeats, kicks: a.kicks, snares: a.snares, hats: a.hats, sections: a.sections,
   };
   for (const k of envKeys) out[k] = Array.from(a[k], (x) => Math.round(x * 1000) / 1000);
@@ -6964,6 +7078,8 @@ async function cmdMix() {
       bitrate: opt('bitrate'),
       target: rawTarget,
       lra,
+      // 多语言/多变体：不给它，--table ja 会去读 zh 的 timing 并**覆盖 zh 的混音**（实测踩过）
+      table: opt('table'),
     });
   } catch (e) {
     if (e && /^(不认识的 --target|靶子的 |给了 LRA)/.test(String(e.message))) die(String(e.message));

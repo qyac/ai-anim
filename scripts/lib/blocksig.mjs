@@ -8,7 +8,7 @@
  * 所以它们必须是可以在 Node 里直接测的纯函数（`tools/test-block-sig.mjs`）。
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 /** 不算"源文件"的目录（产物与运行时素材不影响画面签名） */
@@ -157,10 +157,30 @@ export function sceneFileIndex(taskDir, root = taskDir) {
     try { src = readFileSync(f, 'utf8'); } catch { continue; }
     for (const [id, h] of configNodeHashes(src)) configHashes.set(rel + '#' + id, h);
   }
+  /**
+   * **跨任务 import 的场景文件**：像 `tasks/nekohome-intro-ja` 这样只写配置、
+   * 用 `import … from '../nekohome-intro/scenes/cards.js'` 复用别人场景的任务，
+   * 上面那套 `walk(taskDir)` 一个文件都扫不到 —— 于是改源任务的场景，块签名不变、
+   * 整批复用，画面上是**旧版本**（实测：给日文版加高光条，10 块全部「签名一致」跳过）。
+   * 所以把配置里 `../` 开头的 .js import 解析出来，一起进签名。
+   */
+  const shared = [];
+  for (const f of files) {
+    if (!/task\.config\.mjs$/.test(f)) continue;
+    let src = '';
+    try { src = readFileSync(f, 'utf8'); } catch { continue; }
+    for (const m of src.matchAll(/from\s+['"](\.[^'"]*\.js)['"]/g)) {
+      const abs = path.resolve(path.dirname(f), m[1]);
+      if (!existsSync(abs)) continue;
+      const rel = path.relative(root, abs).split(path.sep).join('/');
+      if (!shared.includes(rel)) shared.push(rel);
+    }
+  }
   return {
     byId,
-    all: files.map((f) => path.relative(root, f).split(path.sep).join('/')),
+    all: files.map((x) => path.relative(root, x).split(path.sep).join('/')),
     configHashes,
+    shared,
   };
 }
 
@@ -203,6 +223,21 @@ export function blockSignature(o) {
     }
     // 段参数（时间线上的 params）改了一样要重渲这一块
     parts.push(`params:${it.id}:${JSON.stringify(it.params ?? null)}`);
+  }
+  // 字幕（narration）改了画面就变了：字幕层是引擎画的，不是 ffmpeg 烧的 ——
+  // 不把它算进签名，改完旁白文字会「5.8 秒渲完」却还是旧字幕（实测踩过）。
+  // 跨任务 import 进来的场景文件（见 sceneFileIndex 的 shared）
+  for (const rel of o.index.shared ?? []) {
+    try {
+      const st = stat(path.join(o.root, rel));
+      parts.push('shared:' + rel + ':' + st.size + ':' + Math.round(st.mtimeMs));
+    } catch { parts.push('shared:' + rel + ':missing'); }
+  }
+  if (o.narrationFile) {
+    try {
+      const st = stat(o.narrationFile);
+      parts.push('narration:' + st.size + ':' + Math.round(st.mtimeMs));
+    } catch { parts.push('narration:missing'); }
   }
   parts.sort();
   return parts.join('|');
