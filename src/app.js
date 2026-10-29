@@ -1421,7 +1421,19 @@ function setupWorkbench(engineRef) {
   wbSync = sync;
   sync();
 
-  scrub.addEventListener('input', () => { seek(Number(scrub.value)); sync(); });
+  // 拖动中走快路径（跳过后处理）；松手补一次完整渲染 —— 「拖得动」和「看得准」都要成立
+  let dragging = false;
+  scrub.addEventListener('pointerdown', () => { dragging = true; });
+  scrub.addEventListener('input', () => {
+    const nt = Number(scrub.value);
+    clock = Math.max(0, Math.min(engineRef.duration, nt));
+    if (audio) audio.currentTime = clock;
+    engineRef.render(clock, { preview: true, toScreen: true, samples: 1, skipPost: true });
+    sync();
+  });
+  const endDrag = () => { if (!dragging) return; dragging = false; seek(clock); sync(); };
+  scrub.addEventListener('pointerup', endDrag);
+  addEventListener('pointerup', endDrag);
   wbEl('wbPlay').addEventListener('click', () => { setPlaying(!playing); wbEl('wbPlay').textContent = playing ? '❚❚ 暂停' : '▶ 播放'; });
   wbEl('wbPrev').addEventListener('click', () => { stepScene(-1); sync(); });
   wbEl('wbNext').addEventListener('click', () => { stepScene(1); sync(); });

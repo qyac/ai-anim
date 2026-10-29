@@ -904,6 +904,18 @@ export class Engine {
     // 导出那条路在 readPixels(outRT,'srgb') 里编码。两条路必须都编码，否则预览与成片不一致。
     this.lastBeat = this.music.beatAt ? this.music.beatAt(t) : 0;
     if (this.dumpStages) this._dumpStages(outTex, post);
+    // 拖动快路径（opts.skipPost）：拖 scrub 时只关心构图，泛光/颗粒/色差/暗角这一整套先跳过。
+    // 松手后（或按「精确帧」）仍走完整链路 —— 所以这条路径不会掩盖「预览好看、导出翻车」。
+    if (opts.skipPost) {
+      this.lastPost = post;
+      if (this.captions) this._drawCaptions(t);
+      if (opts.toScreen !== false) {
+        gl.blitPass.u.src.value = { tex: outTex.tex, __tex: true };
+        gl.blitPass.render(gl, null, t, 1 / this.fps);
+      }
+      this.lastT = t;
+      return { samples: n, errors: this.lastErrors, skippedPost: true };
+    }
     this.post.render(gl, this._hudOut ?? outTex, this.outRT, post, frameSeed(idx));
     this.lastPost = post;
     // 字幕：**后处理之后**叠上去（信息层，见 _drawCaptions 的注释）
