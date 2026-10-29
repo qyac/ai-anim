@@ -16,7 +16,7 @@
  * 退出码：默认 0（只报读数）；`--strict` 时只要有偏差超限就是 1。
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,9 +40,9 @@ function findTrack() {
     if (m) { const p = path.join(taskDir, m[1]); if (existsSync(p)) return p; }
   }
   const dir = path.join(taskDir, 'audio');
-  const files = existsSync(dir) ? require('node:fs').readdirSync(dir).filter((f) => /\.(wav|mp3|m4a|flac)$/i.test(f)) : [];
+  const files = existsSync(dir) ? readdirSync(dir).filter((f) => /\.(wav|mp3|m4a|flac)$/i.test(f)) : [];
   if (!files.length) return null;
-  return path.join(dir, files.sort((a, b) => require('node:fs').statSync(path.join(dir, b)).size - require('node:fs').statSync(path.join(dir, a)).size)[0]);
+  return path.join(dir, files.sort((a, b) => statSync(path.join(dir, b)).size - statSync(path.join(dir, a)).size)[0]);
 }
 
 const track = findTrack();
