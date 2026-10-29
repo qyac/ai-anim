@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#1fb87a' },
+  palette: { signal: '#4be1ff' },
 
   timeline: [
     {
       type: 'title',
+      post: { bloom: 1.0, bloomRadius: 1.6, halation: 0.8, grain: 0.01, saturation: 1.1 },
       id: 'hook',
       dur: 4.38,
       maxSamples: 16,
@@ -25,6 +26,7 @@ export default {
     },
     {
       type: 'bigtype',
+      post: { bloom: 1.0, bloomRadius: 1.6, halation: 0.8, grain: 0.01, saturation: 1.1 },
       id: 'claim',
       dur: 5.63, overlap: 0.25,
       maxSamples: 16,
@@ -36,6 +38,7 @@ export default {
     },
     {
       type: 'timeline',
+      post: { bloom: 1.0, bloomRadius: 1.6, halation: 0.8, grain: 0.01, saturation: 1.1 },
       id: 'day',
       dur: 6.88, overlap: 0.25,
       maxSamples: 16,
@@ -46,6 +49,7 @@ export default {
     },
     {
       type: 'lineart',
+      post: { bloom: 1.0, bloomRadius: 1.6, halation: 0.8, grain: 0.01, saturation: 1.1 },
       id: 'charge',
       dur: 4.07, overlap: 0.25,
       maxSamples: 16,
@@ -56,6 +60,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { bloom: 1.0, bloomRadius: 1.6, halation: 0.8, grain: 0.01, saturation: 1.1 },
       id: 'end',
       dur: 4.38, overlap: 0.25,
       maxSamples: 16,

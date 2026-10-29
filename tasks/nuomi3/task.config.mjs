@@ -10,11 +10,12 @@ export default {
   
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#ff2d78' },
+  palette: { signal: '#ff2d94' },
 
   timeline: [
     {
       type: 'title',
+      post: { ca: 0.006, grain: 0.055, saturation: 1.3, contrast: 1.1, bloom: 0.85, halation: 0.55 },
       id: 'hook',
       dur: 4.20,
       eyebrow: 'NEKOHOME / 02:00',
@@ -26,6 +27,7 @@ export default {
     },
     {
       type: 'counter',
+      post: { ca: 0.006, grain: 0.055, saturation: 1.3, contrast: 1.1, bloom: 0.85, halation: 0.55 },
       dur: 5.40, overlap: 0.25,
       from: 0,
       to: 7,
@@ -38,6 +40,7 @@ export default {
     },
     {
       type: 'bigtype',
+      post: { ca: 0.006, grain: 0.055, saturation: 1.3, contrast: 1.1, bloom: 0.85, halation: 0.55 },
       dur: 5.40, overlap: 0.25,
       kicker: 'BIG TYPE / 一句主张',
       line1: '白天装睡',
@@ -48,6 +51,7 @@ export default {
     },
     {
       type: 'quote',
+      post: { ca: 0.006, grain: 0.055, saturation: 1.3, contrast: 1.1, bloom: 0.85, halation: 0.55 },
       dur: 6.00, overlap: 0.25,
       label: 'NOTE',
       text: '你睡着以后，\n这间屋子就归我管了。',
@@ -58,6 +62,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { ca: 0.006, grain: 0.055, saturation: 1.3, contrast: 1.1, bloom: 0.85, halation: 0.55 },
       dur: 5.40, overlap: 0.25,
       mark: 'diamond',
       kicker: 'LOCKUP / 定版',

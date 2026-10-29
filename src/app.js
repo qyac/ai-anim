@@ -268,7 +268,10 @@ async function boot() {
   const errs = [...engine.errors.map((e) => `[场景] ${e}`), ...v.problems.map((p) => `[时间线] ${p}`)];
   refreshHud(errs, v.gaps);
 
-  if (!offline) requestAnimationFrame(loop);
+  if (!offline) {
+    setupWorkbench(engine);
+    requestAnimationFrame(loop);
+  }
   return { task, engine, fps, offline };
 }
 
@@ -299,7 +302,8 @@ function loop(now) {
 
   if (playing) {
     clock += dt;
-    if (clock > engine.duration) { clock = engine.duration; setPlaying(false); }
+    if (wbLoop && clock >= wbLoop.to) { clock = wbLoop.from; if (audio) audio.currentTime = clock; }
+    else if (clock > engine.duration) { clock = engine.duration; setPlaying(false); }
     // 跟音频对齐（允许 ±60ms 漂移，超了就硬拉）
     if (audio) {
       const d = audio.currentTime - clock;
@@ -309,6 +313,7 @@ function loop(now) {
   try {
     engine.render(clock, { preview: true, toScreen: true, samples: 1 });
     const name = engine._activeId(clock);
+    if (wbSync) wbSync();
     if (name !== lastName) { lastName = name; refreshHud(engine.errors, engine.validate().gaps); }
   } catch (err) {
     fail(err);
@@ -458,6 +463,33 @@ function b64Bytes(b64) {
  *   readAt(t)                  在 t 处取像素统计（做自动检测用）
  */
 const api = {
+  /** 单帧预览（1 子帧）：agent 自检用，快 */
+  preview(t) { return this.still(t, { samples: 1 }); },
+  /** 一段时间的缩略拼图（n 帧），agent 一眼看节奏 */
+  async previewRange(t0, t1, n = 9, cols = 3) {
+    const c = document.createElement('canvas');
+    const W = 480, H = Math.round((W * (engine?.gl.h ?? 9)) / (engine?.gl.w ?? 16));
+    const rows = Math.ceil(n / cols);
+    c.width = W * cols; c.height = H * rows;
+    const g = c.getContext('2d');
+    for (let i = 0; i < n; i++) {
+      const t = t0 + ((t1 - t0) * i) / Math.max(1, n - 1);
+      // still() 返回 { png, samples, errors }，不是裸 dataURL
+      const { png } = await this.still(t, { samples: 1 });
+      const img = new Image();
+      img.src = png;
+      await img.decode();
+      g.drawImage(img, (i % cols) * W, Math.floor(i / cols) * H, W, H);
+      g.fillStyle = 'rgba(0,0,0,.55)';
+      g.fillRect((i % cols) * W, Math.floor(i / cols) * H + H - 16, 64, 16);
+      g.fillStyle = '#ff4d12';
+      g.font = '11px monospace';
+      g.fillText(t.toFixed(2) + 's', (i % cols) * W + 4, Math.floor(i / cols) * H + H - 4);
+    }
+    return c.toDataURL('image/png');
+  },
+  /** 精确帧：与导出同一条路径（多子帧），返回与 1 子帧预览的差异 */
+  precise(t) { seek(t); return preciseFrame(); },
   info() {
     return {
       task: status.task,
@@ -1322,3 +1354,112 @@ boot()
     }
   })
   .catch(fail);
+/* ------------------------------------------------------------------ 预览工作台 */
+/**
+ * 把 dev 页从「播放器」升级成 **编辑反馈回路**：
+ *   · 时间轴 scrub（任意位置立即出帧，不依赖顺序播放）
+ *   · 场景边界 + 节拍刻线（切点在哪一眼看到）
+ *   · 精确帧按钮：按**导出同一条路径**（多子帧）重渲当前帧，并报与预览的差异
+ *   · `window.__anim.preview(t)` / `previewRange(t0,t1,n)`：给 agent 自检用
+ *
+ * 为什么差值是核心读数：预览默认 1 子帧（快），成片是自适应多子帧 ——
+ * 「预览好看、导出翻车」只有把两者差异量化出来才防得住。
+ */
+let wbLoop = null;   // 循环区间 { from, to } | null
+/** 工作台的刷新函数（boot 里装上；loop 每帧调它同步 scrub 指针） */
+let wbSync = null;
+
+function wbEl(id) { return document.getElementById(id); }
+
+function setupWorkbench(engineRef) {
+  const wrap = wbEl('wb');
+  if (!wrap) return;
+  wrap.hidden = false;
+  const scrub = wbEl('wbScrub');
+  const ticks = wbEl('wbTicks');
+  const readout = wbEl('wbReadout');
+  const dur = Math.max(0.001, engineRef.duration);
+  scrub.max = String(dur);
+
+  // 场景刻线 + 节拍刻线
+  const frag = document.createDocumentFragment();
+  for (const it of engineRef.timeline) {
+    const i = document.createElement('i');
+    i.style.left = (it.start / dur * 100) + '%';
+    frag.appendChild(i);
+    if (it.end - it.start > 2.2) {
+      const b = document.createElement('b');
+      b.style.left = (it.start / dur * 100) + '%';
+      b.textContent = it.id;
+      frag.appendChild(b);
+    }
+  }
+  const bpm = engineRef.music?.bpm ?? 0;
+  if (bpm > 30) {
+    const beat = 60 / bpm;
+    for (let t = 0; t <= dur; t += beat) {
+      const i = document.createElement('i');
+      i.className = 'beat';
+      i.style.left = (t / dur * 100) + '%';
+      frag.appendChild(i);
+    }
+  }
+  const cursor = document.createElement('i');
+  cursor.className = 'cur';
+  frag.appendChild(cursor);
+  ticks.appendChild(frag);
+
+  const sync = () => {
+    scrub.value = String(clock);
+    cursor.style.left = (clock / dur * 100) + '%';
+    const id = engineRef._activeId(clock);
+    readout.textContent = `t ${clock.toFixed(2)} / ${dur.toFixed(2)}s · 段 ${id} · 预览 1 子帧`;
+  };
+  wbSync = sync;
+  sync();
+
+  scrub.addEventListener('input', () => { seek(Number(scrub.value)); sync(); });
+  wbEl('wbPlay').addEventListener('click', () => { setPlaying(!playing); wbEl('wbPlay').textContent = playing ? '❚❚ 暂停' : '▶ 播放'; });
+  wbEl('wbPrev').addEventListener('click', () => { stepScene(-1); sync(); });
+  wbEl('wbNext').addEventListener('click', () => { stepScene(1); sync(); });
+  wbEl('wbF1').addEventListener('click', () => { seek(clock - 1 / engineRef.fps); sync(); });
+  wbEl('wbP1').addEventListener('click', () => { seek(clock + 1 / engineRef.fps); sync(); });
+  wbEl('wbLoop').addEventListener('click', (e) => {
+    const on = wbLoop != null;
+    if (on) { wbLoop = null; e.currentTarget.classList.remove('on'); setMsg('循环关闭'); }
+    else {
+      const it = engineRef.timeline.find((i) => clock >= i.start && clock < i.end) ?? engineRef.timeline[0];
+      wbLoop = { from: it.start, to: it.end };
+      e.currentTarget.classList.add('on');
+      setMsg(`循环 ${it.id}：${it.start.toFixed(2)} → ${it.end.toFixed(2)}s`);
+    }
+  });
+  wbEl('wbPrecise').addEventListener('click', () => preciseFrame());
+}
+
+/** 预览与精确帧的像素差（8bit RGBA，自下而上，两条路径同尺寸） */
+function frameDiff(a, b) {
+  let sum = 0, n = 0;
+  for (let i = 0; i < a.length; i += 4) {
+    sum += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+    n += 3;
+  }
+  const mae = n ? sum / n : 0;
+  const psnr = mae <= 1e-6 ? 99 : 20 * Math.log10(255 / mae);
+  return { mae, psnr };
+}
+
+/** 按导出同一条路径重渲当前帧，并报与预览的差异 */
+async function preciseFrame() {
+  if (!engine) return null;
+  const t = clock;
+  await api.frame(t, { samples: 1, seeked: true });
+  const fast = api.pixels();
+  await api.frame(t, { samples: 'auto', seeked: true });
+  const slow = api.pixels();
+  const d = frameDiff(fast, slow);
+  setMsg(`精确帧 t=${t.toFixed(2)}s：多子帧重渲完成 · 与预览差 ${d.mae.toFixed(2)}/255（PSNR ${d.psnr.toFixed(1)} dB）`);
+  const ro = wbEl('wbReadout');
+  if (ro) ro.textContent = `t ${t.toFixed(2)}s · 精确帧 Δ ${d.mae.toFixed(2)} · PSNR ${d.psnr.toFixed(1)} dB`;
+  return d;
+}

@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#ff2d78' },
+  palette: { signal: '#ff3b5c' },
 
   timeline: [
     {
       type: 'kinetic',
+      post: { saturation: 1.35, contrast: 1.12, bloom: 0.35, grain: 0.02 },
       id: 'claim',
       dur: 5.03,
       maxSamples: 16,
@@ -22,6 +23,7 @@ export default {
     },
     {
       type: 'scan',
+      post: { saturation: 1.35, contrast: 1.12, bloom: 0.35, grain: 0.02 },
       id: 'replay',
       dur: 5.59, overlap: 0.25,
       maxSamples: 16,
@@ -33,6 +35,7 @@ export default {
     },
     {
       type: 'device',
+      post: { saturation: 1.35, contrast: 1.12, bloom: 0.35, grain: 0.02 },
       id: 'analyzer',
       dur: 4.19, overlap: 0.25,
       maxSamples: 16,
@@ -44,6 +47,7 @@ export default {
     },
     {
       type: 'counter',
+      post: { saturation: 1.35, contrast: 1.12, bloom: 0.35, grain: 0.02 },
       id: 'today',
       dur: 5.03, overlap: 0.25,
       maxSamples: 16,
@@ -57,6 +61,7 @@ export default {
     },
     {
       type: 'compare',
+      post: { saturation: 1.35, contrast: 1.12, bloom: 0.35, grain: 0.02 },
       id: 'evidence',
       dur: 4.47, overlap: 0.25,
       maxSamples: 16,
@@ -73,6 +78,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { saturation: 1.35, contrast: 1.12, bloom: 0.35, grain: 0.02 },
       id: 'sign',
       dur: 4.47, overlap: 0.25,
       maxSamples: 16,

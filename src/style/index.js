@@ -147,7 +147,12 @@ const CAPTIONS_BASE = { ...DEFAULT_CAPTION_STYLE };
  * 每一条都刻意做得**差异明显**（底色明暗、字体介质、背景母题、栅格宽窄都不同）——
  * 换了风格必须一眼看得出来，否则它就没有存在的意义。
  */
+import { MG15 } from './mg15.js';
+
 export const STYLES = {
+  // 15 种 MG 风格（对应 mg-styles-15 参考集；见 docs/STYLE-mg15.md）
+  ...MG15,
+
   /* ------------------------------------------------------------------ 印刷品（默认） */
   print: {
     label: '印刷品',

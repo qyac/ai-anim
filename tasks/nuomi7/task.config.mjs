@@ -11,11 +11,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#ff4d12' },
+  palette: { signal: '#c8a06a' },
 
   timeline: [
     {
       type: 'title',
+      post: { saturation: 0.9, contrast: 1.05, grain: 0.05, vignette: 0.35 },
       id: 'hook',
       dur: 3.91,
       maxSamples: 16,
@@ -27,6 +28,7 @@ export default {
     },
     {
       type: 'layers',
+      post: { saturation: 0.9, contrast: 1.05, grain: 0.05, vignette: 0.35 },
       dur: 5.31, overlap: 0.25,
       maxSamples: 16,
       kicker: 'LAYERS / 三层',
@@ -36,6 +38,7 @@ export default {
     },
     {
       type: 'radial',
+      post: { saturation: 0.9, contrast: 1.05, grain: 0.05, vignette: 0.35 },
       dur: 3.91, overlap: 0.25,
       maxSamples: 16,
       kicker: 'RADIAL / 围绕窗户',
@@ -46,6 +49,7 @@ export default {
     },
     {
       type: 'quote',
+      post: { saturation: 0.9, contrast: 1.05, grain: 0.05, vignette: 0.35 },
       dur: 5.31, overlap: 0.25,
       maxSamples: 16,
       label: 'NOTE',
@@ -56,6 +60,7 @@ export default {
     },
     {
       type: 'morph',
+      post: { saturation: 0.9, contrast: 1.05, grain: 0.05, vignette: 0.35 },
       dur: 5.03, overlap: 0.25,
       maxSamples: 16,
       values: [0.12, 0.24, 0.38, 0.55, 0.72, 0.88, 0.64, 0.33],
@@ -65,6 +70,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { saturation: 0.9, contrast: 1.05, grain: 0.05, vignette: 0.35 },
       dur: 3.91, overlap: 0.25,
       maxSamples: 16,
       mark: 'diamond',

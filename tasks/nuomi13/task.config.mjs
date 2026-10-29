@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#1fb87a' },
+  palette: { signal: '#7fd1c1' },
 
   timeline: [
     {
       type: 'title',
+      post: { bloom: 0.55, halation: 0.45, saturation: 1.0, grain: 0.006, vignette: 0.25 },
       id: 'hook',
       dur: 4.04,
       maxSamples: 16,
@@ -25,6 +26,7 @@ export default {
     },
     {
       type: 'layers',
+      post: { bloom: 0.55, halation: 0.45, saturation: 1.0, grain: 0.006, vignette: 0.25 },
       id: 'scene',
       dur: 4.33, overlap: 0.25,
       maxSamples: 16,
@@ -35,6 +37,7 @@ export default {
     },
     {
       type: 'scan',
+      post: { bloom: 0.55, halation: 0.45, saturation: 1.0, grain: 0.006, vignette: 0.25 },
       id: 'sweep',
       dur: 4.04, overlap: 0.25,
       maxSamples: 16,
@@ -46,6 +49,7 @@ export default {
     },
     {
       type: 'bigtype',
+      post: { bloom: 0.55, halation: 0.45, saturation: 1.0, grain: 0.006, vignette: 0.25 },
       id: 'claim',
       dur: 6.06, overlap: 0.25,
       maxSamples: 16,
@@ -57,6 +61,7 @@ export default {
     },
     {
       type: 'chart',
+      post: { bloom: 0.55, halation: 0.45, saturation: 1.0, grain: 0.006, vignette: 0.25 },
       id: 'case',
       dur: 4.62, overlap: 0.25,
       maxSamples: 16,
@@ -68,6 +73,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { bloom: 0.55, halation: 0.45, saturation: 1.0, grain: 0.006, vignette: 0.25 },
       id: 'end',
       dur: 4.33, overlap: 0.25,
       maxSamples: 16,

@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#ff4d12' },
+  palette: { signal: '#00c2a8' },
 
   timeline: [
     {
       type: 'scan',
+      post: { bloom: 0.8, bloomRadius: 1.4, halation: 0.5, grain: 0.012, saturation: 1.1 },
       id: 'sweep',
       dur: 4.11,
       maxSamples: 16,
@@ -25,6 +26,7 @@ export default {
     },
     {
       type: 'layers',
+      post: { bloom: 0.8, bloomRadius: 1.4, halation: 0.5, grain: 0.012, saturation: 1.1 },
       id: 'why',
       dur: 4.11, overlap: 0.25,
       maxSamples: 16,
@@ -35,6 +37,7 @@ export default {
     },
     {
       type: 'bigtype',
+      post: { bloom: 0.8, bloomRadius: 1.4, halation: 0.5, grain: 0.012, saturation: 1.1 },
       id: 'claim',
       dur: 6.16, overlap: 0.25,
       maxSamples: 16,
@@ -46,6 +49,7 @@ export default {
     },
     {
       type: 'quote',
+      post: { bloom: 0.8, bloomRadius: 1.4, halation: 0.5, grain: 0.012, saturation: 1.1 },
       id: 'note',
       dur: 4.40, overlap: 0.25,
       maxSamples: 16,
@@ -57,6 +61,7 @@ export default {
     },
     {
       type: 'chart',
+      post: { bloom: 0.8, bloomRadius: 1.4, halation: 0.5, grain: 0.012, saturation: 1.1 },
       id: 'containers',
       dur: 4.40, overlap: 0.25,
       maxSamples: 16,
@@ -68,6 +73,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { bloom: 0.8, bloomRadius: 1.4, halation: 0.5, grain: 0.012, saturation: 1.1 },
       id: 'end',
       dur: 4.11, overlap: 0.25,
       maxSamples: 16,

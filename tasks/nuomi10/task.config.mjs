@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#12a4ff' },
+  palette: { signal: '#a86bff' },
 
   timeline: [
     {
       type: 'quote',
+      post: { bloom: 0.6, halation: 0.4, saturation: 1.1, grain: 0.008 },
       dur: 5.95,
       maxSamples: 16,
       label: 'PROLOGUE',
@@ -24,6 +25,7 @@ export default {
     },
     {
       type: 'radial',
+      post: { bloom: 0.6, halation: 0.4, saturation: 1.1, grain: 0.008 },
       dur: 5.10,
       maxSamples: 16,
       kicker: 'RADIAL / 等你的八件事',
@@ -34,6 +36,7 @@ export default {
     },
     {
       type: 'morph',
+      post: { bloom: 0.6, halation: 0.4, saturation: 1.1, grain: 0.008 },
       dur: 6.24,
       maxSamples: 16,
       title: '八格电量，从清晨到深夜',
@@ -43,6 +46,7 @@ export default {
     },
     {
       type: 'bigtype',
+      post: { bloom: 0.6, halation: 0.4, saturation: 1.1, grain: 0.008 },
       dur: 3.97,
       maxSamples: 16,
       kicker: 'BIG TYPE / 一句主张',
@@ -53,6 +57,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { bloom: 0.6, halation: 0.4, saturation: 1.1, grain: 0.008 },
       dur: 3.97,
       maxSamples: 16,
       mark: 'diamond',

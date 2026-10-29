@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#e8a300' },
+  palette: { signal: '#1f6feb' },
 
   timeline: [
     {
       type: 'title',
+      post: { contrast: 1.18, saturation: 0.85, grain: 0.006, bloom: 0.1 },
       id: 'hook',
       dur: 5.11,
       maxSamples: 16,
@@ -25,6 +26,7 @@ export default {
     },
     {
       type: 'counter',
+      post: { contrast: 1.18, saturation: 0.85, grain: 0.006, bloom: 0.1 },
       id: 'reasons',
       dur: 5.11,
       maxSamples: 16,
@@ -38,6 +40,7 @@ export default {
     },
     {
       type: 'compare',
+      post: { contrast: 1.18, saturation: 0.85, grain: 0.006, bloom: 0.1 },
       id: 'dry-wet',
       dur: 5.11,
       maxSamples: 16,
@@ -55,6 +58,7 @@ export default {
     },
     {
       type: 'lineart',
+      post: { contrast: 1.18, saturation: 0.85, grain: 0.006, bloom: 0.1 },
       id: 'process',
       dur: 4.81,
       maxSamples: 16,
@@ -64,6 +68,7 @@ export default {
     },
     {
       type: 'kinetic',
+      post: { contrast: 1.18, saturation: 0.85, grain: 0.006, bloom: 0.1 },
       id: 'no',
       dur: 3.91,
       maxSamples: 16,
@@ -72,6 +77,7 @@ export default {
     },
     {
       type: 'outro',
+      post: { contrast: 1.18, saturation: 0.85, grain: 0.006, bloom: 0.1 },
       id: 'end',
       dur: 3.91,
       maxSamples: 16,

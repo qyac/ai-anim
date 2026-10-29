@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#7a5cff' },
+  palette: { signal: '#f0a202' },
 
   timeline: [
     {
       type: 'device',
+      post: { contrast: 1.1, saturation: 1.05, grain: 0.008, bloom: 0.2 },
       dur: 4.00,
       maxSamples: 16,
       kicker: 'DEVICE / 窗台记录仪',
@@ -24,6 +25,7 @@ export default {
     },
     {
       type: 'counter',
+      post: { contrast: 1.1, saturation: 1.05, grain: 0.008, bloom: 0.2 },
       dur: 4.00,
       maxSamples: 16,
       from: 0,
@@ -36,6 +38,7 @@ export default {
     },
     {
       type: 'radial',
+      post: { contrast: 1.1, saturation: 1.05, grain: 0.008, bloom: 0.2 },
       dur: 4.28,
       maxSamples: 16,
       kicker: 'RADIAL / 环绕监听',
@@ -46,6 +49,7 @@ export default {
     },
     {
       type: 'morph',
+      post: { contrast: 1.1, saturation: 1.05, grain: 0.008, bloom: 0.2 },
       dur: 4.57,
       maxSamples: 16,
       values: [0.15, 0.42, 0.68, 0.9, 0.55, 0.3, 0.22, 0.1],
@@ -55,6 +59,7 @@ export default {
     },
     {
       type: 'compare',
+      post: { contrast: 1.1, saturation: 1.05, grain: 0.008, bloom: 0.2 },
       dur: 4.00,
       maxSamples: 16,
       title: '它和我，谁更自在',
@@ -71,6 +76,7 @@ export default {
     },
     {
       type: 'outro',
+      post: { contrast: 1.1, saturation: 1.05, grain: 0.008, bloom: 0.2 },
       dur: 4.00,
       maxSamples: 16,
       title: '窗外的事，我先看见',

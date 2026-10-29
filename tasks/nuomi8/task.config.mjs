@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#12a4ff' },
+  palette: { signal: '#8be04e' },
 
   timeline: [
     {
       type: 'title',
+      post: { dither: 0.55, saturation: 1.2, contrast: 1.1, grain: 0.0, bloom: 0.15 },
       id: 'hook',
       dur: 4.34,
       maxSamples: 16,
@@ -25,6 +26,7 @@ export default {
     },
     {
       type: 'counter',
+      post: { dither: 0.55, saturation: 1.2, contrast: 1.1, grain: 0.0, bloom: 0.15 },
       dur: 4.34,
       maxSamples: 16,
       from: 0,
@@ -37,6 +39,7 @@ export default {
     },
     {
       type: 'chart',
+      post: { dither: 0.55, saturation: 1.2, contrast: 1.1, grain: 0.0, bloom: 0.15 },
       dur: 4.34,
       maxSamples: 16,
       values: [0.18, 0.12, 0.08, 0.26, 0.55, 0.92, 0.78, 0.4],
@@ -47,6 +50,7 @@ export default {
     },
     {
       type: 'timeline',
+      post: { dither: 0.55, saturation: 1.2, contrast: 1.1, grain: 0.0, bloom: 0.15 },
       dur: 5.21,
       maxSamples: 16,
       kicker: 'TIMELINE / 一夜',
@@ -56,6 +60,7 @@ export default {
     },
     {
       type: 'lineart',
+      post: { dither: 0.55, saturation: 1.2, contrast: 1.1, grain: 0.0, bloom: 0.15 },
       dur: 4.34,
       maxSamples: 16,
       kicker: 'LINEART / 一笔线稿',
@@ -65,6 +70,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { dither: 0.55, saturation: 1.2, contrast: 1.1, grain: 0.0, bloom: 0.15 },
       dur: 4.06,
       maxSamples: 16,
       mark: 'diamond',

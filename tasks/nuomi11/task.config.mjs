@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#ff2d78' },
+  palette: { signal: '#e63946' },
 
   timeline: [
     {
       type: 'title',
+      post: { grain: 0.045, blur: 0.25, saturation: 1.05, contrast: 1.06, bloom: 0.18 },
       id: 'hook',
       dur: 3.90,
       maxSamples: 16,
@@ -25,6 +26,7 @@ export default {
     },
     {
       type: 'layers',
+      post: { grain: 0.045, blur: 0.25, saturation: 1.05, contrast: 1.06, bloom: 0.18 },
       id: 'three',
       dur: 4.18, overlap: 0.25,
       maxSamples: 16,
@@ -35,6 +37,7 @@ export default {
     },
     {
       type: 'timeline',
+      post: { grain: 0.045, blur: 0.25, saturation: 1.05, contrast: 1.06, bloom: 0.18 },
       id: 'day',
       dur: 3.90, overlap: 0.25,
       maxSamples: 16,
@@ -45,6 +48,7 @@ export default {
     },
     {
       type: 'counter',
+      post: { grain: 0.045, blur: 0.25, saturation: 1.05, contrast: 1.06, bloom: 0.18 },
       id: 'meanings',
       dur: 3.90, overlap: 0.25,
       maxSamples: 16,
@@ -58,6 +62,7 @@ export default {
     },
     {
       type: 'chart',
+      post: { grain: 0.045, blur: 0.25, saturation: 1.05, contrast: 1.06, bloom: 0.18 },
       id: 'loud',
       dur: 3.90, overlap: 0.25,
       maxSamples: 16,
@@ -69,6 +74,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { grain: 0.045, blur: 0.25, saturation: 1.05, contrast: 1.06, bloom: 0.18 },
       id: 'end',
       dur: 3.90, overlap: 0.25,
       maxSamples: 16,

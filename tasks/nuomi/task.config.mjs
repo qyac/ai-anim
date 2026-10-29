@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#ff4d12' },
+  palette: { signal: '#ff6a2c' },
 
   timeline: [
     {
       type: 'title',
+      post: { saturation: 1.15, contrast: 1.08, grain: 0.008, bloom: 0.22 },
       id: 'hook',
       dur: { beat: 7 },
       eyebrow: 'NEKOHOME / NUOMI',
@@ -24,6 +25,7 @@ export default {
     },
     {
       type: 'quote',
+      post: { saturation: 1.15, contrast: 1.08, grain: 0.008, bloom: 0.22 },
       dur: 4.55, overlap: 0.25,
       // 自适应采样在「大段文字 + 推镜」上会一路吃到 216 子帧（1080p 实测 ~11s/帧），
       // 这一段会把整片拖成 1.5 小时；压到 8 子帧档（16 按 8·3^L 收档 = 8）。
@@ -36,6 +38,7 @@ export default {
     },
     {
       type: 'counter',
+      post: { saturation: 1.15, contrast: 1.08, grain: 0.008, bloom: 0.22 },
       dur: 4.55, overlap: 0.25,
       // 同上：滚数字那段也在 216 子帧上耗着，压到 8 子帧档。
       maxSamples: 16,
@@ -49,6 +52,7 @@ export default {
     },
     {
       type: 'bigtype',
+      post: { saturation: 1.15, contrast: 1.08, grain: 0.008, bloom: 0.22 },
       dur: 5.20,
       kicker: 'BIG TYPE / 一句主张',
       line1: '嘴上说着不稀罕',
@@ -58,6 +62,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { saturation: 1.15, contrast: 1.08, grain: 0.008, bloom: 0.22 },
       dur: 4.55, overlap: 0.25,
       mark: 'ring',
       kicker: 'LOCKUP / 定版',

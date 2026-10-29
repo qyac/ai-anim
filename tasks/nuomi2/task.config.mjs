@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#12a4ff' },
+  palette: { signal: '#ffd23f' },
 
   timeline: [
     {
       type: 'title',
+      post: { saturation: 1.25, contrast: 1.05, grain: 0.012, bloom: 0.5, halation: 0.35 },
       id: 'hook',
       dur: { beat: 7 },
       eyebrow: 'NUOMI / USER MANUAL',
@@ -24,6 +25,7 @@ export default {
     },
     {
       type: 'bigtype',
+      post: { saturation: 1.25, contrast: 1.05, grain: 0.012, bloom: 0.5, halation: 0.35 },
       dur: 4.57,
       maxSamples: 16,
       kicker: 'MANUAL / 01',
@@ -34,6 +36,7 @@ export default {
     },
     {
       type: 'quote',
+      post: { saturation: 1.25, contrast: 1.05, grain: 0.012, bloom: 0.5, halation: 0.35 },
       dur: 3.96,
       maxSamples: 16,
       label: 'MANUAL / 02',
@@ -44,6 +47,7 @@ export default {
     },
     {
       type: 'counter',
+      post: { saturation: 1.25, contrast: 1.05, grain: 0.012, bloom: 0.5, halation: 0.35 },
       dur: 3.96,
       maxSamples: 16,
       from: 0,
@@ -56,6 +60,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { saturation: 1.25, contrast: 1.05, grain: 0.012, bloom: 0.5, halation: 0.35 },
       dur: 3.96,
       mark: 'ring',
       kicker: 'NUOMI / 竖屏 · 定版',

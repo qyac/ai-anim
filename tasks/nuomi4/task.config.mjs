@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#e8a300' },
+  palette: { signal: '#e03c1f' },
 
   timeline: [
     {
       type: 'title',
+      post: { saturation: 1.05, contrast: 1.15, grain: 0.004, bloom: 0.12 },
       id: 'hook',
       dur: 3.97,
       maxSamples: 16,
@@ -25,6 +26,7 @@ export default {
     },
     {
       type: 'timeline',
+      post: { saturation: 1.05, contrast: 1.15, grain: 0.004, bloom: 0.12 },
       dur: 6.80,
       maxSamples: 16,
       kicker: 'TIMELINE / 跟着光走',
@@ -34,6 +36,7 @@ export default {
     },
     {
       type: 'counter',
+      post: { saturation: 1.05, contrast: 1.15, grain: 0.004, bloom: 0.12 },
       dur: 5.67,
       maxSamples: 16,
       from: 0,
@@ -46,6 +49,7 @@ export default {
     },
     {
       type: 'compare',
+      post: { saturation: 1.05, contrast: 1.15, grain: 0.004, bloom: 0.12 },
       dur: 4.82,
       maxSamples: 16,
       title: '猫的一天，两种过法',
@@ -61,6 +65,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { saturation: 1.05, contrast: 1.15, grain: 0.004, bloom: 0.12 },
       dur: 4.54,
       maxSamples: 16,
       mark: 'square',

@@ -9,11 +9,12 @@ export default {
   narration: './audio/ja-sub-zh.narration.json',
   captions: true,
   audio: { vo: './audio/ja-vo.mp3' },
-  palette: { signal: '#7a5cff' },
+  palette: { signal: '#00e5ff' },
 
   timeline: [
     {
       type: 'device',
+      post: { ca: 0.004, grain: 0.03, contrast: 1.12, bloom: 0.7, tint: [0.85, 1.0, 1.15] },
       id: 'frame',
       dur: 4.24,
       kicker: 'DEVICE / 一帧',
@@ -24,6 +25,7 @@ export default {
     },
     {
       type: 'counter',
+      post: { ca: 0.004, grain: 0.03, contrast: 1.12, bloom: 0.7, tint: [0.85, 1.0, 1.15] },
       id: 'hour',
       dur: 5.37,
       from: 0,
@@ -36,6 +38,7 @@ export default {
     },
     {
       type: 'compare',
+      post: { ca: 0.004, grain: 0.03, contrast: 1.12, bloom: 0.7, tint: [0.85, 1.0, 1.15] },
       id: 'daynight',
       dur: 4.52,
       title: '白天 vs 深夜',
@@ -51,6 +54,7 @@ export default {
     },
     {
       type: 'scan',
+      post: { ca: 0.004, grain: 0.03, contrast: 1.12, bloom: 0.7, tint: [0.85, 1.0, 1.15] },
       id: 'framescan',
       dur: 4.24,
       kicker: 'SCAN / 一帧一帧',
@@ -61,6 +65,7 @@ export default {
     },
     {
       type: 'lockup',
+      post: { ca: 0.004, grain: 0.03, contrast: 1.12, bloom: 0.7, tint: [0.85, 1.0, 1.15] },
       dur: 4.24,
       mark: 'diamond',
       kicker: 'LOCKUP / 定版',
