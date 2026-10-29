@@ -45,10 +45,10 @@ __anim.precise(t)                 // 精确帧：跑导出路径，返回 { mae,
 | 键 | 参考风格 | 一眼特征 | 骨（还差什么） |
 |---|---|---|---|
 | `mg-cel` | 01 逐帧手绘·线条沸腾 | 暖纸 + 墨线 + 番茄红，颗粒/轻微模糊 | **线条沸腾**：要自写笔刷 + 每 2 帧换抖动线稿 |
-| `mg-isometric` | 02 等距 2.5D | 浅灰蓝 + 青绿 | 等距体块（`cam3` 已有，缺等距投影模板） |
+| `mg-isometric` | 02 等距 2.5D | 浅灰蓝 + 青绿 | ✅ **已完成**：`src/shots/isometric.js`（等距体块，画家算法，纯代码几何） |
 | `mg-flat-vector` | 03 扁平矢量 | 纯白 + 饱和橙，无颗粒 | — |
 | `mg-lineart` | 04 一笔线稿 | 近白 + 单蓝，细线 | —（`lineart` 模板已有） |
-| `mg-soft3d` | 05 3D 渲染 soft | 奶油 + 薄荷 + 大半径泛光 | **真 3D**（Blender / `makeThreeShot`） |
+| `mg-soft3d` | 05 3D 渲染 soft | 奶油 + 薄荷 + 大半径泛光 | ⛔ **不做**（材质/光照/角色是 Blender 的赛道，追它必输；刚性的几何走 `isometric` / `makeThreeShot`） |
 | `mg-morph` | 06 形状形变 | 深紫 + 强泛光 | —（`morph` 模板已有） |
 | `mg-sticker` | 07 贴纸说明 | 奶油白 + 高饱和黄 | 贴纸硬阴影 / 描边层 |
 | `mg-hud` | 08 赛博 HUD/FUI | 近黑蓝 + 青 + 色差 | HUD 专用母题（现在借 blueprint） |

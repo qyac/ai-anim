@@ -77,6 +77,7 @@ import { lineartShot } from './lineart.js';
 // BACKLOG 1-48 第二批（15 → 18）：图表形变 / 分层纸片 / 署名定版
 import { morphShot } from './morph.js';
 import { layersShot } from './layers.js';
+import { isometricShot } from './isometric.js';
 import { lockupShot } from './lockup.js';
 // 1-48 收尾批（18 → 20）：横向事件轴 / 径向分布
 import { timelineShot } from './timeline.js';
@@ -141,6 +142,7 @@ export const SHOTS = {
   lineart: lineartShot,
   morph: morphShot,
   layers: layersShot,
+  isometric: isometricShot,
   lockup: lockupShot,
   timeline: timelineShot,
   radial: radialShot,
