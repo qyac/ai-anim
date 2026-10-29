@@ -79,6 +79,7 @@ import { morphShot } from './morph.js';
 import { layersShot } from './layers.js';
 import { isometricShot } from './isometric.js';
 import { celShot } from './cel.js';
+import { liquidShot } from './liquid.js';
 import { lockupShot } from './lockup.js';
 // 1-48 收尾批（18 → 20）：横向事件轴 / 径向分布
 import { timelineShot } from './timeline.js';
@@ -145,6 +146,7 @@ export const SHOTS = {
   layers: layersShot,
   isometric: isometricShot,
   cel: celShot,
+  liquid: liquidShot,
   lockup: lockupShot,
   timeline: timelineShot,
   radial: radialShot,

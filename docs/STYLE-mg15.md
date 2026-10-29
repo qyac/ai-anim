@@ -57,7 +57,7 @@ __anim.precise(t)                 // 精确帧：跑导出路径，返回 { mae,
 | `mg-bauhaus` | 11 包豪斯几何 | 米白 + 正红 + 黑体 | 几何构成模板 |
 | `mg-vhs` | 12 Synthwave / VHS | 近黑紫 + 品红 + 色差 | 扫描线 / 磁带抖动 |
 | `mg-pixel` | 13 像素风 | 深绿 + 荧光绿 + dither | **真像素化**（降分辨率再放大） |
-| `mg-liquid` | 14 液体动态 | 深青 + 薄荷 + 大泛光 | 流体 Pass |
+| `mg-liquid` | 14 液体动态 | 深青 + 薄荷 + 大泛光 | ✅ **已完成**：`src/kit/liquid.js`（域扭曲 fbm + 涟漪）+ `src/shots/liquid.js` |
 | `mg-variety` | 15 综艺花字 | 高饱和红 + 白字 + 大字 | 花字描边/贴纸层 |
 
 ### 已知问题（必须先修）
