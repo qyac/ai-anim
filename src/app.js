@@ -208,6 +208,9 @@ async function boot() {
   }
 
   const canvas = /** @type {HTMLCanvasElement} */ ($('c'));
+  // 调试出口：让 agent / 工作台能读到"这一帧到底用的哪份调色板"（风格串皮排查用）
+  window.__animPalette = makePalette({ ...(task.styleResolved?.palette ?? {}), ...(task.palette ?? {}) });
+
   engine = new Engine(canvas, {
     width, height, scale, fps,
     // 调色板 = 风格包的 palette + 任务自己的 palette（任务优先）。

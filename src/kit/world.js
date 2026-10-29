@@ -77,6 +77,22 @@ export function transitionPass(gl, opts = {}) {
  * @param {any} ctx SceneCtx（只要有 gl 和 P；task.config 里传的就是这个）
  * @param {{ grid?: number, sweep?: number, warp?: number, accent?: number[], vignette?: number }} [opts]
  */
+/**
+ * 调色板指纹（短 hash）：只用来区分"这份颜色组合"，不追求抗碰撞 ——
+ * 目的是让缓存 key 在**换风格**时失效，避免复用上一套的 Pass 实例。
+ * @param {any} P 调色板（linear 值，数组）
+ * @param {any} accent 强调色（线性值）
+ */
+function paletteFingerprint(P, accent) {
+  const q = (v) => Math.round((Array.isArray(v) ? v[0] * 7 + v[1] * 13 + v[2] * 17 : (v?.r ?? 0)) * 1000);
+  let h = 2166136261;
+  for (const v of [q(P.ink), q(P.ink2), q(P.bone), q(accent)]) {
+    h ^= v & 0xffff;
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(36).slice(0, 6);
+}
+
 export function worldPass(ctx, opts = {}) {
   const P = ctx.P;
   const grid = opts.grid ?? 60;
@@ -195,7 +211,13 @@ export function worldPass(ctx, opts = {}) {
     }`, {
     cInk: P.ink, cInk2: P.ink2, cLine: P.bone, cAccent: accent,
     warp: opts.warp ?? 1, spacing: grid, sweep: 0, vig, motif,
-  }, { key: `kit_world_${motifName}_${grid}_${vig}`, blend: false });
+  }, {
+    // ⚠ key 必须带上**调色板指纹**：Pass 是按 key 缓存的，颜色虽然是 uniform，
+    //   但同一个 key 会复用上一套风格建好的那个实例 —— 换风格后背景还是上一个配色。
+    //   这正是「15 套 MG 风格包渲出来背景不变」的直接原因（实测：mg-bauhaus 的米白底渲成近黑）。
+    key: `kit_world_${motifName}_${grid}_${vig}_${paletteFingerprint(P, accent)}`,
+    blend: false,
+  });
 }
 
 /**
