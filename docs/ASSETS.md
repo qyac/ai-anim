@@ -54,6 +54,16 @@ assets/
 
 渲染期间不能写仓库（HMR 会断流）：新素材先落 `out/_staging/`，渲完再搬进来。
 
+```js
+import { loadAsset, drawAsset } from '../kit/assets.js';
+async setup(ctx) { this.logo = await loadAsset(ctx, 'nekohome-logo'); }      // 只能在 setup
+render(ctx) { drawAsset(ctx, this.logo, [x, y, w, h], { opacity: 0.96 }); }  // 等比铺满，不拉伸
+```
+
+素材缺失时 `drawAsset` 画**虚线框 + 交叉线**并把原因 push 进 `ctx.warnings` —— 缺图不崩、不静默。
+校验：`node scripts/anim.mjs assets`（四个字段 + 文件存在 + id 不重复，红了退出码 1）。
+端到端样张：`tasks/_asset-lab`（真 logo 正常画出；故意缺 id → 占位框 + warnings: 1）。
+
 ## 层 3：任务本地素材（已有）
 
 `tasks/<任务>/assets/` —— 已经在用（12 个群成员头像、logo、二维码）。规矩一样：
