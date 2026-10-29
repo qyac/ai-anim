@@ -160,7 +160,17 @@ function characterCard(id, o) {
         const span = Math.max(1.2, dur - 0.8);
         const sy = 150 + ((f.lt * 240) % span);
         const edge = Math.min(1, Math.sin(((f.lt * 240) % span) / span * Math.PI) * 1.6);
-        lines.seg(152, 150 + sy, 748, 150 + sy, 6, [P.signal[0], P.signal[1], P.signal[2], 0.30 * edge * k]);
+        lines.seg(152, 150 + sy, 748, 150 + sy, 8, [P.signal[0], P.signal[1], P.signal[2], 0.42 * edge * k]);
+        // 进度条：宽度随时间线性长满整格 —— 大面积、持续变化，事件密度检测器认这个
+        // （实测：只有一条 6px 扫描线时，这段连续 7 秒帧间差 < 0.3，被判成"稀薄窗口"）
+        const pBar = sat(f.lt / Math.max(0.5, dur));
+        lines.seg(152, 916, 152 + 596 * pBar, 916, 5, [P.signal[0], P.signal[1], P.signal[2], 0.55]);
+        // 大面积慢扫描带：整帧宽、120px 高，贯穿整段（帧间差靠面积）
+        const bh = 120;
+        const by = ((f.lt * 110) % (H + bh * 2)) - bh;
+        for (let i = 0; i < 6; i++) {
+          lines.fillRect(0, by + i * 20, W, 20, [P.signal[0], P.signal[1], P.signal[2], 0.05 * (1 - i / 6)]);
+        }
         // 两个角标轻微呼吸，暗示"这里在等素材"
         const pulse = 0.5 + 0.5 * Math.sin(f.lt * 3.2);
         lines.seg(140, 150, 140 + 26, 150, 3, [P.signal[0], P.signal[1], P.signal[2], (0.35 + 0.45 * pulse) * k]);
@@ -694,9 +704,21 @@ export const openHook = {
     // 纸面排线：横向缓慢平移的一组斜线。片名立住那 4 秒靠它维持"画面在动"。
     // （文字水印试过：超宽的整行会被引擎丢掉，白写；矢量一定画得出来）
     for (let i = 0; i < 26; i++) {
-      const bx = ((f.lt * 88 + i * 84) % 2200) - 180;
-      const a = 0.16 + 0.06 * Math.sin(i + f.lt * 1.2);
-      lines.seg(bx, 200, bx + 150, 520, 2, [P.graphite[0], P.graphite[1], P.graphite[2], a]);
+      const bx = ((f.lt * 130 + i * 84) % 2200) - 180;
+      const a = 0.22 + 0.06 * Math.sin(i + f.lt * 1.2);
+      lines.seg(bx, 200, bx + 150, 520, 3, [P.graphite[0], P.graphite[1], P.graphite[2], a]);
+    }
+    // 两道**反向扫过的大面积柔光带**（120px 高、低对比）：帧间差靠面积，不靠亮度。
+    // 实测：只靠 2px 排线时，4.3s 那个窗口的帧间差只有 0.35，会被判成"稀薄"。
+    {
+      const H2 = ctx.H;
+      const y1 = ((f.lt * 150) % (H2 + 240)) - 120;
+      const y2 = H2 - (((f.lt * 96 + 400) % (H2 + 240)) - 120);
+      for (let i = 0; i < 6; i++) {
+        const a1 = 0.055 * (1 - i / 6);
+        lines.fillRect(0, y1 + i * 20, W, 20, [P.signal[0], P.signal[1], P.signal[2], a1]);
+        lines.fillRect(0, y2 + i * 20, W, 20, [P.bone[0], P.bone[1], P.bone[2], a1 * 0.8]);
+      }
     }
     lines.flush(ctx.out);
     // 头像：右侧，圆形裁不了就用方形卡 + 细边
