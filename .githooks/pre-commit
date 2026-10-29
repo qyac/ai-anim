@@ -1,0 +1,11 @@
+#!/bin/sh
+# 提交前自检：判据来自 anim report（不渲染，秒级）。
+# 装钩子：node tools/install-git-hooks.mjs
+# 临时绕过：git commit --no-verify（请说明原因）
+node tools/precommit-report.mjs || exit 1
+
+# AGENTS.md 有 65536 B 预算、且章节号被 180 处引用 —— 动过就必须过这两个守门
+if git diff --cached --name-only | grep -q '^AGENTS.md$'; then
+  node tools/lint-agents-size.mjs || exit 1
+  node tools/lint-agents-refs.mjs || exit 1
+fi

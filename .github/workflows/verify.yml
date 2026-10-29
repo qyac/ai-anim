@@ -1,0 +1,34 @@
+name: verify
+
+# 只跑**不需要 GPU / Chrome / ffmpeg** 的部分：模块能加载、契约测试能过、文档守门不红。
+# 渲染相关的判据（卡点 / 事件密度 / 底色 / 一致性）在本地用 `node scripts/anim.mjs report <任务>` 验收，
+# 它们读成片，CI 上没有产物 —— 硬塞进来只会变成永远 skipped 的假绿灯。
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  pure-js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci || npm install
+      - name: 语法（src / scripts / tools 全部能加载）
+        run: |
+          find src scripts tools -name '*.mjs' -o -name '*.js' | xargs -n1 node --check
+      - name: 契约与守门（纯 JS，无 GPU）
+        run: |
+          node tools/test-timeline-guard.mjs
+          node tools/test-say.mjs
+          node tools/test-tempo.mjs
+          node tools/lint-prog-range.mjs
+      - name: 文档守门
+        run: |
+          node tools/lint-agents-size.mjs
+          node tools/lint-agents-refs.mjs
