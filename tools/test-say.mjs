@@ -53,9 +53,11 @@ const STUB_NO_WORDS = `${STUB} --no-words`;
 
 let pass = 0;
 let fail = 0;
+/** 失败的断言要留名 —— 见收尾处那段说明。 */
+const failures = [];
 const check = (name, ok, detail = '') => {
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `   ${detail}` : ''}`);
-  if (ok) pass++; else fail++;
+  if (ok) pass++; else { fail++; failures.push({ name, detail }); }
 };
 const close = (a, b, tol = 0.02) => Math.abs(a - b) <= tol;
 
@@ -896,7 +898,18 @@ tryThrow('reveal 没写 line → 抛（它没有默认句）',
   /reveal 没写 line/);
 
 /* ── 收尾 ── */
-console.log(`\n${'─'.repeat(60)}\n通过 ${pass}/${pass + fail}${fail ? `　❌ 失败 ${fail}` : '　✅ 全部通过'}`);
+// ⚠ **失败必须在这里汇总一遍**（2026-10-30 加）：CI 上第一次红的时候，日志只剩「通过 110/112」
+//   一行 —— 真正的 `FAIL  <断言名>  <实测值>` 夹在 110 行 PASS 中间，翻不到；
+//   而 `tools/regress-all.mjs` 那时只打一行 headline。
+//   本地复现又不成立（Linux/Windows × Node 20/22/24 × ffmpeg 8.0/8.1 全试过都是 112/112），
+//   所以「让失败自己说清楚」比「想办法复现」更可靠。
+console.log(`\n${'─'.repeat(60)}`);
+if (fail) {
+  console.log(`失败清单（${fail} 项）：`);
+  for (const f of failures) console.log(`  ✗ ${f.name}${f.detail ? `   ${f.detail}` : ''}`);
+  console.log('');
+}
+console.log(`通过 ${pass}/${pass + fail}${fail ? `　❌ 失败 ${fail}` : '　✅ 全部通过'}`);
 console.log(`夹具在 ${TASK_DIR}（临时目录，复跑会用同一份；删掉它也不影响）`);
 // 显式重设退出码：§8 里那些"预期失败"的跑会设过 `process.exitCode = 1`（标着 `ok:false` 返回），
 // 不在这里按结论重设，"全绿"也会以 1 退出（第一版就是）。

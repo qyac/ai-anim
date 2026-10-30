@@ -294,6 +294,24 @@ console.log(`通过 ${results.filter((r) => r.pass).length}/${results.length}`
 for (const s of skipped) console.log(`  ⏭ ${s.name}  (exit 2：环境不满足，这一项**没验**)  → ${s.log}`);
 for (const f of failed) console.log(`  ❌ ${f.name}  (exit ${f.code})  → ${f.log}\n     ${headline(f)}`);
 
+// ⚠ **失败项要在这里把完整输出打出来**（2026-10-30 加，起因是一次真实的排查卡壳）：
+//   日志落在 `out/_regress/<名字>.log`，而 `out/` 是 gitignore 的、CI 上 job 一结束**整个工作区就没了** ——
+//   于是「CI 红了」在 Actions 页面上只剩一行 exit code，看不到到底哪条断言断了。
+//   而在本地复现又可能因为 Node / ffmpeg / 平台差异而通不出同样结果（本轮实测本地 48/48 绿、CI 红）。
+//   把失败项的 stdout/stderr 直接吐进 CI 日志，是唯一不依赖权限、不依赖复现的取证方式。
+//   只在**有失败**时打（成功的项不刷屏），且每项最多 200 行（防止某个测试把日志撑爆）。
+if (failed.length) {
+  console.log(`\n${'='.repeat(72)}\n失败项完整输出（${failed.length} 项）\n${'='.repeat(72)}`);
+  for (const f of failed) {
+    const body = (f.out ?? '').split(/\r?\n/);
+    const capped = body.length > 200
+      ? [...body.slice(0, 200), `…（省略 ${body.length - 200} 行）`]
+      : body;
+    console.log(`\n--- ${f.name}  (exit ${f.code}) ---`);
+    console.log(capped.join('\n'));
+  }
+}
+
 const summary = {
   at: new Date().toISOString(),
   results: results.map((r) => ({ name: r.name, code: r.code, pass: r.pass, skip: !!r.skip, expectFail: !!r.expectFail, ms: r.ms, log: r.log, headline: headline(r) })),
