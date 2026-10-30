@@ -110,6 +110,8 @@ const ITEMS = [
   { name: 'unit:block-sig', cmd: ['tools/test-block-sig.mjs'], note: '分块增量重渲（1-45）：段 id→源文件（三种写法）/ 块的覆盖范围只算真正跨过的段 / 改一个镜头只有它那块失效 / 引擎或参数变=全失效 / 查不到源文件的段永远重渲（21 项）' },
   { name: 'unit:cjk', cmd: ['tools/test-cjk.mjs'], note: '字幕断行（禁则 / 平衡 / 不丢字）：行首不许出现 ，。）」/ 行尾不许留 「（/ 不拆 24fps 与 v0.9.0 / 两行不许 15+1 / 超长句给更多行而不是截断 / emoji 与全角标点拼接不丢字（28 项）' },
   { name: 'unit:motifs', cmd: ['tools/test-motifs.mjs'], note: '母题库（1-49）：方波级数收敛 + Gibbs 过冲 / 本轮末端 == 级数值 / DCT 往返 <1e-9 / 归一化不改形状 / 采样不出 NaN 且 x 单调 / 游标越界夹住（38 项）' },
+  { name: 'unit:views', cmd: ['tools/test-views.mjs'], note: '仪器视图（src/kit/views.js，BACKLOG 1-11）：八种成像的清单与默认格子 / 字模必须按**实际着墨点数**排序（第一版手写顺序不单调，中灰底整片消失）/ 模式名写错必须抛而不是静默回落（27 项）' },
+  { name: 'unit:fill', cmd: ['tools/test-fill.mjs'], note: '填充面（src/core/fill.js，LineBatch 的 fillPoly/fillCircle/fillSector）：偶奇带洞 / 圆面积误差 <2% / 扇区角度方向（0=右 90=下 180=左 270=上，写反画面照样出） / 进度环缺口落在起点一侧（39 项）' },
   { name: 'meta:gates', cmd: ['tools/test-gates-meta.mjs'], note: '守门判据的**元测试**（1-51）：每条判据都要"注入缺陷必须报 + 去掉缺陷不许报"。覆盖版面三条 / 背景守门 / 采样四个出口（tol·cap·stall·NaN）/ 误差量具 / 节奏节拍器；文末一张覆盖表点名"哪个缺口没验"（37 项）' },
   { name: 'unit:blocks', cmd: ['tools/test-blocks.mjs'], note: '方块世界 kit：面朝向判据 / 深度排序 / 世界切片 / 摄影机关键帧' },
   { name: 'unit:check-skipped', cmd: ['tools/test-check-skipped.mjs'], note: '1-19「空≠干净」：skipped 收集/聚合/结论行 + --quick 分档 + 接线自检（25 项）' },

@@ -1,0 +1,485 @@
+// @ts-check
+/**
+ * `src/kit/views.js` —— **仪器视图**：把一帧已经画好的画面换一种「成像方式」呈现。
+ *
+ * 同一个画面可以有很不一样的介质：
+ *
+ * ````js
+ * import { instrumented } from '../../../src/kit/views.js';
+ *
+ * instrumented(ctx, { mode: 'halftone', cell: 6 }, (target) => {
+ *   lines.flush(target);
+ *   comp.draw(gl, text, target, { premult: false });
+ * });
+ * ````
+ *
+ * ## 为什么它在引擎里
+ *
+ * 「半调印刷 / 字符画 / 1-bit 抖动 / 分级平涂 / 热成像 / 像素 / CRT / 雕版排线」这八种
+ * 成像方式**与题材无关**，只与「你想让观众用什么介质读这份信息」有关。科普片里
+ * 同一份数据用三种方式呈现（照片 → 半调印刷 → 1-bit 传真）是成熟手法，而每支片子
+ * 重写一遍 GLSL 既贵又容易写错（取色空间、y 轴、网点相位全是坑）。
+ *
+ * 它落地了 BACKLOG 1-11（仪器视图），并顺手覆盖了风格素材包里反复出现的那几种介质。
+ *
+ * ## 出处与许可
+ *
+ * 这一层的**能力清单**是从用户提供的风格素材包（341 条提示词；索引见
+ * `docs/REFERENCE-style-pack.md`）里数出来的，但**代码一行没有抄** —— 素材包里
+ * 没有任何一份实现（A–G 那组的参考实现是 Canvas2D 绘制函数，与本文件无关）。
+ * 这里的配方（网点面积正比于墨量、Bayer 有序抖动、荫罩三相位、桶形畸变）都是公开的
+ * 印刷 / 显示原理，GLSL 照原理重写。
+ *
+ * | 素材包里的说法 | 本文件的 mode |
+ * |---|---|
+ * | 半调印刷 / 网点 | `halftone`（L29 复古半调案卷、O19 画报网点） |
+ * | 字符画 / ASCII / 终端 | `ascii`（E3 字符画、L39 ASCII·CRT、X14 CRT 终端） |
+ * | 1-bit 抖动 / 传真 / 老 Mac | `dither`（K28 像素、X17 蓝图、L36 蓝图） |
+ * | 分级平涂 / 套色 | `posterize`（L28 Risograph、L11 WPA 丝网、K36 丝网印刷） |
+ * | 仪器读数 / 扫描 | `thermal`（BACKLOG 1-11、L11 激光点云） |
+ * | 像素化 | `pixel`（V13 像素、X13 16-bit 街机） |
+ * | CRT 扫描线 / 荫罩 | `crt`（X14、V12 VHS、L39） |
+ * | 雕版 / 木刻排线 | `engrave`（L30 木刻、L31 铜版、O10 线刻插图） |
+ *
+ * ## 三条纪律（违反都不报错，只会「看着有点不对」）
+ *
+ * 1. **成像是「事后」的**：先把这一帧完整画进离屏目标（含文字图层），再 `applyView`。
+ *    顺序反了就是「文字没被印上」，而画面看起来只是「字更清楚了」。
+ * 2. **亮度取显示空间（sRGB 编码后）**，不是线性光 —— 网点面积、抖动阈值、热色带
+ *    全是按「人看到的亮度」定的；拿线性 HDR 值算，暗部会整片过曝。`shade()` 已统一处理。
+ * 3. **Pass 与离屏目标每段只建一次**（缓存在 `ctx._views`）。每帧 new RT 会把出片速度打下来。
+ *
+ * 它是**整帧替换**（`blend: false`），所以必须画在最后一步。想在视图之后再加字
+ * （例如保留一行清晰读数），就再 `text.clear()` 画一遍并 `comp.draw`。
+ */
+
+import { Pass, RT } from '../core/gl.js';
+
+/** @typedef {[number, number, number]} RGB */
+
+/* ------------------------------------------------------------------ 字符画的字形表 */
+
+/**
+ * 字符画的字模：每个字 7 行 x 5 列，`#` 是着墨点。
+ *
+ * 为什么不下载字体、也不走 Canvas2D 画字：这层的输入是**一帧已经合成好的纹理**，
+ * 只有 5x7 的点阵能让「每个字符落在自己的格子里」这件事在任何分辨率下都精确成立
+ * （用真字体会被 hinting / 亚像素定位毁掉，放大到 4K 还会糊）。
+ *
+ * ## 顺序必须由**实际着墨点数**决定（`sortGlyphsByInk`）
+ *
+ * 第一版是**手写**顺序（空格、.、:、-、=、+…），看着像「从少到多」，实际不是：
+ * `=` 10 点排在 `o` 8 点前面、`x` 9 点在 `o` 后面 —— 查表出来的明暗关系是错的，
+ * 中间调的底图会被印成一张几乎全亮的纸（实测：中灰底整片消失，只剩标题还看得见）。
+ * 现在源码里按外观分组写，**运行时按点数稳定排序**，并由 `tools/test-views.mjs` 钉住严格不减。
+ */
+const GLYPHS = [
+  '.....', '.....', '.....', '.....', '.....', '.....', '.....', // 空格
+  '.....', '.....', '.....', '.....', '.....', '..#..', '..#..', // .
+  '.....', '.....', '..#..', '.....', '.....', '..#..', '.....', // :
+  '.....', '.....', '.....', '#####', '.....', '.....', '.....', // -
+  '.....', '.....', '#####', '.....', '#####', '.....', '.....', // =
+  '.....', '..#..', '#####', '..#..', '.....', '.....', '.....', // +
+  '.....', '..#..', '#.#.#', '.###.', '#.#.#', '..#..', '.....', // *
+  '.....', '.###.', '#...#', '#...#', '#...#', '.###.', '.....', // o
+  '.....', '#...#', '.#.#.', '..#..', '.#.#.', '#...#', '.....', // x
+  '.....', '#####', '#####', '#####', '#####', '#####', '.....', // 实心块
+  '.###.', '#.#.#', '#.#.#', '#.#.#', '#.#.#', '.###.', '.....', // @
+];
+
+/** 一个 5x7 字模的着墨点数（0..35）。 */
+export function glyphInk(glyph) {
+  let n = 0;
+  for (const ch of glyph) if (ch === '#') n++;
+  return n;
+}
+
+/**
+ * 按着墨点数**稳定**排序（点数相同的保持源码顺序）。
+ * 排序后 `glyphInk` 严格不减 —— `tools/test-views.mjs` 钉着这一条。
+ */
+export function sortGlyphsByInk(glyphs) {
+  return glyphs
+    .map((g, i) => ({ g, i, ink: glyphInk(g) }))
+    .sort((p, q) => (p.ink - q.ink) || (p.i - q.i))
+    .map((e) => e.g);
+}
+
+/** 排序之后的字模表（着色器与 JS 侧看到的是同一份顺序）。 */
+const GLYPHS_SORTED = sortGlyphsByInk(GLYPHS);
+
+/** 把 5x7 的字模压成两个 uint（前 4 行 20 bit + 后 3 行 15 bit）。 */
+function packGlyphs() {
+  const a = [];
+  const b = [];
+  for (let g = 0; g < GLYPHS_SORTED.length; g++) {
+    let lo = 0;
+    let hi = 0;
+    for (let r = 0; r < 7; r++) {
+      const row = GLYPHS_SORTED[g].slice(r * 5, r * 5 + 5);
+      let bits = 0;
+      for (let c = 0; c < 5; c++) bits = (bits << 1) | (row[c] === '#' ? 1 : 0);
+      if (r < 4) lo = (lo << 5) | bits; else hi = (hi << 5) | bits;
+    }
+    a.push(lo >>> 0);
+    b.push(hi >>> 0);
+  }
+  return { a, b };
+}
+
+const GLYPH_SRC = (() => {
+  const { a, b } = packGlyphs();
+  return 'const uint GA[' + a.length + '] = uint[' + a.length + '](' + a.map((v) => v + 'u').join(', ') + ');\n'
+    + 'const uint GB[' + b.length + '] = uint[' + b.length + '](' + b.map((v) => v + 'u').join(', ') + ');';
+})();
+
+/** 字模数量（GLSL 里要当常量用，所以从 GLYPHS 算出来注入）。 */
+const GLYPH_COUNT = GLYPHS_SORTED.length;
+
+/* ------------------------------------------------------------------ 视图清单 */
+
+/**
+ * 视图的清单（给 CLI / 文档 / 场景自检用）。
+ *
+ * `cost` 是**每像素的额外采样数**；`needs` 说明它对输入的要求（目前全都只要亮度或原色）。
+ */
+export const VIEWS = {
+  halftone: {
+    label: '半调印刷',
+    note: '把画面印成网点：暗的地方网点大、亮的地方网点小。经典印刷 / 报纸质感，'
+      + '也让「这是被印出来的东西」这件事不用旁白去说。',
+    cost: 1, needs: 'luma',
+  },
+  ascii: {
+    label: '字符画',
+    note: '每个格子里放一个字符，亮度决定放哪个字。老机器 / 终端 / 「这东西是被数出来的」。',
+    cost: 1, needs: 'luma',
+  },
+  dither: {
+    label: '1-bit 抖动',
+    note: '只有黑白两色，靠 Bayer 有序抖动的棋盘纹理表现灰阶。传真机 / 早期 Mac / 硬边复古。',
+    cost: 1, needs: 'luma',
+  },
+  posterize: {
+    label: '分级色阶',
+    note: '把连续色阶压成 N 级平涂。丝网印刷 / Risograph / 平涂海报的底子。',
+    cost: 1, needs: 'rgb',
+  },
+  thermal: {
+    label: '热成像',
+    note: '亮度映射成冷到热的色带。仪器读数 / 扫描 / 「这不是给人看的画面」。',
+    cost: 1, needs: 'luma',
+  },
+  pixel: {
+    label: '像素化',
+    note: '降分辨率再放大（最近邻）。游戏感 / 复古 / 「它很小」。',
+    cost: 1, needs: 'rgb',
+  },
+  crt: {
+    label: 'CRT 显像管',
+    note: '扫描线 + 荫罩 + 桶形畸变 + 轻微色渗。老显示器 / 录像带 / 监控。',
+    cost: 3, needs: 'rgb',
+  },
+  engrave: {
+    label: '雕版排线',
+    note: '用排线的疏密表现明暗（不是网点）。木刻 / 铜版画 / 老科普书插图。',
+    cost: 1, needs: 'luma',
+  },
+};
+
+/** 视图名（`mode` 的合法取值，顺序与着色器里的整数一致）。 */
+export const VIEW_NAMES = Object.keys(VIEWS);
+
+/* ------------------------------------------------------------------ 着色器 */
+
+/**
+ * 所有 mode 共用一个程序（分支由 uniform 决定，不会重复编译）。
+ *
+ * 输入当作**已经合成好的画面**（文字、图形、背景都在里面），
+ * 输出是**线性光**（引擎的 out 是 RGBA16F），所以写回前要 `toLinear()`。
+ */
+const VIEW_FRAG = /* glsl */ `
+  uniform sampler2D src;
+  uniform float mode;        // 见 VIEW_NAMES 的顺序
+  uniform float cell;        // 逻辑像素：字符画行高 / 半调网目间距 / 像素块边长
+  uniform float angle;       // 半调网角（弧度）与雕版排线角度
+  uniform float levels;      // posterize 的级数
+  uniform float amount;      // 0 = 原图，1 = 完全是视图（做「显影」过渡用）
+  uniform float accentMix;   // 把最暗/最亮那一档染成强调色的比例
+  uniform float scanline;    // CRT 扫描线强度 0..1
+  uniform vec3  cPaper, cInk, cAccent;
+  ${GLYPH_SRC}
+
+  /** 逻辑像素、**y 向下**（和 JS 侧坐标一致；FRAG_PX 是 y 向上的，别直接用） */
+  vec2 pxDown() { return vec2(FRAG_PX.x, RES_LOGICAL.y - FRAG_PX.y); }
+
+  /**
+   * 取一个点的**显示空间**颜色：这些成像方式全是按「人看到的亮度」定的。
+   * 输入是线性 HDR，先压到 0..1 再编码成 sRGB —— 与 readPixels(rt,'srgb') 同一口径。
+   */
+  vec3 shade(vec2 px) {
+    vec2 uv = px / RES_LOGICAL;
+    uv.y = 1.0 - uv.y;                       // 回到 vUv 的 y 向上
+    return sat(toSRGB(max(texture(src, uv).rgb, vec3(0.0))));
+  }
+  float shadeL(vec2 px) { return luma(shade(px)); }
+
+  vec2 rot2(vec2 p, float a) { float c = cos(a), s = sin(a); return vec2(c * p.x - s * p.y, s * p.x + c * p.y); }
+
+  /** 4x4 Bayer（两个 2x2 递归合成），返回 0..1 的 16 级阈值 */
+  float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
+  float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a); }
+
+  /** 冷到热：热成像色带（黑到蓝到青到黄到白），与引擎的 heat() 不是一回事（那个是火花用的） */
+  vec3 thermalRamp(float x) {
+    x = sat(x);
+    vec3 c = mix(vec3(0.02, 0.02, 0.06), vec3(0.10, 0.16, 0.55), smoothstep(0.00, 0.30, x));
+    c = mix(c, vec3(0.05, 0.60, 0.60), smoothstep(0.28, 0.52, x));
+    c = mix(c, cAccent, smoothstep(0.68, 0.85, x));
+    c = mix(c, vec3(1.0, 0.98, 0.88), smoothstep(0.90, 1.0, x));
+    return c;
+  }
+
+  void main() {
+    vec2 px = pxDown();
+    vec3 base = shade(px);
+    int m = int(mode + 0.5);
+    vec3 outc = base;
+
+    if (m == 0) {                             /* ---- 半调印刷 ---- */
+      // 网角：0 = 正放，27 度是印刷的惯例（四色叠印不会撞出摩尔纹）
+      vec2 q = rot2(px, angle) / max(cell, 1.0);
+      vec2 id = floor(q);
+      vec2 local = fract(q) - 0.5;
+      // 每一格只取中心一次样：这才是真正的网点（逐像素采样会得到「模糊的网点」）
+      vec2 center = rot2(id + 0.5, -angle) * max(cell, 1.0);
+      float l = shadeL(center);
+      // 面积正比于墨量 ⇒ 半径正比于 sqrt(墨量)。上限 0.56 = 1/sqrt(pi)：
+      // 超过它网点就互相压住、整格变实心（实测 0.62 时暗部一整片全黑，看不出网）
+      float r = sqrt(sat(1.0 - l)) * 0.56;
+      float aa = 1.0 / max(cell, 1.0) * 0.9;    // 不到一格的边，够抗锯齿又不糊
+      float ink = 1.0 - smoothstep(r - aa, r + aa, length(local));
+      outc = mix(cPaper, cInk, ink);
+      outc = mix(outc, cAccent, ink * accentMix * smoothstep(0.55, 1.0, l));
+
+    } else if (m == 1) {                      /* ---- 字符画 ---- */
+      float cw = max(cell * 0.6, 2.0);          // 等宽字宽高比约 0.6
+      vec2 g = vec2(px.x / cw, px.y / max(cell, 1.0));
+      vec2 id = floor(g);
+      vec2 local = fract(g);
+      float l = shadeL((id + 0.5) * vec2(cw, cell));
+      // 字形表按墨量从小到大排，所以**亮的地方放密字**（终端那种「亮 = 有笔画」）。
+      // 极性由 paper/ink 决定：ascii 默认纸/墨反转（见 applyView 的 SCREEN_POLARITY）。
+      // 字模按下标表示「墨量」：亮底（纸）时墨量 = 1-亮度，暗底（终端）时墨量 = 亮度。
+      // 写死成 l 的话，终端极性会把整屏变成「背景全实心、文字全空」的反相图。
+      // 再加一条亮度补偿：字模最密的那个也只有约六成着墨，直接用会让中间调整片偏黑（实测：
+      // 0.75 的灰纸被印成 0.23 的暗屏，图还读得出、字已经没了）。先提一点对比再查表。
+      float cov = luma(cPaper) < 0.5 ? l : sat(1.0 - l);
+      cov = sat(pow(cov, 0.8) * 1.18);
+      int gi = int(clamp(floor(cov * float(${GLYPH_COUNT - 1}) + 0.5), 0.0, float(${GLYPH_COUNT - 1})));
+      // 5x7 点阵：把局部坐标吸到格点上，字才干净
+      int gx = int(clamp(floor(local.x * 5.0), 0.0, 4.0));
+      int gy = int(clamp(floor(local.y * 7.0), 0.0, 6.0));
+      uint bits = gy < 4 ? (GA[gi] >> uint((3 - gy) * 5)) : (GB[gi] >> uint((6 - gy) * 5));
+      uint bit = (bits >> uint(4 - gx)) & 1u;
+      outc = mix(cPaper, cInk, float(bit));
+
+    } else if (m == 2) {                      /* ---- 1-bit 抖动 ---- */
+      // 阈值 < 亮度 ⇒ 这一点是纸。**极性写反了画面会整块反相**（黑底白图），
+      // 而它在深色底片的片子里"看起来还挺像"，所以这里把方向写明。
+      float th = bayer4(px / max(cell, 1.0));
+      outc = mix(cPaper, cInk, step(shadeL(px), th));
+
+    } else if (m == 3) {                      /* ---- 分级色阶 ---- */
+      float L = max(levels, 2.0);
+      // 在**显示空间**压级：线性空间压级会让暗部挤成一团
+      outc = sat(floor(base * L + 0.5) / max(L - 1.0, 1.0));
+
+    } else if (m == 4) {                      /* ---- 热成像 ---- */
+      outc = thermalRamp(shadeL(px));
+
+    } else if (m == 5) {                      /* ---- 像素化 ---- */
+      vec2 blk = max(vec2(cell), vec2(1.0));
+      outc = shade((floor(px / blk) + 0.5) * blk);
+
+    } else if (m == 6) {                      /* ---- CRT ---- */
+      // 桶形畸变：把 uv 往外推一点点，边缘会「胖」出来
+      vec2 uv = vUv * 2.0 - 1.0;
+      uv *= 1.0 + 0.035 * dot(uv, uv);
+      vec2 q = uv * 0.5 + 0.5;
+      // 三枪没对齐那种色渗
+      vec3 c = vec3(
+        sat(toSRGB(max(texture(src, vec2(q.x + 0.0012, q.y)).rgb, vec3(0.0)))).r,
+        sat(toSRGB(max(texture(src, q).rgb, vec3(0.0)))).g,
+        sat(toSRGB(max(texture(src, vec2(q.x - 0.0012, q.y)).rgb, vec3(0.0)))).b);
+      // 扫描线：按**逻辑像素**走（4K 下不会变成「看不见的细纹」）
+      float sl = 0.5 + 0.5 * cos(px.y * PI / max(cell * 0.5, 0.5));
+      c *= mix(1.0, 0.55 + 0.45 * sl, scanline);
+      // 荫罩：屏幕上的 RGB 竖条
+      float mask = 0.5 + 0.5 * cos(px.x * TAU / max(cell * 2.0, 3.0));
+      c *= 1.0 - 0.18 * (1.0 - mask);
+      // 桶形之后画外的部分要黑掉（不然四角会被拉出一圈边）
+      c *= smoothstep(1.0, 0.92, max(abs(q.x - 0.5), abs(q.y - 0.5)) * 2.0);
+      c *= 1.0 - 0.55 * smoothstep(0.45, 1.0, length(uv));
+      // 扫描线与荫罩是**乘**上去的，会把整屏压暗一档；补回来，否则 CRT 段比别段黑 30%
+      c *= 1.55;
+      outc = c;
+
+    } else if (m == 7) {                      /* ---- 雕版排线 ---- */
+      // 排线用**线宽**表现明暗：暗的地方线粗到连成片，亮的地方只剩细线。
+      // ⚠ 不要用 GLSL_COMMON 的 hatch()/engrave()：那两个的返回值是「这一点的暗度附加值」，
+      //   不是「墨的覆盖率」，直接当墨用会得到一张**反相**的版画（实测：整屏斜纹）。
+      //   而且它们两参数那版宽度是阶跃、不抗锯齿，做静态版画够用、做整帧成像就是糊。
+      // 这里自己写：u 的整数处一根线，线宽 = darkness，用 fwidth 抗锯齿。
+      float l = shadeL(px);
+      float dark = sat(1.0 - l);
+      float u = dot(px, vec2(cos(angle), sin(angle))) / max(cell, 1.0);
+      float f = abs(fract(u) - 0.5);                  // 0 = 线心，0.5 = 两线之间
+      // 上限 0.46：再宽两根线就粘成实心，版画就没有「线」了（实测 0.5 时暗部整片实黑）
+      float hw = 0.46 * pow(dark, 0.8);               // 暗 ⇒ 线宽逼近整格宽
+      float aa = max(fwidth(u), 1e-4);
+      float ink = 1.0 - smoothstep(hw - aa, hw + aa, 0.5 - f);
+      outc = mix(cPaper, cInk, ink);
+    }
+
+    // amount = 显影强度（0 时逐像素等于输入）
+    outc = mix(base, outc, sat(amount));
+    // 视图算出来的是**显示空间**的颜色，引擎的 out 要线性光
+    fragColor = vec4(toLinear(max(outc, vec3(0.0))), 1.0);
+  }`;
+
+/** mode 名 -> 着色器里的整数（与 VIEW_NAMES 的顺序一致）。写错**当场抛**，不静默回落。 */
+function modeIndex(mode) {
+  const i = VIEW_NAMES.indexOf(String(mode));
+  if (i < 0) {
+    throw new Error(
+      '未知的视图模式 "' + mode + '"。可用的：' + VIEW_NAMES.join(' / ')
+      + '（说明见 docs/COOKBOOK.md 的「仪器视图」一节）',
+    );
+  }
+  return i;
+}
+
+/** 每种视图的默认格子尺寸（逻辑像素）。字符画要能读出字，网点要密。 */
+const DEFAULT_CELL = { ascii: 20, pixel: 6, dither: 3, halftone: 7, engrave: 8, crt: 3 };
+
+/**
+ * 哪些视图默认「深底浅字」（像屏幕），哪些默认「浅底深字」（像纸）。
+ *
+ * 这一条写错**不会报错**，只会整块反相 —— 而反相在深色底片的片子里"看着还挺像"，
+ * 所以把它做成显式常量，而不是靠调用方每次都记得传 paper/ink。实测踩过：
+ * `ascii` 用纸的极性时，黑底会被印成一整片米白，字反而消失了。
+ */
+const SCREEN_POLARITY = new Set(['crt']);
+
+/** 每段 ctx 上的缓存槽（Pass 与离屏目标都建一次就够）。 */
+function slot(ctx) {
+  if (!ctx._views) ctx._views = { rt: null, pass: null };
+  return ctx._views;
+}
+
+/**
+ * 把这一帧画进一个**离屏目标**，返回那个目标（`RT`）。
+ *
+ * 这是 `applyView` 的配套：成像必须发生在「画面已经完整」之后，
+ * 而 `ctx.out` 是**边画边写**的（`comp.draw` 每一步都在改它），
+ * 所以要先画到一个干净的目标上，再整体换一种成像方式。
+ *
+ * ```js
+ * const rt = renderCapture(ctx, (target) => {
+ *   lines.flush(target);
+ *   comp.draw(gl, text, target, { premult: false });
+ * });
+ * applyView(ctx, rt, { mode: 'ascii', cell: 18 });
+ * ```
+ *
+ * 目标**不会自动清空**：只画了一部分时上一帧的内容会留在里面，要清就自己
+ * `gl.clear(target, …)`（和画 `ctx.out` 时的规矩一样）。
+ *
+ * @param {any} ctx 场景 ctx
+ * @param {(target: any) => void} draw 往这个目标上画（和画 `ctx.out` 一样的写法）
+ * @returns {any} RT
+ */
+export function renderCapture(ctx, draw) {
+  const gl = ctx.gl;
+  const st = slot(ctx);
+  if (!st.rt || st.rt.w !== gl.pw || st.rt.h !== gl.ph) {
+    if (st.rt) st.rt.dispose?.();
+    st.rt = new RT(gl, gl.pw, gl.ph);
+  }
+  draw(st.rt);
+  return st.rt;
+}
+
+/**
+ * 把一个**已经画好的目标**换一种成像方式，贴回 `ctx.out`（整帧替换）。
+ *
+ * @param {any} ctx 场景 ctx
+ * @param {any} src 源：`renderCapture` 返回的 RT，或任何 `{ tex }` 纹理句柄
+ * @param {{
+ *   mode: string,             // 见 VIEWS / VIEW_NAMES
+ *   cell?: number,            // 逻辑像素：字符画行高 / 半调网目 / 像素块（默认按模式给）
+ *   angle?: number,           // 半调网角 / 雕版排线角度（弧度；默认 27 度与 45 度）
+ *   levels?: number,          // posterize 级数（默认 4）
+ *   amount?: number,          // 0..1 显影强度（默认 1）
+ *   accentMix?: number,       // 强调色染进最暗/最亮档的比例（默认 0）
+ *   scanline?: number,        // CRT 扫描线强度（默认 0.85）
+ *   paper?: RGB, ink?: RGB, accent?: RGB,   // 默认取调色板的 bone / ink / signal
+ * }} [opts]
+ * @returns {any} ctx.out（方便链式）
+ */
+export function applyView(ctx, src, opts = {}) {
+  const gl = ctx.gl;
+  const P = ctx.P;
+  const st = slot(ctx);
+  const mode = modeIndex(opts.mode);
+  if (!st.pass) {
+    st.pass = new Pass(gl, VIEW_FRAG, {
+      src: null,
+      mode: 0, cell: 8, angle: 0.4712, levels: 4, amount: 1, accentMix: 0, scanline: 0.85,
+      cPaper: [1, 1, 1], cInk: [0, 0, 0], cAccent: [1, 0.3, 0.07],
+    }, { key: 'kit_views', blend: false });
+  }
+  const p = st.pass;
+  p.u.src.value = src;
+  p.set({
+    mode,
+    cell: opts.cell ?? DEFAULT_CELL[opts.mode] ?? 7,
+    angle: opts.angle ?? (opts.mode === 'engrave' ? Math.PI / 4 : 0.4712),
+    levels: opts.levels ?? 4,
+    amount: opts.amount ?? 1,
+    accentMix: opts.accentMix ?? 0,
+    scanline: opts.scanline ?? 0.85,
+    // 默认配色：纸 / 墨取调色板的 bone 与 ink（换风格时自动跟着走），
+    // 极性按模式分（纸的介质浅底深字，屏幕的介质深底浅字）
+    cPaper: opts.paper ?? (SCREEN_POLARITY.has(opts.mode) ? P.ink : P.bone),
+    cInk: opts.ink ?? (SCREEN_POLARITY.has(opts.mode) ? P.bone : P.ink),
+    cAccent: opts.accent ?? P.signal,
+  });
+  p.render(gl, ctx.out, ctx.f.t, ctx.f.dt);
+  return ctx.out;
+}
+
+/**
+ * 一行式：把这一帧「画 → 换成某种成像」。
+ *
+ * ```js
+ * instrumented(ctx, { mode: 'halftone', cell: 6 }, (target) => {
+ *   lines.flush(target);
+ *   comp.draw(gl, text, target, { premult: false });
+ * });
+ * ```
+ *
+ * @param {any} ctx @param {any} opts @param {(target: any) => void} draw
+ */
+export function instrumented(ctx, opts, draw) {
+  return applyView(ctx, renderCapture(ctx, draw), opts);
+}
+
+/** 视图清单（给文档 / CLI / 场景自检；与 VIEWS 同一份数据，形状更扁平）。 */
+export function listViews() {
+  return Object.entries(VIEWS).map(([name, v]) => ({
+    name, label: v.label, note: v.note, cost: v.cost, needs: v.needs,
+    defaultCell: DEFAULT_CELL[name] ?? 7,
+  }));
+}

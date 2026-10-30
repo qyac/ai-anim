@@ -84,7 +84,7 @@ node scripts/anim.mjs still _style-sampler -t 1.8,6,9.6 --style noir
 
 ---
 
-## 3. 六套风格，各自适合讲什么
+## 3. 基础六套，各自适合讲什么
 
 > 下表 `label` / `note` **原样抄自** `src/style/index.js` 的 `STYLES`，一个字没改。
 
@@ -122,6 +122,51 @@ node scripts/anim.mjs still _style-sampler -t 1.8,6,9.6 --style noir
 `maxLines` 2 / `position: 'top'`），由 `tools/test-style.mjs` 的断言钉住 ——
 同一默认值再写在两个地方会当场红。
 
+## 3.1 版式风格（2026-10-30 新增 9 套：`src/style/panels.js`）
+
+> 来源：用户提供的**风格素材包**的 H 系列（12 套「配色 + 字体」整套搭配）。
+> 素材包只给了一句话配方，这里把它换成引擎字段。出处与许可：`docs/REFERENCE-style-pack.md`。
+
+**为什么加这一批**：原有 21 套里**浅底纸面只有 `paper` 一套**（米白 + 宋体）。散文 / 杂志 /
+说明类内容连着做两支就必然撞脸 —— 这一批补的正是这一格：暖羊皮纸、奶油糖果色、钴蓝网格、
+工业报纸。九套的共同点是「浅底 + 一两个强调色 + 一套衬线或无衬线」，一套约 20 行。
+
+| 名字 | label | 底色 / 正文 / 强调 | 母题 | 字体介质 |
+|---|---|---|---|---|
+| `h-biennale` | 版式 · 双年展黄 | `#f2e7cf` / `#20263f` / `#e8a33d` | `paper` | 中文宋体 |
+| `h-blockframe` | 版式 · 粗黑框 | `#f7f4ec` / `#111111` / `#ff5a36` | `flat` | 中文黑体（Bahnschrift） |
+| `h-blue` | 版式 · 钴蓝 | `#f4f1e8` / `#152238` / `#1f4fd8` | `blueprint` | 中文黑体 + 宋体副 |
+| `h-coral` | 版式 · 珊瑚 | `#fdf6ec` / `#2a2118` / `#ff6b5a` | `flat` | 中文黑体 |
+| `h-forest` | 版式 · 森林编辑 | `#f3f1e6` / `#1b2b21` / `#c94f6d` | `paper` | 中文宋体 |
+| `h-broadside` | 版式 · 工业报纸 | `#efe8d8` / `#181613` / `#e2571f` | `paper` | 中文黑体 + 宋体副 |
+| `h-cartesian` | 版式 · 极简留白 | `#fbf9f3` / `#14130f` / `#8a6a3a` | `flat` | 中文黑体（留白版） |
+| `h-capsule` | 版式 · 胶囊糖果 | `#fffaf1` / `#231b14` / `#ff4f8b` | `flat` | 中文宋体标题 |
+| `h-poster` | 版式 · 大字海报 | `#fdf3e6` / `#1c1610` / `#e01f28` | `paper` | Georgia 衬线（中文回退宋体） |
+
+**怎么挑**：
+
+- 要给合作方看的方案 / 结论 → `h-blue`（最「可信」的一套）；
+- 文化 / 展览 / 年度回顾这类要体面的 → `h-biennale`；
+- 有引文、有出处、有旁白的长段 → `h-forest`（杂志感）；
+- 通告 / 声明 / 数字很强 → `h-broadside`；
+- 一屏只想放一件事（封面帧、金句）→ `h-poster`；
+- 内容本身要占满注意力 → `h-cartesian`。
+
+⚠ **它们和 `paper` 一样是浅底**，所以 §8 那条「浅底不是安全的」照旧适用：场景里任何高 `bloom`、
+`mul(col, 1.6)` 的发光写法都会在浅底上糊掉。九套的 `post.bloom` 已经压到 0.05–0.12。
+
+⚠ **`chart` 这类模板在浅底风格下会反相**（模板刻意用 `P.bone` 当纸、`P.ink` 画柱，
+见 `src/shots/chart.js` 的注释 —— 那是设计意图，不是 bug）。浅底风格配图表要手写场景，
+或者接受「纸面上的深色图表」这个观感。**标题 / 大字 / 片尾这几类模板不受影响。**
+
+出对比图（不改任何文件）：
+
+```sh
+node scripts/anim.mjs still _style-sampler -t 2.4 --style h-biennale
+node scripts/anim.mjs still _style-sampler -t 2.4 --style h-poster
+```
+
+---
 ---
 
 ## 4. 风格包里有什么：七个字段

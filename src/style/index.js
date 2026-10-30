@@ -148,10 +148,14 @@ const CAPTIONS_BASE = { ...DEFAULT_CAPTION_STYLE };
  * 换了风格必须一眼看得出来，否则它就没有存在的意义。
  */
 import { MG15 } from './mg15.js';
+import { PANELS } from './panels.js';
 
 export const STYLES = {
   // 15 种 MG 风格（对应 mg-styles-15 参考集；见 docs/STYLE-mg15.md）
   ...MG15,
+
+  // 9 种版式风格（从风格素材包的 H 系列转译；见 docs/REFERENCE-style-pack.md §2）
+  ...PANELS,
 
   /* ------------------------------------------------------------------ 印刷品（默认） */
   print: {

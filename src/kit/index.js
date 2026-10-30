@@ -82,6 +82,32 @@ export {
   planCollision, victimSpan, VICTIM_RATIO_RANGE, VICTIM_RATIO_DEFAULT,
 } from './world.js';
 
+/**
+ * src/kit/views.js —— 仪器视图：把一帧已经画好的画面换一种成像方式
+ * （半调印刷 / 字符画 / 1-bit 抖动 / 分级平涂 / 热成像 / 像素 / CRT / 雕版排线）。
+ * 落地 BACKLOG 1-11，并覆盖风格素材包里反复出现的那几种介质（索引见
+ * docs/REFERENCE-style-pack.md；代码与素材包无关，一行没抄）。
+ *
+ *   instrumented(ctx, { mode: 'halftone', cell: 6 }, (target) => {
+     lines.flush(target);
+     comp.draw(gl, text, target, { premult: false });
+   });
+ *
+ * ⚠ 成像是「事后」的：先画进离屏目标（含文字），再换成像；而且它是整帧替换，
+ * 必须画在最后一步。
+ */
+export {
+  VIEWS, VIEW_NAMES, applyView, renderCapture, instrumented, listViews,
+  glyphInk, sortGlyphsByInk,
+} from './views.js';
+
+/**
+ * 填充面：直接转发 `src/core/fill.js` 的扫描线（场景里也可以直接 `lines.fillPoly(...)`）。
+ * 三个函数给**要算形状**而不是要画的人用（例如先算出一块面的包围盒、或把它转成路径）。
+ * 角度约定：0 = 右，π/2 = **下**（y 向下为正）。见 `docs/COOKBOOK.md` §17。
+ */
+export { polySpans, circleSpans, sectorSpans, ringEdges, crossingsAt } from '../core/fill.js';
+
 export { makeShot, shot } from './shot.js';
 export { stickerShot } from './sticker.js';
 

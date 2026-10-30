@@ -1483,6 +1483,59 @@ export default makeThreeShot('lattice', {
 
 ---
 
+## 16. 仪器视图：同一张画面换八种介质
+
+有些镜头要的不是「更好看的画面」，而是**换一种成像方式**——同一份数据在照片、
+半调印刷、1-bit 传真、热成像之间切换，观众立刻明白「这是被印出来的 / 被数出来的 /
+被测出来的」。这一层在 `src/kit/views.js`（BACKLOG 1-11 落地）。
+
+```js
+import { instrumented } from '../../../src/kit/index.js';
+
+render(ctx) {
+  const { f, gl, P, lines, text, type, comp } = ctx;
+  instrumented(ctx, { mode: 'halftone', cell: 6 }, (target) => {
+    gl.clear(target, [P.ink[0], P.ink[1], P.ink[2]]);
+    lines.begin();
+    // …画图形（和平时一样，只是目标换成 target）…
+    lines.flush(target);
+    text.clear();
+    type.write('半调印刷', 120, 160, { size: 'h1', color: css(P.bone), t: f.lt });
+    text.upload();
+    comp.draw(gl, text, target, { premult: false });   // ← 文字也要一起被「印」
+  });
+  return { bloom: 0.1, grain: 0.01 };
+}
+```
+
+| mode | 画面 | 什么时候用 |
+|---|---|---|
+| `halftone` | 网点印刷 | 「这是印出来的」、报纸 / 档案 / 画报 |
+| `ascii` | 字符画 | 老机器、「被数出来的」、终端口吻 |
+| `dither` | 1-bit 抖动 | 传真 / 早期 Mac / 硬边复古 |
+| `posterize` | N 级平涂 | 丝网印刷 / Risograph / 平涂海报（`levels: 4`） |
+| `thermal` | 冷热色带 | 仪器读数 / 扫描 / 「这不是给人看的」 |
+| `pixel` | 最近邻放大 | 游戏感 / 「它很小」 |
+| `crt` | 扫描线 + 荫罩 | 老显示器 / 录像带 / 监控 |
+| `engrave` | 排线疏密 | 木刻 / 铜版画 / 老科普书插图 |
+
+三条容易踩的：
+
+1. **成像是「事后」的** —— 先把这一帧完整画进离屏目标（含文字图层），再换成像。
+   先换成像再画字，字就是「贴在印刷品上的屏幕字」，一眼假。
+2. **它是整帧替换**（`blend: false`），必须画在最后一步。想在视图之后保留一行清晰读数，
+   就再 `text.clear()` 画一遍并 `comp.draw`。
+3. **`amount` 是显影强度**（0 = 原图，1 = 完全是视图），用它做「照片慢慢变成印刷品」
+   的过渡，比切镜头便宜得多。
+
+极性（深底浅字 / 浅底深字）默认按模式分：`crt` 是屏幕极性，其余是纸的极性。
+要硬改就传 `paper` / `ink` 两个颜色。字符画的字模表在运行时按**实际着墨点数**排序，
+顺序不单调会把中间调印成一片白（`tools/test-views.mjs` 钉着这条）。
+
+夹具与出图：`node scripts/anim.mjs still _view-lab -t 2.6,5.6,8.6,11.6,14.6,17.6,20.6,23.6`。
+
+---
+
 ## 15. 常用模式速查
 
 ```js
@@ -1547,6 +1600,38 @@ rot2(x, y, a) / dist2(x0, y0, x1, y1) / clamp / sat / lerp / remap
 
 ---
 
+## 17. 画「面」：fillPoly / fillCircle / fillSector
+
+引擎的矢量层只会画**线段**（胶囊）。在这之前，「一块面」只能靠 fillRect（一行行矩形）表达，
+圆、山体、扇区都只能描边逼近 —— 这是 23 个镜头模板看起来都是「线 + 矩形」的**图元原因**，
+不是审美选择。现在补了三个填充：
+
+```js
+lines.begin();
+lines.fillCircle(cx, cy, r, color);                 // 圆盘
+lines.fillPoly([[x,y], …], color);                  // 多边形（偶奇规则）
+lines.fillPoly([outer, inner], color);              // 多环 = 带洞
+lines.fillSector(cx, cy, r0, r1, a0, a1, color);    // 扇环（r0>0）/ 扇形（r0=0）
+lines.flush(ctx.out);
+```
+
+| 方法 | 用途 | 一条要注意的 |
+|---|---|---|
+| fillPoly(pts, color, step) | 山体、纸片、飘带、任意多边形 | pts 可以是**多个环**（外层数组套环）—— 内环自动挖洞（偶奇规则），不用管绕向 |
+| fillCircle(cx, cy, r, color, step) | 圆盘、圆点、日月 | 比 fillPoly 逼近更准也更便宜（每行一次 sqrt） |
+| fillSector(cx, cy, r0, r1, a0, a1, color, step) | 饼图、进度环、扇形统计 | **角度约定：0 = 右，π/2 = 下**（y 向下为正），−π/2 = 上。写反了画面照样出，只是整块镜像 |
+
+三条经验：
+
+1. **step 是精度/成本的旋钮**（默认 2 逻辑像素）。1080p 下 2 足够；4K（--scale 2）要 step: 1，
+   否则弧边会有可见的台阶。极端细长的形状（飘带）给 1 更稳。
+2. **先填充、后描边**。两者都走 lines 同一个批，顺序就是绘制顺序；反过来描边会被盖掉一半。
+3. **别拿 fillRect 拼弧**。它是一行行矩形，弧边会有锯齿；圆和扇区直接用后两个。
+
+实现与判据：src/core/fill.js（扫描线数学，纯函数）、tools/test-fill.mjs（39 项，含方向断言）。
+夹具：node scripts/anim.mjs still _fill-lab -t 2（一屏六种面）。
+
+---
 ## 附：交付前自检
 
 1. `node scripts/anim.mjs check <任务>`：无报错、无空档、每段平均亮度都不是全黑。

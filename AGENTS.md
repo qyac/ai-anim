@@ -313,6 +313,8 @@ export default makeShot('chart', {
 | 整行淡入 | `fade(f.lt, delay)` → `{ alpha: [0,1], t, staggerDur }` |
 | 面板 / 眉标 / 页脚 / 准星 / 标记 | `panel` `kicker` `footer` `reticle` `marker` |
 | 填充矩形（一条批） | `lines.fillRect(x, y, w, h, [r,g,b,a])` |
+| **填充面**（圆 / 多边形 / 扇环 / 带洞） | `lines.fillCircle` · `lines.fillPoly(pts)` · `lines.fillPoly([outer, inner])`（带洞）· `lines.fillSector(cx,cy,r0,r1,a0,a1)`。⚠ 角度 0=右、π/2=**下**（y 向下）；先填充后描边。见 `docs/COOKBOOK.md` §17 |
+| **换一种「成像方式」**（半调 / 字符画 / 1-bit / 热成像 / CRT / 雕版…） | `instrumented(ctx, { mode, cell }, (target) => { …画进 target… })`（`src/kit/views.js`）。⚠ 先整帧画进离屏目标（含文字）再换，且必须最后一步。见 `docs/COOKBOOK.md` §16 |
 | 协议名 / 参数 / 命令行那种"代码行"排版（分段着色、等宽） | `codeRow(type, [{ s: 'GET ', c: css(P.ash) }, { s: '/v1/items', c: css(P.signal) }], x, y)` |
 | **带回弹的落位**（弹簧手感，不用自己积分） | `spring(f.lt - t0)` → 0→1，**指数弹簧的解析解**（`src/core/util.js`；想更弹 `spring(f.lt - t0, 1, 140, 12)`） |
 | 有机的漂移 / 呼吸 / 轻微不规则的抖动 | `noise1/2/3`、`fbm1/fbm2`（确定性；`setup` 里预算或每帧算都行） |
@@ -679,7 +681,7 @@ ffmpeg 用 `-pix_fmt nv12` 直接吃 —— 瓶颈与验收数字见 `docs/PERF.
 **挡不住编辑器的原子写**：它们会留下 `.xxx.tmpdir/…tmp`（**不以 `.md` 结尾**），Vite 的文件监听
 照样去 watch，撞上 `EBUSY` **直接让 Vite 进程崩掉**，渲染报 `net::ERR_CONNECTION_REFUSED`
 （`docs/history/STATUS-rounds-7-10.md` §14.5 第三次复现：`hashes demo --baseline` 跑到第 8 帧就断在这里）。
-唯一被实测挡住的是 **`out/**`** —— **并发子代理的产出先落 `out/_staging/`**，渲染结束再搬进仓库。
+唯一被实测挡住的是 **`out/**`** —— **并发子代理的产出先落 `out/_staging/`**，渲染结束再搬。
 （"`docs/**`、`**/*.md` 可以安全写"那条**已作废**。）
 `video` 现在会在收尾时用 **ffprobe 复核自己的产物**（帧数不符就报错并删掉废文件），
 分块模式还会**逐块**复核 —— 所以「CLI 说 ✓ 但文件打不开」这种情况不会再发生。
@@ -811,18 +813,12 @@ node scripts/anim.mjs check <任务>
     判据是「主体之外 ≤ 2 块、每屏 ≤ 6 块字」，默认只 warn、**交付自检加 `--strict`** 才当门。
     观众对钠那期的原话就是这一条：「有些动画元素相互遮挡害得我搞不清楚到底要看哪个主体」。
 11. **画面上的数字必须有出处**（`docs/BACKLOG.md` 1-22；判据与边界见 `docs/FACTS-TEMPLATE.md` ★ 一节）。
-    **我们的画面全是代码算的，所以"编一个数字"的成本是零** —— 这一条只能靠硬规则 + 交付前自审：
-    **绝不在帧尺度上编造数字、增量、日期、计数**；数值显示位（`type.write` 的字符串、`chart` 的
-    `values`、`codeRow` 的文本、镜头模板的 `title`/`sub`/`footer`、旁白与字幕）里的字面量数字，
-    要么能在 `tasks/<任务>/FACTS.md` 找到出处，**要么写成占位符 `— figure —`**（槽位先渲染出来，
-    别先填一个"看起来合理"的数）。片子自己的编号（`WORKS 04`、`v0.1.2`）与示意读数
-    （计数器、延迟条）同样要登记 —— 一行话，换掉一次误报。
-    自查：`node tools/lint-fabricated-numbers.mjs <任务>` **零命中**
-    （`--slots` 复核它把哪些位置当成数值显示位，`--explain` 连找到出处的也打出来附行号）。
-    ⚠ 它只扫"数值显示位"：坐标 / 字号 / 时长 / 阈值 / 颜色分量 / 注释都不算；
-    而**算出来的数**（模板串插值 / 字符串拼接 / `String()` / `.padStart()` / `.toFixed()` / `values` 里的变量）
-    单列一段 `算出来的值：N 处 —— 这些位置静态查不到等于几，这一项**没验**`（**0 处也打一行**）。
-    它**不进退出码** ⇒ "零命中"不等于这些位置验过了 —— 要么在 FACTS.md 里**登记口径**，要么写成占位符。
+    **画面全是代码算的，所以「编一个数字」的成本是零** —— 只能靠硬规则：数值显示位（`type.write` 的字符串、
+    `chart` 的 `values`、`codeRow` 文本、模板的 `title`/`sub`/`footer`、旁白与字幕）里的字面量数字，
+    要么在 `tasks/<任务>/FACTS.md` 里有出处，要么写成占位符 `— figure —`；片子自己的编号与示意读数同样要登记。
+    自查 `node tools/lint-fabricated-numbers.mjs <任务>` 零命中。⚠ 它只扫「数值显示位」、且**不进退出码**：
+    **算出来的数**（模板串插值 / `.toFixed()` / `values` 里的变量）单列一段「没验」—— 要么在 FACTS.md 登记口径，
+    要么写成占位符。坐标 / 字号 / 时长 / 阈值 / 颜色分量不算。
 11.5 **切点对得上拍子**（有音乐时）：`check` 的「卡点」那行要是 `✓ N/N 个切点都在 ±30ms 内`；
     `--strict` 下要求 **≥90%** 对齐。对不上就改段长（`dur: { beat: n }`）或把 `narration.mjs` 的 `BPM` 设成实测值；
     单独体检：`node tools/lint-beat-align.mjs <任务>`（它从音频**自己重建**网格，不信 `analysis.json` 的 bpm 估计）。
