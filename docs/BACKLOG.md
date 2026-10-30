@@ -147,6 +147,19 @@ D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loud
 > 仪器视图 `src/kit/views.js`、九套版式风格 `src/style/panels.js`）。交接单：
 > [HANDOFF-2026-10-30.md](HANDOFF-2026-10-30.md)；素材包分析：
 > [REFERENCE-style-pack.md](REFERENCE-style-pack.md) 与 [REFERENCE-style-pack-capability.md](REFERENCE-style-pack-capability.md)。
+>
+> **2026-10-30 晚 · 介质层第二批 + 三条拍板（用户当场定的）**：
+> ① **`style.view` 做、默认 off** —— 八种成像提成风格包字段，只有显式声明的风格才换介质（1-63）；
+> ② **H/K/Z 三组 65 条素材放着不投入** —— 正文只有一句话（「粗线条，网点，速度线」）、只有 3 张静帧，
+>   做出来就是猜配色；只当名字列表用，要落地先向素材包作者要截图；
+> ③ 本轮范围 = **胶片磨损 → N 版套印**（1-64 / 1-65）。
+>
+> 落地：`post.weave/flicker/scratch`（1-64）、`halftone` 的 N 版套印（1-65）、两套新风格
+> `h-riso`（双版套印）/ `h-vhs`（CRT + 磨损）、夹具 `tasks/_wear-lab` 与 `tasks/_style-view-lab`；
+> 交接单 [HANDOFF-2026-10-30-media.md](HANDOFF-2026-10-30-media.md)。
+>
+> ⚠ 本轮**改了一处已交付的可视行为**：`crt` 成像的亮度补偿 1.55 裸乘会把浅底画面打成 20%+ 死白
+> （`check _style-view-lab` 当场红），改成亮部软肩；`_view-lab` 基线已按流程 `--accept --note`。
 
 ---
 
@@ -379,3 +392,6 @@ D-1 flush 后画线要报 / D-2 给 f.dt / D-4 lint 排除 note / F-1 mix --loud
 | 0-7②③ 钠差评后续的两支样片（60–90 秒单主题 / 「一页一图」最小样张）**不做**（① 版面守门已落地） | 第十二轮 |
 | 磁盘：`out/` 的 `*.parts/` 等中间产物已清（7 个任务、释放 29.4 GB）—— §3 的表已换成清理后的读数 | 第十二轮 |
 | ~~1-49~~（部分） | **已抽（2026-10-26）：`spectrum` 的三个母题** —— `src/kit/motifs/` 落地：`fourier`（方波级数 / 本轮 / 项数生长 / 画圆）、`dct`（8×8 二维 DCT·IDCT / 有损重建 / 按 min-max 归一）、`waveform`（采样折线 / 游标 / 刻度），统一从 `src/kit/index.js` 再导出。验证：`tools/test-motifs.mjs` **38 项**（级数 RMS 随项数递减、Gibbs 过冲 1.15–1.22、本轮末端 == `squareWave()` 到 1e-12、DCT 往返 <1e-9、归一化不改形状、采样不出 NaN 且 x 单调）+ 夹具 `tasks/_motif-lab`（两段样片）。文档 `docs/MOTIFS.md`。**没做的部分**：`sodium` 积木 / `bikeshed` 会议室 / `beast`·`fidus`·`nekohome` 的私有 `_kit.js` —— 这些任务目录被 `.gitignore` 排除（含真实素材），**本 checkout 里没有**，抽不了也删不了 | 同 §5 Phase 2 |
+| ~~1-63~~ | **已完成（2026-10-30 晚）**：`style.view` 整片介质 —— 八种成像提成**风格包字段**，引擎在「全部段合成完 → post 之前」把整帧换成像（`src/core/engine.js` 的 `composite`；字幕在 post 之后，永远清晰）。`resolveView()` 校验模式名（写错**当场抛**，列出可用清单）；`applyStyleView()` 先拷离屏再成像（读自己写自己是 GL 未定义行为）。**默认 off**（31 套里只有 `h-riso` / `h-vhs` 写了它）—— `hashes demo` / `beat` 各 **11/11 max 0** 证明老片子一个像素没变。示范：`still _style-sampler -t 2.4 --style h-riso`；夹具 `_style-view-lab`。**顺手修掉一个真雷**：`crt` 的亮度补偿 1.55 裸乘会把浅底画面打成 23% 死白（`check _style-view-lab` 当场红），改成亮部软肩（`_view-lab` 基线已 `--accept --note`） | 2026-10-30 晚（用户拍板：做、默认 off） |
+| ~~1-64~~ | **已完成（2026-10-30 晚）**：胶片磨损 `post.weave` / `flicker` / `scratch` —— 片门晃动（双频亚像素行漂移）/ 曝光闪烁（1.3Hz 慢波下陷，只压暗）/ 划痕（每 5 秒生死窗的竖痕，**亮底发暗、暗底发亮**——它是「没显影的缝」）。全部由 `wearT`（引擎每帧喂 `t`）驱动，**0 = 逐像素不变**，覆盖素材包 17 条磨损条目。**踩掉两个不报错的坑**：① 只压暗的划痕在深色段**完全隐形**、亮纸段又被亮度因子归零——改成极性混合；② 夹具第一版放在竖直网格线标题上，划痕被网格埋掉。验证 `tools/test-post-wear.mjs`（23 项：默认全 0 / uniform 接线 / 0 时走不到磨损代码 / 磨损函数不读 seed）+ 夹具 `_wear-lab`（`check` 0 红）+ 风格 `h-vhs` | 2026-10-30 晚 |
+| ~~1-65~~ | **已完成（2026-10-30 晚）**：N 版套印 —— `halftone` 加 `passes`（1 = 单版**逐像素不变**，2..4 = 分版）与 `misreg`（套准偏移，逻辑像素）。分版规则「越深的版越晚进入」（`th = i/N · 0.8`），版序浅墨→深墨；每版网角错开 30°、偏移方向按黄金角散开；套准偏移让相邻版边界长出彩色边——**没有它，N 版只是多色网点图、不像印出来的**。⚠ 第一版用的是 disjoint 分版 `(1-l)*N - i`：纸面（亮度 0.62）就有 72% 强调色覆盖 ⇒ 整屏被染成红、纸色全丢（出图当场抓到）。夹具 `_view-lab` 的 `halftone2` / `halftone4`；风格示范 `h-riso` | 2026-10-30 晚 |

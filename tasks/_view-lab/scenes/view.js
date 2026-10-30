@@ -22,7 +22,8 @@ const CURVE = Array.from({ length: 96 }, (_, i) => {
 /**
  * @param {string} id 段名
  * @param {string} mode 视图模式（见 src/kit/views.js 的 VIEWS）
- * @param {{ cell?: number, levels?: number, label?: string, note?: string }} [opt]
+ * @param {{ cell?: number, levels?: number, label?: string, note?: string,
+ *           passes?: number, misreg?: number, paper?: number[], ink?: number[], accent?: number[] }} [opt]
  */
 export function viewShot(id, mode, opt = {}) {
   return {
@@ -104,6 +105,9 @@ export function viewShot(id, mode, opt = {}) {
         mode,
         cell: opt.cell,
         levels: opt.levels,
+        passes: opt.passes,      // 半调：N 版套印（1 = 单版）
+        misreg: opt.misreg,      // 半调：套准偏移（逻辑像素）
+        paper: opt.paper, ink: opt.ink, accent: opt.accent,
         amount: Math.min(1, Math.max(0, (t - 0.2) / 1.2)),   // 前 1.4s 做「显影」
       }, drawBase);
 

@@ -315,6 +315,8 @@ export default makeShot('chart', {
 | 填充矩形（一条批） | `lines.fillRect(x, y, w, h, [r,g,b,a])` |
 | **填充面**（圆 / 多边形 / 扇环 / 带洞） | `lines.fillCircle` · `lines.fillPoly(pts)` · `lines.fillPoly([outer, inner])`（带洞）· `lines.fillSector(cx,cy,r0,r1,a0,a1)`。⚠ 角度 0=右、π/2=**下**（y 向下）；先填充后描边。见 `docs/COOKBOOK.md` §17 |
 | **换一种「成像方式」**（半调 / 字符画 / 1-bit / 热成像 / CRT / 雕版…） | `instrumented(ctx, { mode, cell }, (target) => { …画进 target… })`（`src/kit/views.js`）。⚠ 先整帧画进离屏目标（含文字）再换，且必须最后一步。见 `docs/COOKBOOK.md` §16 |
+| **整片换成某种介质**（半调 / 套印 / CRT…，默认 off） | 风格包字段 `view: 'halftone'` 或 `{ mode, cell, passes, misreg }`（写错当场抛）。`halftone` 的 `passes: 2..4` = N 版套印；整片生效、字幕仍清晰。见 `docs/COOKBOOK.md` §16.1–16.2 |
+| **让画面像「胶片放出来的」** | `return { weave: 0.5, flicker: 0.25, scratch: 0.2 }`（后处理参数，默认全 0 = 逐像素不变）。片门晃动 / 放映闪烁 / 划痕，全由 `t` 驱动。见 `docs/COOKBOOK.md` §16.3 |
 | 协议名 / 参数 / 命令行那种"代码行"排版（分段着色、等宽） | `codeRow(type, [{ s: 'GET ', c: css(P.ash) }, { s: '/v1/items', c: css(P.signal) }], x, y)` |
 | **带回弹的落位**（弹簧手感，不用自己积分） | `spring(f.lt - t0)` → 0→1，**指数弹簧的解析解**（`src/core/util.js`；想更弹 `spring(f.lt - t0, 1, 140, 12)`） |
 | 有机的漂移 / 呼吸 / 轻微不规则的抖动 | `noise1/2/3`、`fbm1/fbm2`（确定性；`setup` 里预算或每帧算都行） |

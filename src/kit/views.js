@@ -207,6 +207,8 @@ const VIEW_FRAG = /* glsl */ `
   uniform float amount;      // 0 = 原图，1 = 完全是视图（做「显影」过渡用）
   uniform float accentMix;   // 把最暗/最亮那一档染成强调色的比例
   uniform float scanline;    // CRT 扫描线强度 0..1
+  uniform float passes;      // 半调：套印版数 1..4（1 = 单版 = 引擎一直以来的行为）
+  uniform float misreg;      // 半调：套准偏移（逻辑像素；0 = 完全对准。1.5–3 是「看得见没对准」的档）
   uniform vec3  cPaper, cInk, cAccent;
   ${GLYPH_SRC}
 
@@ -247,20 +249,67 @@ const VIEW_FRAG = /* glsl */ `
     vec3 outc = base;
 
     if (m == 0) {                             /* ---- 半调印刷 ---- */
-      // 网角：0 = 正放，27 度是印刷的惯例（四色叠印不会撞出摩尔纹）
-      vec2 q = rot2(px, angle) / max(cell, 1.0);
-      vec2 id = floor(q);
-      vec2 local = fract(q) - 0.5;
-      // 每一格只取中心一次样：这才是真正的网点（逐像素采样会得到「模糊的网点」）
-      vec2 center = rot2(id + 0.5, -angle) * max(cell, 1.0);
-      float l = shadeL(center);
-      // 面积正比于墨量 ⇒ 半径正比于 sqrt(墨量)。上限 0.56 = 1/sqrt(pi)：
-      // 超过它网点就互相压住、整格变实心（实测 0.62 时暗部一整片全黑，看不出网）
-      float r = sqrt(sat(1.0 - l)) * 0.56;
-      float aa = 1.0 / max(cell, 1.0) * 0.9;    // 不到一格的边，够抗锯齿又不糊
-      float ink = 1.0 - smoothstep(r - aa, r + aa, length(local));
-      outc = mix(cPaper, cInk, ink);
-      outc = mix(outc, cAccent, ink * accentMix * smoothstep(0.55, 1.0, l));
+      // ⚠ 分两路：passes ≤ 1 走单版（与历史**逐像素相同** —— 所有老片子与
+      //   基线都靠这一条），passes ≥ 2 走 N 版套印。两条路别合并：合并就会
+      //   让「没写 passes」的画面也变一遍（就等于拿整仓库的 hashes 基线去赌）。
+      if (passes <= 1.5) {
+        // 网角：0 = 正放，27 度是印刷的惯例（四色叠印不会撞出摩尔纹）
+        vec2 q = rot2(px, angle) / max(cell, 1.0);
+        vec2 id = floor(q);
+        vec2 local = fract(q) - 0.5;
+        // 每一格只取中心一次样：这才是真正的网点（逐像素采样会得到「模糊的网点」）
+        vec2 center = rot2(id + 0.5, -angle) * max(cell, 1.0);
+        float l = shadeL(center);
+        // 面积正比于墨量 ⇒ 半径正比于 sqrt(墨量)。上限 0.56 = 1/sqrt(pi)：
+        // 超过它网点就互相压住、整格变实心（实测 0.62 时暗部一整片全黑，看不出网）
+        float r = sqrt(sat(1.0 - l)) * 0.56;
+        float aa = 1.0 / max(cell, 1.0) * 0.9;    // 不到一格的边，够抗锯齿又不糊
+        float ink = 1.0 - smoothstep(r - aa, r + aa, length(local));
+        outc = mix(cPaper, cInk, ink);
+        outc = mix(outc, cAccent, ink * accentMix * smoothstep(0.55, 1.0, l));
+      } else {
+        /* ---- N 版套印（riso / 丝网 / 双色印刷）----
+         *
+         * 同一张图分成 N 个「墨量带」：第 i 版只印墨量落在第 i 段的那一块
+         * （band = sat((1-l)*N - i)），每版自己的网角、自己的墨色、自己的套准偏移。
+         * 版序从**浅墨到深墨**：浅版铺中间调、深版压暗部 —— 这就是双色印刷的做法。
+         *
+         * 套准偏移（misreg）是这层的关键：真实套印没对准时，相邻两版的网点边界
+         * 会错开一条彩色边，画面边缘会长出「红蓝边」—— 少了它，N 版看起来只是
+         * 一张多色网点图，不像「印出来的」。偏移方向按黄金角散开（fi * 2.4 rad），
+         * 每版方向都不同，避免整齐地朝一个方向偏。
+         */
+        int np = int(clamp(passes, 1.0, 4.0) + 0.5);
+        vec3 acc = cPaper;
+        for (int i = 0; i < 4; i++) {
+          if (i < np) {
+            float fi = float(i);
+            // 每版网角错开 30 度：四色印刷的惯例，防多版叠出摩尔纹
+            float ang = angle + fi * 0.5236;
+            // 套准偏移：方向按黄金角散开、幅度随版号递增（基准版不偏）
+            float oa = fi * 2.3999;
+            vec2 off = vec2(cos(oa), sin(oa)) * misreg * (fi / max(float(np - 1), 1.0));
+            vec2 q = rot2(px - off, ang) / max(cell, 1.0);
+            vec2 id = floor(q);
+            vec2 local = fract(q) - 0.5;
+            // 回到像素空间取这一格的墨量（错位采样 = 套印没对准时读到的是邻格）
+            vec2 center = rot2(id + 0.5, -ang) * max(cell, 1.0) + off;
+            float l = shadeL(center);
+            // 分版：越深的版越晚进入。阈值 th = (i/N)·0.8 —— 第 0 版从纯白就开始有墨，
+            // 最后一版只在最暗的 20% 里出现。⚠ 第一版写成 disjoint 的「(1-l)*N - i」：
+            //   纸面（亮度 0.62）就有 72% 的强调色覆盖 ⇒ 整屏被染成红的、纸色全丢。
+            float th = (fi / float(np)) * 0.8;
+            float band = sat(((1.0 - l) - th) / max(1.0 - th, 1e-3));
+            float r = sqrt(band) * 0.56;
+            float aa = 1.0 / max(cell, 1.0) * 0.9;
+            float ink = 1.0 - smoothstep(r - aa, r + aa, length(local));
+            // 墨色：浅 → 深（fi=0 是强调色版、最后一版是墨色版）
+            vec3 plateInk = mix(cAccent, cInk, fi / max(float(np - 1), 1.0));
+            acc = mix(acc, plateInk, ink);
+          }
+        }
+        outc = acc;
+      }
 
     } else if (m == 1) {                      /* ---- 字符画 ---- */
       float cw = max(cell * 0.6, 2.0);          // 等宽字宽高比约 0.6
@@ -321,8 +370,13 @@ const VIEW_FRAG = /* glsl */ `
       // 桶形之后画外的部分要黑掉（不然四角会被拉出一圈边）
       c *= smoothstep(1.0, 0.92, max(abs(q.x - 0.5), abs(q.y - 0.5)) * 2.0);
       c *= 1.0 - 0.55 * smoothstep(0.45, 1.0, length(uv));
-      // 扫描线与荫罩是**乘**上去的，会把整屏压暗一档；补回来，否则 CRT 段比别段黑 30%
+      // 扫描线与荫罩是**乘**上去的，会把整屏压暗一档；补回来，否则 CRT 段比别段黑 30%。
+      // ⚠ 不能裸乘：浅底画面（纸面图表 / 整屏白底字）会被推成 20%+ 死白，check 的过曝门当场红。
+      //   所以亮部走软肩 —— 0.72 以下原样，之上渐近 0.97，永远不会打出死白。
       c *= 1.55;
+      const float knee = 0.72;
+      c = min(c, vec3(knee))
+        + (1.0 - exp(-max(c - knee, vec3(0.0)) / (1.0 - knee))) * (1.0 - knee) * 0.9;
       outc = c;
 
     } else if (m == 7) {                      /* ---- 雕版排线 ---- */
@@ -424,6 +478,8 @@ export function renderCapture(ctx, draw) {
  *   amount?: number,          // 0..1 显影强度（默认 1）
  *   accentMix?: number,       // 强调色染进最暗/最亮档的比例（默认 0）
  *   scanline?: number,        // CRT 扫描线强度（默认 0.85）
+ *   passes?: number,          // 半调：套印版数 1..4（默认 1 = 单版；≥2 = N 版套印）
+ *   misreg?: number,          // 半调：套准偏移（逻辑像素，默认 0；1.5–3 是「明显没对准」）
  *   paper?: RGB, ink?: RGB, accent?: RGB,   // 默认取调色板的 bone / ink / signal
  * }} [opts]
  * @returns {any} ctx.out（方便链式）
@@ -437,6 +493,7 @@ export function applyView(ctx, src, opts = {}) {
     st.pass = new Pass(gl, VIEW_FRAG, {
       src: null,
       mode: 0, cell: 8, angle: 0.4712, levels: 4, amount: 1, accentMix: 0, scanline: 0.85,
+      passes: 1, misreg: 0,
       cPaper: [1, 1, 1], cInk: [0, 0, 0], cAccent: [1, 0.3, 0.07],
     }, { key: 'kit_views', blend: false });
   }
@@ -450,6 +507,9 @@ export function applyView(ctx, src, opts = {}) {
     amount: opts.amount ?? 1,
     accentMix: opts.accentMix ?? 0,
     scanline: opts.scanline ?? 0.85,
+    // 半调套印：1 版 = 单版（默认，逐像素与历史一致）；2–4 版才走 N 版分支
+    passes: Math.min(4, Math.max(1, Math.round(Number(opts.passes ?? 1)) || 1)),
+    misreg: Number(opts.misreg) > 0 ? Number(opts.misreg) : 0,
     // 默认配色：纸 / 墨取调色板的 bone 与 ink（换风格时自动跟着走），
     // 极性按模式分（纸的介质浅底深字，屏幕的介质深底浅字）
     cPaper: opts.paper ?? (SCREEN_POLARITY.has(opts.mode) ? P.ink : P.bone),
@@ -474,6 +534,35 @@ export function applyView(ctx, src, opts = {}) {
  */
 export function instrumented(ctx, opts, draw) {
   return applyView(ctx, renderCapture(ctx, draw), opts);
+}
+
+/**
+ * **整段成像**（`style.view`，2026-10-30 用户拍板）：把**已经画完的** `ctx.out` 换一种成像。
+ *
+ * 与 `instrumented()` 的区别只有一点：源就是 `ctx.out` 本身。而 GL 里「同一张纹理
+ * 既当源又当目标」是未定义行为（某些驱动整屏黑、某些驱动出锯齿），所以先把它
+ * 拷进离屏目标再成像回来。引擎在「所有段都合成完 → post 之前」调它一次 ——
+ * 于是**整片**（含转场合成的画面）都是同一种介质，而不是只有某一段。
+ *
+ * `view` 为 null / 没有 `mode` ⇒ 什么都不做（默认就是这条路：不写 view 的片子
+ * 一个像素都不变）。`view` 可以是 `'halftone'` 这种字符串，也可以是对象
+ * （`{ mode, cell, passes, misreg, paper, ink, … }`，字段同 `applyView`）。
+ *
+ * @param {any} ctx 引擎造的伪 ctx（`{ gl, out, P, comp, f:{t,dt} }`）
+ * @param {any} view 风格包 / 任务给的 view 声明
+ * @returns {any} ctx.out
+ */
+export function applyStyleView(ctx, view) {
+  const opts = typeof view === 'string' ? { mode: view } : view;
+  if (!opts || !opts.mode) return ctx.out;
+  const st = slot(ctx);
+  if (!st.rt || st.rt.w !== ctx.gl.pw || st.rt.h !== ctx.gl.ph) {
+    if (st.rt) st.rt.dispose?.();
+    st.rt = new RT(ctx.gl, ctx.gl.pw, ctx.gl.ph);
+  }
+  // 拷一份：ctx.out 既要当源又要当目标 —— 读自己写自己是 GL 未定义行为
+  ctx.comp.copyOver(ctx.gl, ctx.out, st.rt, 1);
+  return applyView(ctx, st.rt, opts);
 }
 
 /** 视图清单（给文档 / CLI / 场景自检；与 VIEWS 同一份数据，形状更扁平）。 */

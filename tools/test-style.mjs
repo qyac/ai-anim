@@ -104,6 +104,57 @@ for (const [name] of Object.entries(STYLES)) {
     `${name}.captions 的 hold / fade 与引擎默认一致（风格不改时间语义）`);
 }
 
+/* ---------------------------------------------------------------- 整片介质 view */
+
+section('风格包：整片介质 view（默认 off，2026-10-30 拍板）');
+{
+  // 底线：**所有没写 view 的风格必须解析成 null** —— 否则「上了这个字段」就等于
+  // 顺手把全仓库的已交付画面换了一遍介质（这正是它当初需要用户拍板的原因）。
+  ok(def.view === null, 'print 的 view 是 null（整片介质默认关）');
+  let withView = 0;
+  for (const [name] of Object.entries(STYLES)) {
+    const s = resolveStyle({ style: name });
+    if (s.view) withView++;
+    else ok(s.view === null, `${name} 没声明 view ⇒ null（画面一个像素都不变）`);
+  }
+  ok(withView >= 1, `至少一套风格真的用了 view（实测 ${withView} 套）`);
+  ok(withView < Object.keys(STYLES).length, 'view 不是默认开的（不是每套都配上）');
+
+  // 三种写法
+  const vStr = resolveStyle({ style: { name: 'paper', view: 'halftone' } }).view;
+  ok(vStr && vStr.mode === 'halftone', "字符串写法：view: 'halftone' → { mode: 'halftone' }");
+  const vObj = resolveStyle({ style: { name: 'paper', view: { mode: 'crt', cell: 4 } } }).view;
+  ok(vObj && vObj.mode === 'crt' && vObj.cell === 4, '对象写法：字段原样保留（cell 不丢）');
+  ok(resolveStyle({ style: { name: 'paper', view: false } }).view === null, 'view: false 能显式关掉风格包里的 view');
+  ok(resolveStyle({ style: { name: 'h-riso' } }).view.mode === 'halftone', 'h-riso 的整片介质是 halftone（双版套印）');
+  const risoView = resolveStyle({ style: { name: 'h-riso' } }).view;
+  ok(risoView.passes === 2 && risoView.misreg > 0, 'h-riso 开了 N 版套印（passes 2 + 套准偏移 > 0）');
+  ok(risoView.paper && risoView.ink, 'h-riso 显式点名了 paper/ink（浅底风格的调色板角色是反的，不点名会反相）');
+  ok(resolveStyle({ style: { name: 'h-vhs' } }).view.mode === 'crt', 'h-vhs 的整片介质是 crt');
+
+  // 写错必须**抛**（模式名一个字母错、画面照出 = 这种错不报出来等于没写）
+  let threwView = '';
+  try { resolveStyle({ style: { name: 'paper', view: { mode: 'haltfone' } } }); } catch (e) { threwView = String(e.message); }
+  ok(threwView.includes('haltfone') && threwView.includes('halftone'), 'view.mode 写错抛错，并列出可用模式名');
+  let threwView2 = '';
+  try { resolveStyle({ style: { name: 'paper', view: 42 } }); } catch (e) { threwView2 = String(e.message); }
+  ok(threwView2.length > 0, 'view 给了数字也必须抛（不静默当 null）');
+}
+
+section('风格包：胶片磨损参数（4.2，默认 0）');
+{
+  for (const [name, s] of Object.entries(STYLES)) {
+    for (const k of ['weave', 'flicker', 'scratch']) {
+      const v = s.post?.[k];
+      if (v == null) continue;
+      ok(Number.isFinite(v) && v >= 0 && v <= 2, `${name}.post.${k} = ${v} 合法（0..2 的有限数）`);
+    }
+  }
+  const vhs = resolveStyle({ style: { name: 'h-vhs' } }).post;
+  ok((vhs.weave ?? 0) > 0 && (vhs.flicker ?? 0) > 0 && (vhs.scratch ?? 0) > 0,
+    'h-vhs 三件套都开了（这是 4.2 的演示风格）');
+}
+
 section('字幕层：时间语义与保留带');
 const P = makePalette({});
 const nar = makeNarrationReader(makeNarration({

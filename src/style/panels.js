@@ -195,4 +195,61 @@ export const PANELS = {
     captions: { ...CAPS, size: 46, bg: 0.0 },
     tokens: { type: { hero: 168, h1: 104 }, weight: { hero: 900 } },
   },
+
+  /* ---------------------------------------------------------------- 双版套印（style.view） */
+  'h-riso': {
+    label: '版式 · 双版套印',
+    note: '奶油纸 + 双色网点套印（view.halftone，passes 2）：深蓝墨 + 朱红强调，套准故意'
+      + '偏 2.2px —— 印刷厂没对准的那种彩色边。适合「这是一本印出来的册子」的说明段；'
+      + '字多的段落要小心（网点会吃掉小字）。整片介质由 style.view 决定，场景一行不用改。',
+    palette: {
+      ink: '#f4ecda', ink2: '#ece2ca', graphite: '#d8cbb2', ash: '#8a7c66',
+      bone: '#1b2a4a', signal: '#d0472a', ember: '#e06a3a', blood: '#7a1f12',
+      acid: '#2e6b52', cyan: '#1f5f7a',
+    },
+    fonts: { sans: UI, serif: SONG, mono: MONO },
+    post: { bloom: 0.08, grain: 0.03, vignette: 0.10, ca: 0, contrast: 1.05, shoulder: 0.97 },
+    motif: 'paper',
+    /**
+     * 整片介质（BACKLOG 1-11 / 2026-10-30 用户拍板）：双版套印。
+     * ⚠ 浅底风格里 paper/ink 的角色与默认调色板相反（ink 是纸色、bone 是墨色），
+     *   所以这里**显式点名**三色 —— 不写就让网点整屏反相（黑纸白点）。
+     */
+    view: {
+      mode: 'halftone', cell: 6, passes: 2, misreg: 2.2,
+      paper: '#f3ecd8', ink: '#1b2a4a', accent: '#d0472a',
+    },
+    grid: G({ pad: 136 }),
+    captions: { ...CAPS, size: 44, bg: 0.0 },
+    tokens: { type: { hero: 136, h1: 92, h2: 52, body: 42, label: 25 } },
+  },
+
+  /* ---------------------------------------------------------------- 录像带（view + 磨损） */
+  'h-vhs': {
+    label: '版式 · 录像带',
+    note: '深底 + 冷白字 + CRT 荫罩（view.crt）+ 胶片磨损三件套（片门晃动 / 闪烁 / 划痕）。'
+      + '整片像一盘放了二十年的带子 —— 适合「记录 / 回放 / 旧档案」这类内容；'
+      + '信息密度高的段落要少上（扫描线会压掉小字）。',
+    palette: {
+      ink: '#0d1418', ink2: '#131c22', graphite: '#22303a', ash: '#6f8f9f',
+      bone: '#e8f2f4', signal: '#ffb454', ember: '#ff7a3c', blood: '#a33a1f',
+      acid: '#5cffd0', cyan: '#4fd0ff',
+    },
+    fonts: { sans: ENG, serif: GEORGIA, mono: MONO },
+    /**
+     * 磨损三件套（2026-10-30，BACKLOG 1-64）：片门晃 0.55 / 闪烁 0.35 / 划痕 0.25。
+     * 数值是出图校准过的：0.55 的晃动在 1080p 是 ±2.2px（看得见「老机器」但还能读字）；
+     * 再大就变成「地震」（与 §4 铁律第 5 条同一个教训：幅度给足是效果、给过头是事故）。
+     */
+    post: {
+      bloom: 0.22, grain: 0.045, vignette: 0.28, ca: 0, contrast: 1.04, shoulder: 0.92,
+      weave: 0.55, flicker: 0.35, scratch: 0.25,
+    },
+    motif: 'scan',
+    /** Deep 底 + 冷白字 ⇒ 走 SCREEN_POLARITY（crt 默认：纸=ink 暗、墨=bone 亮），不用显式配色 */
+    view: { mode: 'crt', cell: 3, scanline: 0.7 },
+    grid: G({ pad: 128 }),
+    captions: { ...CAPS, size: 46, bg: 0.22 },
+    tokens: { type: { hero: 140, h1: 94, h2: 52 }, weight: { hero: 800 } },
+  },
 };

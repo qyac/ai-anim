@@ -34,6 +34,7 @@
  * | `grid` | 版面栅格（边距、页脚线、说明条基线、**字幕保留带**） | `src/kit/` 的元件 + 字幕层 |
  * | `captions` | 字幕样式（位置/字号/底衬/折行宽度/卡拉OK） | `src/core/captions.js` |
  * | `motif` | 共享背景的母题名（`grid`/`blueprint`/`paper`/`scan`/`none`…） | `src/kit/world.js` 的 `worldPass` |
+ * | `view` | **整片介质**（八种成像之一，如半调 / 字符画 / N 版套印）；默认 off | `src/core/engine.js`（合成完 → post 之前） |
  *
  * ## 两条使用纪律（`docs/STYLE.md` 展开）
  *
@@ -52,6 +53,8 @@
 import { DEFAULT_CAPTION_STYLE } from '../core/captions.js';
 import { scaleGrid } from '../core/util.js';
 import { tokensWith, scaleTokens, PORTRAIT_TYPE_SCALE } from './tokens.js';
+// 整片介质（`view`）的合法模式名与 kit 同源 —— 两处各写一份就会漂移（「八种」变成各有各的八种）
+import { VIEW_NAMES } from '../kit/views.js';
 
 /** 默认字体栈（与 `src/core/text.js` 的 `FAMILIES` 一致；风格包只写要覆盖的那几个）。 */
 const SANS = "'Archivo', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif";
@@ -313,6 +316,34 @@ export function listStyles() {
 }
 
 /**
+ * 校验并归一化 `style.view`（整片仪器视图，2026-10-30）。
+ *
+ *   · `null` / `undefined` / `false` → `null`（关；**默认就是关**，老片子一个像素不变）
+ *   · `'halftone'`                   → `{ mode: 'halftone' }`
+ *   · `{ mode: 'crt', cell: 4 }`     → 原样（其余字段交给 `applyView`）
+ *
+ * 模式名写错**当场抛**并列出可用清单 —— 与模板参数同一口径：写错一个字母就整片
+ * 换不成介质、而画面照出，这种错不报出来等于没写（静默回落成第一个模式是更坏的版本）。
+ *
+ * @param {any} view
+ * @returns {any|null}
+ */
+function resolveView(view) {
+  if (view === undefined || view === null || view === false) return null;
+  const spec = typeof view === 'string' ? { mode: view } : view;
+  if (typeof spec !== 'object' || spec === null) {
+    throw new Error(`style.view 只接受字符串或对象，收到 ${typeof view}: ${String(view)}`);
+  }
+  if (!VIEW_NAMES.includes(spec.mode)) {
+    throw new Error(
+      `style.view.mode "${spec.mode}" 不存在。可用的：${VIEW_NAMES.join(' / ')}`
+      + '（八种成像的说明见 docs/COOKBOOK.md §16）',
+    );
+  }
+  return spec;
+}
+
+/**
  * 把 `task.style` 解析成一份完整的风格对象。
  *
  * 三种写法：
@@ -351,6 +382,17 @@ export function resolveStyle(spec = {}) {
     palette: { ...pack.palette, ...(over.palette ?? {}) },
     fonts: { ...(pack.fonts ?? {}), ...(over.fonts ?? {}) },
     post: { ...(pack.post ?? {}), ...(over.post ?? {}) },
+    /**
+     * 整片介质（2026-10-30 拍板，默认 off）：把八种成像（`src/kit/views.js`）里的
+     * 一种提成**这套风格的默认观感** —— 整片都印成半调 / 字符画 / 双版套印……
+     *
+     * 为什么放在风格而不是场景：它是「这一支片子是什么做的」这种介质级决定，
+     * 和色板/字体同一个层级；做成场景级函数就只能一段一段地记得调用。
+     *
+     * 写法：`'halftone'`（只给模式）或 `{ mode: 'halftone', cell: 6, passes: 2 }`；
+     * `false` / 不写 = 关。模式名写错**当场抛**（见 `resolveView`），不静默回落。
+     */
+    view: resolveView(over.view ?? pack.view ?? null),
     grid: { ...GRID_BASE, ...(pack.grid ?? {}), ...(over.grid ?? {}) },
     /**
      * 竖屏栅格（BACKLOG 1-52）：`H > W` 时由 `fitStyleToFrame()` 换成它。

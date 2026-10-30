@@ -54,6 +54,16 @@ import { Pass, RT } from './gl.js';
  *                                 `'tpdf'` 是三角分布（两个均匀分布相加），去色带更干净、噪声感更弱。
  * @property {boolean} [bloomKaris] 泛光的亮部提取用 **Karis 加权平均**（`c/(1+luma(c))` 之后再还原）：
  *                                 极亮的单个像素不会在降采样时"炸"成一个方块（fireflies）。默认 `false` = 现状。
+ * @property {number} [weave]       胶片「画面晃动」：整帧按行做亚像素水平漂移（0 = 关，默认关）。
+ *                                 约 ±2 物理像素的低频波（不成整数比的双频叠加），老放映机片门
+ *                                 没压稳的那种晃。由整片时间 t 驱动（每帧是 t 的纯函数，可任意 seek）。
+ * @property {number} [flicker]     胶片「亮度闪烁」：整帧亮度按慢波轻微起伏（0 = 关，默认关）。
+ *                                 1 ≈ 最大 ±14% 的凹陷，0.3 左右是「看上去是放出来的」的常用档。
+ * @property {number} [scratch]     胶片「划痕」：几根缓慢漂移的竖向细痕（0 = 关，默认关）。
+ *                                 暗处显白、亮处显黑（是「乳剂被刮掉」，不是叠加白线）；
+ *                                 每根的生死与位置都由 t 的哈希决定 —— 逐帧确定。
+ *                                 覆盖素材包 G1/G2/L2/L6/L16/L34/L53/O4/O16/O26/O47/O56/O66/O83/O84/O86/O91
+ *                                 那 17 条「胶片磨损」类条目的介质感（docs/REFERENCE-style-pack.md）。
  * @property {'screen'|'design'|'auto'} [grainScale] 颗粒撒在哪个栅格上。**默认 `'auto'`**（2026-10-24）：
  *                                 `--scale 1`（1080p）→ `'screen'`（物理像素，引擎一直以来的行为）；
  *                                 `--scale 2+`（4K）→ `'design'`（按逻辑分辨率，颗粒大小与 1080p 一致）。
@@ -87,6 +97,11 @@ export const DEFAULT_POST = /** @type {PostParams} */ ({
   tonemap: 'off',
   dither: 'rpdf',
   bloomKaris: false,
+  // 胶片磨损三件套（weave / flicker / scratch）：默认全 0 —— 不写就一个像素都不变。
+  // 动画时间不由这里给：render() 第 6 参 t 由引擎每帧喂进 uniform（详见 pFinal 的 shader 注释）。
+  weave: 0,
+  flicker: 0,
+  scratch: 0,
   /**
    * 颗粒栅格。**默认 `'auto'`**（2026-10-24 改）：1080p 出片用 `'screen'`（= 引擎一直以来的
    * 物理像素栅格，逐像素不变），`--scale 2` 出 4K 时自动切 `'design'`（按逻辑分辨率撒，
@@ -239,8 +254,68 @@ export class Post {
       uniform vec2  center;
       uniform float tonemap, ditherMode, grainDesign;
       uniform float pixel;
+      // 胶片磨损三件套（全部 0 = 逐像素等于没有它们）。动画时间来自 Pass.render 的 t。
+      uniform float weave, flicker, scratch, wearT;
 
       float rand(vec2 co) { return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453); }
+
+      // ───────────────────────── 胶片磨损（BACKLOG 4.2，2026-10-30）─────────────────────────
+      // 三条都是「介质是胶片」这句话的物理来源，全由 wearT（= 整片时间 t）驱动：
+      //
+      // · weave（片门晃动）：真机器的抖**不是**单频正弦，是两个不成整数比的低频叠加
+      //   （输片齿轮的齿频 + 片门松隙的半频）。频率取 2.9 / 4.7 Hz 这种无理数比，峰值
+      //   ±2 物理像素 —— 再大观众就在数晃动而不是看内容了。相位随行号 y 微调：
+      //   输片是整帧动，但片门上下受力不匀，轻微的行间相位差让画面「活」而不「扭」。
+      // · flicker（放映闪炼）：灯与光路的慢波（主瓣 1.3 Hz），只**压暗**不提亮 ——
+      //   放映机的闪烁是光被挡掉，画面不会凭空多光。中心带一点行差（灯罩效应）。
+      // · scratch（划痕）：乳剂刮伤是**竖向**的（输片方向），位置几天不变、边缘几微米
+      //   地游移。所以每根划痕用 t 的低频哈希决定「生 / 死 / 横向位置 / 宽度」，
+      //   而不是逐帧随机（那是数字噪点，不是胶片）。只做**暗痕**：刮掉的乳剂挡不住光，
+      //   投影出来是「画面里多了一道不显影的细缝」—— 亮部几乎看不见，暗部显白。
+      //   （先试过叠白线，在浅底风格上一眼假；暗痕在两种底色上都成立。）
+
+      /** 哈希到 0..1（与 rand 同族，输入一维更顺手） */
+      float hash1(float n) { return fract(sin(n * 127.1) * 43758.5453); }
+
+      /** 片门晃动的水平位移（物理像素）。amp = weave × 2.0 */
+      float weaveDx(float y, float amp) {
+        if (amp <= 0.0) return 0.0;
+        float ph = y * 0.004;                        // 行间相位差：极小，只是让行不至于完全同步
+        float a = sin(wearT * 2.9 + ph);             // 输片齿轮的基频
+        float b = 0.5 * sin(wearT * 4.7 + 1.7 + ph * 1.6);  // 半频的片门松隙
+        return (a + b) * amp;
+      }
+
+      /** 放映闪烁的增益（0.86..1.0）。k = flicker，1 = 最深 ±14% */
+      float flickerGain(float y, float k) {
+        if (k <= 0.0) return 1.0;
+        float slow = 0.5 + 0.5 * sin(wearT * 1.3 + 0.9);
+        slow *= 0.75 + 0.25 * (0.5 + 0.5 * sin(wearT * 3.1 + 2.0));   // 深浅随时间变
+        return 1.0 - k * 0.14 * slow * (1.0 - 0.15 * y / max(RES_LOGICAL.y, 1.0));
+      }
+
+      /**
+       * 划痕的「暗化量」：0 = 这一点没有划痕，>0 越暗。
+       * 位置 = t 的慢波游移（几秒尺度），生死 = 每个 5 秒窗掷一次骰子。
+       */
+      float scratchDarken(vec2 px, float k) {
+        if (k <= 0.0) return 0.0;
+        float dark = 0.0;
+        // 两根候选划痕：窗口内「存在吗 / 在哪 / 多宽 / 多深」全由哈希定
+        for (int i = 0; i < 2; i++) {
+          float fi = float(i);
+          float w = floor(wearT / 5.0) + fi * 17.0;    // 每 5 秒一个新状态（错开两根）
+          float alive = step(0.45, hash1(w + fi * 3.7));        // 55% 的窗口里存在
+          float x0 = hash1(w + 11.3 + fi * 5.1) * RES_LOGICAL.x;
+          float drift = sin(wearT * 0.23 + fi * 2.1) * 1.2;     // 边缘微游移（秒级）
+          float wdt = 0.5 + 1.3 * hash1(w + 7.7 + fi * 9.4);    // 半宽（物理像素）
+          float depth = 0.35 + 0.65 * hash1(w + 3.1 + fi * 13.9);
+          float d = abs(px.x - (x0 + drift));
+          float line = 1.0 - smoothstep(wdt * 0.4, wdt, d);
+          dark = max(dark, alive * line * depth * (1.0 - 0.25 * px.y / max(RES_LOGICAL.y, 1.0)));
+        }
+        return k * dark;
+      }
 
       vec3 shoulderCurve(vec3 x, float k) {
         // 软肩：k 以下线性，以上指数压回来，保住高光层次而不是硬切
@@ -275,6 +350,9 @@ export class Post {
 
       void main() {
         vec2 uv = vUv;
+        float physY = vUv.y * outSize.y;             // 物理像素 y（weave/flicker 按屏幕行走）
+        // 胶片磨损先动 uv（weave 是「片身晃」，要在一切几何采样之前发生）
+        if (weave > 0.0) uv.x += weaveDx(physY, weave * 2.0) / outSize.x;
         // **像素化**（post.pixel = 一个像素块占多少物理像素，0 = 关）：
         // 先把 uv 吸附到 N×N 网格，再采样 —— 等价于"降分辨率再放大"，块状边界干净。
         if (pixel > 0.5) {
@@ -325,6 +403,22 @@ export class Post {
         // 暗角
         if (vignette > 0.0) c *= 1.0 - vignette * smoothstep(0.25, 0.95, r2 * 2.2);
 
+        // 胶片磨损的「介质感」两件：闪烁（亮度慢波）与划痕（乳剂刮痕）。
+        // 放在调色之后、flash/fade 之前 —— 它们属于「放映这一侧」，不属于镜头内容。
+        if (flicker > 0.0) c *= flickerGain(physY, flicker);
+        if (scratch > 0.0) {
+          vec2 spx = vec2(vUv.x * outSize.x, physY);
+          float d = scratchDarken(spx, scratch);
+          if (d > 0.0001) {
+            // ⚠ 极性：划痕是「一条没显影的缝」，不是「一道白线」也不是「一道黑线」——
+            //   亮底上它**发暗**（脏东西挡住了光），暗底上它**发亮**（乳剂被刮掉、光漏过来）。
+            //   只往一个方向拉会在其中一种底上整条隐形（实测第一版只压暗：深色段完全看不见，
+            //   而亮纸段又被亮度衰减因子归零 —— 夹具里两段都没有划痕）。
+            vec3 seam = luma(c) > 0.35 ? vec3(0.015) : vec3(0.95);
+            c = mix(c, seam, clamp(d * 0.55, 0.0, 1.0));
+          }
+        }
+
         c += flash;
         c *= (1.0 - fade);
 
@@ -356,6 +450,7 @@ export class Post {
         shake: [0, 0], zoom: 1, flash: 0, fade: 0,
         blurAmt: 0, radialBlur: 0, seed: 0, center: [0.5, 0.5],
         tonemap: 0, ditherMode: 1, grainDesign: 0, pixel: 0,
+        weave: 0, flicker: 0, scratch: 0, wearT: 0,
       }, { key: 'post_final', blend: false, ...pal });
   }
 
@@ -366,8 +461,11 @@ export class Post {
    * @param {RT} dst 输出目标（物理分辨率）
    * @param {PostParams} p
    * @param {number} seed 每帧固定的随机种子（用帧号算，不要用时间）
+   * @param {number} [t=0] 整片时间（秒）—— 胶片磨损（weave/flicker/scratch）的动画时间源。
+   *                       引擎每帧喂 f.t，所以磨损是 t 的纯函数：可任意 seek、子帧乱序
+   *                       也不串味（与 §4 铁律同一条约束）。不传 = 磨损静止（0 时不生效）。
    */
-  render(gl, srcTex, dst, p, seed = 0) {
+  render(gl, srcTex, dst, p, seed = 0, t = 0) {
     this._build();
     const src = { tex: /** @type {any} */ (srcTex).tex ?? srcTex, __tex: true };
     const chain = this.chain;
@@ -441,6 +539,11 @@ export class Post {
       // 像素化：一个色块占多少物理像素（0 = 关）。见 shader 里 pixel 那段注释。
       pixel: Number(p.pixel) > 0 ? Number(p.pixel) : 0,
       grainDesign: grainDesignFor(p, gl),
+      // 胶片磨损三件套：数值透传（0 = 关），时间 = 整片 t（见 render() 的 JSDoc）
+      weave: Number(p.weave) > 0 ? Number(p.weave) : 0,
+      flicker: Number(p.flicker) > 0 ? Number(p.flicker) : 0,
+      scratch: Number(p.scratch) > 0 ? Number(p.scratch) : 0,
+      wearT: t,
       center: Array.isArray(c) && c.length >= 2
         ? [c[0] / gl.w, 1 - c[1] / gl.h]
         : [0.5, 0.5],
