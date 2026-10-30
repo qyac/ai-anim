@@ -28,6 +28,9 @@ jobs:
           node tools/test-say.mjs
           node tools/test-tempo.mjs
           node tools/lint-prog-range.mjs
+      - name: 镜头卡（分类齐全）
+        run: |
+          node tools/gen-shot-cards.mjs --check
       - name: 文档守门
         run: |
           node tools/lint-agents-size.mjs

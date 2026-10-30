@@ -47,7 +47,11 @@ ok(all.length >= 5, `至少 5 套风格（实测 ${all.length} 套：${all.map((
 for (const [name, s] of Object.entries(STYLES)) {
   ok(!!s.label && !!s.note, `${name} 有 label 与 note（CLI/文档要读）`);
   ok(!!s.motif, `${name} 声明了背景母题（${s.motif}）`);
-  ok(!!s.grid && Array.isArray(s.grid.captionBand) && s.grid.captionBand.length === 2,
+  // ⚠ 查的是**合并之后**的栅格（resolveStyle），不是风格包自己写的那份：
+  //   mg15 那 15 套只覆盖 pad/top 这些差量，captionBand 由 GRID_BASE 补上 ——
+  //   引擎读的也是合并后的那份（`gridFor()`），拿原始 pack 去断言就成了假红。
+  const g = resolveStyle({ style: name }).grid;
+  ok(!!g && Array.isArray(g.captionBand) && g.captionBand.length === 2,
     `${name} 有栅格与字幕带`);
 }
 // 每套风格必须**一眼看得出不同**：色板里至少要有 ink 或 bone 被改掉
@@ -70,8 +74,8 @@ ok(half.captionBand[0] < GRID_BASE.captionBand[0], '720p 下栅格按比例缩�
 
 // 字幕带的位置是**引擎保留区**，风格包不该挪它（第一版把 terminal / noir 挪到底部，
 // 出图当场看到字幕贴到画面下沿、第二行被裁掉一半）。这里钉住"必须在画面上半部"。
-for (const [name, s] of Object.entries(STYLES)) {
-  const cb = s.grid.captionBand;
+for (const [name] of Object.entries(STYLES)) {
+  const cb = resolveStyle({ style: name }).grid.captionBand;
   ok(cb[0] >= 0 && cb[1] <= 400,
     `${name}.grid.captionBand 在画面上半部（实测 [${cb[0]}, ${cb[1]}]）—— 底部被模板与 kit 元件占满了`);
 }
@@ -87,12 +91,16 @@ ok(resolveCaptionStyle(null, true).karaoke === false,
   '默认**不做**逐词高亮（关键词突显那条对照实验的方向是负效应，见 captions.js 注释）');
 // 这条是文档审计抓出来的真实不一致：风格包里的 CAPTIONS_BASE 一度把 karaoke 写成 true，
 // 于是 print 之外的**四套风格全都默认开了逐词高亮**，与引擎默认和文档口径都相反。
-for (const [name, s] of Object.entries(STYLES)) {
-  if (!s.captions) continue;
-  ok(s.captions.karaoke === DEFAULT_CAPTION_STYLE.karaoke,
+// ⚠ 查的是**归一之后**的字幕样式（resolveCaptionStyle）：风格包只写"长什么样"的差量
+//   （size / weight / bg），karaoke / hold / fade 由 DEFAULT_CAPTION_STYLE 在
+//   `resolveCaptionStyle()` 里垫底 —— 拿风格包自己那份去断言，是把"没覆盖"误读成"改成了 undefined"。
+for (const [name] of Object.entries(STYLES)) {
+  const cs = resolveCaptionStyle(resolveStyle({ style: name }), null);
+  if (!cs) continue;
+  ok(cs.karaoke === DEFAULT_CAPTION_STYLE.karaoke,
     `${name}.captions.karaoke 与引擎默认一致（要开只能显式开）`);
   // 时间语义是**引擎契约**（说完留多久、淡变多长），风格包只该改"长什么样"（字号/底衬/颜色）
-  ok(s.captions.hold === DEFAULT_CAPTION_STYLE.hold && s.captions.fade === DEFAULT_CAPTION_STYLE.fade,
+  ok(cs.hold === DEFAULT_CAPTION_STYLE.hold && cs.fade === DEFAULT_CAPTION_STYLE.fade,
     `${name}.captions 的 hold / fade 与引擎默认一致（风格不改时间语义）`);
 }
 

@@ -174,8 +174,9 @@ function triFill(lines, a, b, c, color) {
 
 isometricShot.defaults = DEFAULTS;
 isometricShot.meta = {
-  label: '等距 2.5D',
-  note: '一格格方块从地面长起来，按 gx+gy+gz 从远到近画（画家算法）。刚性几何，纯代码生成。',
+  name: 'isometric',
+  summary: '等距 2.5D 体块：一格格方块从地面长起来，按 gx+gy+gz 从远到近画（画家算法）',
+  notes: '刚性几何，纯代码生成。线段批没有 z-test，遮挡只能靠排序；盒子只画朝镜头的 3 个面。',
   energy: '中',
   use: '讲"长出来 / 搭起来 / 一层层堆"—— 城市、模块、积木、架构',
   avoid: '需要真遮挡、材质光照、成百上千实例时（那种用 makeThreeShot）',

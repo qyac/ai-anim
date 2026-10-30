@@ -60,9 +60,15 @@ __anim.precise(t)                 // 精确帧：跑导出路径，返回 { mae,
 | `mg-liquid` | 14 液体动态 | 深青 + 薄荷 + 大泛光 | ✅ **已完成**：`src/kit/liquid.js`（域扭曲 fbm + 涟漪）+ `src/shots/liquid.js` |
 | `mg-variety` | 15 综艺花字 | 高饱和红 + 白字 + 大字 | 花字描边/贴纸层 |
 
-### 已知问题（必须先修）
+### 曾经的已知问题（2026-10-29 已修）
 
 同一帧用 `--style` 渲两套皮时，**背景色与强调色会串**（实测 `mg-bauhaus` 渲成近黑底、
-`mg-vhs` 渲成粉白底）。色板解析是对的（`resolveStyle` 输出正确），问题在
-渲染期：模板自带的整帧背景 Pass 在构造时把调色板常量注进 shader，而风格覆盖发生在它之后。
-修法方向：把 `styleResolved` 的应用提到**任何 Pass 构造之前**，或在 `worldPass` 的缓存 key 里带上 palette 指纹。
+`mg-vhs` 渲成粉白底）：色板解析是对的（`resolveStyle` 输出正确），问题在渲染期 ——
+模板自带的整帧背景 Pass 在构造时把调色板常量注进 shader，而风格覆盖发生在它之后，
+Pass 又被按 key 缓存复用，于是第二套皮拿到的还是第一套的颜色。
+
+**修法（已落地，`src/kit/world.js`）**：`worldPass` 的缓存 key 带上 `paletteFingerprint(P, accent)`，
+换风格即失效、不复用上一套的 Pass 实例；同时把底色语义统一成 `bg`，并加了
+「底色是否真的画上」的机器判据（`check` 的背景守门）。复验：
+`node scripts/anim.mjs still <任务> -t 3 --style mg-bauhaus` 与 `--style mg-vhs` 各出一张，
+底色应该一眼不同。**这份文档的「还没做」只以 §下表为准** —— 表里标 ✅ 的都已有实现。

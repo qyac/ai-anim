@@ -87,7 +87,7 @@ import { radialShot } from './radial.js';
 
 export { titleShot, chartShot, kineticShot, whipShot, outroShot, waveShot, pulseShot, gridShot,
   quoteShot, counterShot, compareShot, bigtypeShot, scanShot, deviceShot, lineartShot,
-  morphShot, layersShot, lockupShot, timelineShot, radialShot };
+  morphShot, layersShot, isometricShot, celShot, liquidShot, lockupShot, timelineShot, radialShot };
 
 /**
  * `spec.requires` 认得的**依赖令牌**（词表 = 契约的一部分）。

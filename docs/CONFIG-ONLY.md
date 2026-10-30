@@ -1,6 +1,6 @@
 # CONFIG-ONLY.md —— 零代码出片（B 档：整支片子只有 `task.config.mjs`）
 
-> **一句话**：当你要的画面能用 `src/shots/` 里那 20 个镜头模板的参数说清楚时，
+> **一句话**：当你要的画面能用 `src/shots/` 里那 23 个镜头模板的参数说清楚时，
 > 时间线的每一项就直接写模板名 —— `{ type: 'chart', values: […], dur: 5 }` ——
 > 任务目录里**只有 `task.config.mjs`，没有 `scenes/`，一个 `import` 都不用写**。
 >
@@ -19,7 +19,7 @@
 
 | 你要的东西 | 走哪条路 |
 |---|---|
-| 20 个模板能表达的画面（标题 / 柱状图 / 动态大字 / 甩镜 / 片尾 / 波形 / 同心圆 / 频谱网格 / 引言 / 计数 / 对比 / 一句主张 / 扫描格阵 / 界面窗口 / 一笔线稿 / 图表形变 / 分层纸片 / 署名定版 / 事件轴 / 径向分布） | **只写 `task.config.mjs`**（本文） |
+| 23 个模板能表达的画面（标题 / 柱状图 / 动态大字 / 甩镜 / 片尾 / 波形 / 同心圆 / 频谱网格 / 引言 / 计数 / 对比 / 一句主张 / 扫描格阵 / 界面窗口 / 一笔线稿 / 图表形变 / 分层纸片 / 等距体块 / 逐帧手绘 / 液体动态 / 署名定版 / 事件轴 / 径向分布） | **只写 `task.config.mjs`**（本文） |
 | 段落顺序、每段时长、段间重叠（转场）、模板参数、配色、帧率与分辨率、选哪条音乐 | 同上 —— 这些本来就是配置 |
 | 模板覆盖不到的新视觉（raymarch 晶格、燃烧的引线、钞票团花…） | **回去写场景代码**：`AGENTS.md` §3（场景长什么样）、`docs/COOKBOOK.md`（做法手册），也就是 C 档 |
 
@@ -94,7 +94,7 @@ node scripts/anim.mjs video 我的片子            # 出成片 → out/我的�
 > 硬编码的字体族、以及模板 `return` 的 post 让"零代码出片"必然长得像 demo。现在
 > **`style` 一行**就能换掉：调色板 + 字体栈（`TextKit` 的族映射，模板里写的逻辑名会跟着换）
 > + 背景母题（`worldPass` 的 `motif`）+ 后处理基线（`style.post` 最后合并，压得住模板的 bloom）
-> + 版面栅格 + 字幕样式。背景母题只在用 `world: 'auto'` 的段生效 —— 20 个模板自带满帧背景，
+> + 版面栅格 + 字幕样式。背景母题只在用 `world: 'auto'` 的段生效 —— 23 个模板自带满帧背景，
 > 所以换母题要么写手写场景，要么用 `--style` 先看效果。
 
 > 新建任务目录后：用 CLI 渲染**不需要**重启任何东西；`npm run dev` 的预览服务需要重启一次才看得到新任务
@@ -188,7 +188,7 @@ node tools/scene-harness.mjs _config-lab          # 离线跑场，不需要 GPU
   不是漏画 —— 所以亮度只当读数、不当判据。
 - 在**纯配置档**里 `world: 'auto'` 等于没写：`export const world` 是手写场景那一路的东西
   （`AGENTS.md` §3 的 `worldPass()`），没有它时 `resolveWorld()` 老老实实返回 `null` ——
-  20 个模板本来就各自铺满整帧，写它只是把意图写清楚。想让它真的生效，三条路：
+  23 个模板本来就各自铺满整帧，写它只是把意图写清楚。想让它真的生效，三条路：
   ① 给任务一个 `export const world`（那就要有 `scenes/` 或至少一个模块）；
   ② 写手写场景并用 `cut(scene, { world: 'auto' })`；
   ③ 节点上直接给一个 world Pass 对象（`world: myPass`）—— 这是**这一段专用**的背景，
@@ -275,7 +275,7 @@ timeline[0] 这一段（type: "chart"）取不到镜头模板：
 
 ---
 
-## 4. 20 个模板一览
+## 4. 23 个模板一览
 
 | 名字 | 画什么 | 主要参数 | 要音乐吗 |
 |---|---|---|---|
@@ -296,6 +296,9 @@ timeline[0] 这一段（type: "chart"）取不到镜头模板：
 | `lineart` | 一笔线稿：折线按弧长自绘 + 走过的节点留圆点 + 笔尖带当前节点的名字 | `kicker` `points` `labels` `footer` | 不用 |
 | `morph` | 图表形变：柱 → 折线 → 排线面积，同一组数换三种画法（位置不变） | `values` `title` `sub` `footer` | 不用 |
 | `layers` | 分层纸片：带透视的纸页从后往前落位，最前面那张写标题 | `kicker` `sheets` `title` `footer` | 不用 |
+| `isometric` | 等距 2.5D 体块：一格格方块从地面长起来，按 `gx+gy+gz` 从远到近画（画家算法） | `kicker` `title` `sub` `cols` `rows` `cell` `height` `footer` | 不用 |
+| `cel` | 逐帧手绘 · 线条沸腾：纸面 + 每 2 帧重描一次的线（圆不圆、线不直） | `kicker` `title` `sub` `amp` `footer` | 不用 |
+| `liquid` | 液体动态：域扭曲 fbm 流体底 + 一圈圈落下的液滴涟漪 | `kicker` `title` `sub` `drops` `footer` | 不用 |
 | `lockup` | 署名定版：几何标记 + 字标 + 副标 + 分隔线 + 署名行（停住、不压黑） | `mark` `kicker` `name` `tagline` `meta` `footer` | 不用 |
 | `timeline` | 横向事件轴：轴从左画到右，笔尖路过的事件节点依次弹出，事件名上下交替 | `kicker` `title` `events` `footer` | 不用 |
 | `radial` | 径向分布：中心呼吸核 + 一圈轮辐（节点/名字/读数条）+ 慢转的缺口环 | `kicker` `title` `nodes` `weights` `footer` | 不用 |
@@ -304,7 +307,7 @@ timeline[0] 这一段（type: "chart"）取不到镜头模板：
 - 参数的类型、默认值、说明，以及每个模板的注意事项，**唯一权威**是：
 
   ```sh
-  node scripts/anim.mjs shots            # 20 个模板的名字与一句话
+  node scripts/anim.mjs shots            # 23 个模板的名字与一句话
   node scripts/anim.mjs shots chart      # 某一个模板的全部参数 + 类型 + 默认值 + 说明
   ```
 
@@ -392,7 +395,7 @@ timeline: [
 - ⚠ **文字量大的画面不要交叉溶解**：两屏字叠在一起会糊（`AGENTS.md` §4.5）。
   要么硬切（不写 `overlap`），要么让它"走掉"—— 用 `whip`，或者回去写场景用
   `src/core/trans.js` 的 `transitionPass` / `enterOffset`。
-- **配置档一般不需要 `world` / `worldPass`**：20 个模板都自带整帧背景（各自的背景 Pass 或
+- **配置档一般不需要 `world` / `worldPass`**：23 个模板都自带整帧背景（各自的背景 Pass 或
   `gl.clear` 到 `P.ink`），写上去只是多铺一层马上被盖掉的底。共享背景是给**手写场景**用的
   （`cut(scene, { world: 'auto' })`，见 `AGENTS.md` §3）。
   两个例外（细节与坑见 §3.1）：**`world: false` 在配置档里是有意义的**（"这一段我刻意不铺底"，

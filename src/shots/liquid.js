@@ -91,8 +91,9 @@ export function liquidShot(opts = {}) {
 
 liquidShot.defaults = DEFAULTS;
 liquidShot.meta = {
-  label: '液体动态',
-  note: '域扭曲 fbm 流体底 + 同心圆涟漪（ripple(t - birth)），全程 t 的纯函数。',
+  name: 'liquid',
+  summary: '液体动态：域扭曲 fbm 流体底 + 一圈圈落下的液滴涟漪',
+  notes: '底用引擎原语 src/kit/liquid.js；涟漪是 ripple(t - birth) 的同心圆，不是粒子系统，全程 t 的纯函数。',
   energy: '中',
   use: '一滴/一次触碰引发的扩散；抽象的品牌收尾',
   avoid: '需要看清单根线条的图（域扭曲会把细节搅糊）',

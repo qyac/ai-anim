@@ -4,6 +4,11 @@
 # 临时绕过：git commit --no-verify（请说明原因）
 node tools/precommit-report.mjs || exit 1
 
+# 动过镜头模板 ⇒ 分类必须登记（否则卡片会漏一张，慢慢就没人看索引了）
+if git diff --cached --name-only | grep -q '^src/shots/'; then
+  node tools/gen-shot-cards.mjs --check || exit 1
+fi
+
 # AGENTS.md 有 65536 B 预算、且章节号被 180 处引用 —— 动过就必须过这两个守门
 if git diff --cached --name-only | grep -q '^AGENTS.md$'; then
   node tools/lint-agents-size.mjs || exit 1

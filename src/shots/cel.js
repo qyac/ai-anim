@@ -98,8 +98,9 @@ function hashish(a, b) {
 
 celShot.defaults = DEFAULTS;
 celShot.meta = {
-  label: '逐帧手绘 · 线条沸腾',
-  note: '纸面 + 每 2 帧重描的线（hash(帧组,线号) 驱动的抖动）；抖动量确定性，可 seek。',
+  name: 'cel',
+  summary: '逐帧手绘 · 线条沸腾：纸面 + 每 2 帧重描一次的线（圆不圆、线不直）',
+  notes: '抖动量来自 hash(帧组, 线号)：确定性、可 seek、可并行子帧；成片在 12fps 的节奏上抖，不是每帧随机跳。',
   energy: '中低',
   use: '手作感 / 角色 / 讲这是画出来的',
   avoid: '需要精确读数的图表（抖动的坐标轴会读不准）',

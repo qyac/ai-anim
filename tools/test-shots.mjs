@@ -59,6 +59,8 @@ const TEMPLATES = [
   'morph', 'layers', 'lockup',
   // 收尾批（18 → 20）
   'timeline', 'radial',
+  // MG15 那批（20 → 23）：等距体块 / 逐帧手绘 / 液体；夹具 tasks/_iso-lab, _cel-lab, _liquid-lab
+  'isometric', 'cel', 'liquid',
 ];
 
 /** 任务侧的 8 个场景模块 → 它们必须保持的段名。 */
@@ -485,8 +487,10 @@ async function main() {
       case 'number': return typeof v === 'number' && Number.isFinite(v);
       case 'boolean': return typeof v === 'boolean';
       case 'number[]': return Array.isArray(v) && v.length > 0 && v.every((x) => Number.isFinite(x));
-      // 字符串数组（timeline.events / radial.nodes）：非空、每项是字符串。
-      case 'string[]': return Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'string');
+      // 字符串数组（timeline.events / radial.nodes）：每项是字符串。
+      // ⚠ 允许空数组：可选参数的空默认值就是 `[]`（compare.icons —— 不传就不画图标），
+      //   "非空"是**参数被填了没有**的判据，不是类型的判据。
+      case 'string[]': return Array.isArray(v) && v.every((x) => typeof x === 'string');
       case '[number, number]': return Array.isArray(v) && v.length === 2 && v.every((x) => Number.isFinite(x));
       case 'string[2]': return Array.isArray(v) && v.length === 2 && v.every((x) => typeof x === 'string');
       // 结构化参数（compare 的 rows: [{ label, a, b }]）：非空数组、每项是普通对象。
