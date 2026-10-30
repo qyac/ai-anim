@@ -770,6 +770,7 @@ node scripts/anim.mjs check <任务>
 | `docs/LAYOUT.md` | 版面纪律与「版面守门」（一屏一个主体） |
 | `docs/MOTION.md` | 运动规则表（什么时候用哪个、数值上限、证据分级） |
 | `docs/NARRATION.md` | 旁白 / 口播这一层（A/B/C 三档） |
+| `docs/SFX.md` | 音效层：从 SoundDino 取（授权/配额/记账）、`anim` 侧的接入缺口 |
 | `docs/THREE.md` | 第 3 种 3D：Three.js 镜头 |
 | `docs/DIAGNOSIS.md` | 输出词 → 含义 → 修法（**看到不认识的诊断词就查**） |
 | `docs/PERF.md` | 渲染性能实测与验收口径 |
