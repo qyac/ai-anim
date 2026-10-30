@@ -226,12 +226,30 @@ function runItem(it) {
   return { ...it, code, pass, skip, ms, log: path.relative(ROOT, log), out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 
-/** 从输出里挑一行最像"结论/错误"的，汇总表里显示。 */
+/**
+ * 从输出里挑几行最像「结论/错误」的，汇总表与 Job Summary 里显示。
+ *
+ * ⚠ 2026-10-30 修：原来只返回**最后一个**匹配行，于是 `say:offline` 的失败长这样 ——
+ *   最后一行是 `通过 110/112　❌ 失败 2`（它含「失败」二字，被正则抓中），
+ *   真正的 `✗ <断言名> <实测值>` 反而被它挤掉了。汇总表因此只显示「失败 2」，
+ *   谁也不知道是哪两条。现在的口径：
+ *   ① 先认**具体断言**（`FAIL` / `✗`）—— 那是真正有信息量的行；
+ *   ② 没有具体断言时，才退回「像错误/结论」的行；
+ *   ③ 最多给 3 行（>3 行说明问题很多，但汇总表不该变成日志）。
+ * 这样「失败 N」这种汇总行再也不会盖住「哪一条失败了」。
+ */
 function headline(res) {
   const lines = res.out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const clip = (s) => (s.length > 120 ? `${s.slice(0, 117)}…` : s);
+
+  // ① 具体断言：`FAIL  xxx` / `✗ xxx` —— 优先，且**按出现顺序**取，不取最后一行
+  const asserts = lines.filter((l) => /^(FAIL|✗|×)\s/.test(l));
+  if (asserts.length) return asserts.slice(0, 3).map(clip).join(' ／ ');
+
+  // ② 退回「像错误/结论」的行（保持旧行为：取最后一条）
   const bad = lines.filter((l) => /^[✗×]|FAIL|错误|失败|Error|error:|on problem|个问题/.test(l));
   const pick = bad[bad.length - 1] ?? lines[lines.length - 1] ?? '(无输出)';
-  return pick.length > 120 ? `${pick.slice(0, 117)}…` : pick;
+  return clip(pick);
 }
 
 if (process.argv.includes('--list')) {

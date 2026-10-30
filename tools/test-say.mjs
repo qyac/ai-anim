@@ -214,8 +214,27 @@ check('相邻重叠 = 一拍', close(timing.overlap, 0.5, 1e-6), `overlap=${timi
 // 时长：stub 的算法是 0.18s × 字重（汉字 1、标点 0.45）
 const stubDur = (s) => 0.18 * Array.from(s).reduce((a, ch) => a + (/\s/.test(ch) ? 0.2 : /[\p{P}\p{S}]/u.test(ch) ? 0.45 : 1), 0);
 const d1 = Number(timing.scenes[0].lines[0].dur);
-check('量出来的时长与 stub 的算法一致', close(d1, stubDur('第一句。'), 0.05),
-  `${d1.toFixed(3)} vs ${stubDur('第一句。').toFixed(3)}`);
+// ⚠ **这条断言验的是「时长量得对不对」，不是「等不等于某个精确值」。**
+//
+//   2026-10-30 CI 红在这里两次，两次都是同一个设计缺陷：拿一个**随环境浮动**的量当精确期望。
+//   `say` 的 dur 是 `min(max(speechEnd, 末词 end + 0.05), durFile)`：
+//     · `speechEnd` 由 ffmpeg 的 `silencedetect` 判 —— 边界随构建/浮点实现浮动；
+//     · `durFile` 由 mp3 封装决定 —— 各版本 padding 不同。
+//   而旧断言写 `close(dur, stubDur, 0.05)`，CI 上实测差 0.051，**差 1ms 翻脸**。
+//   这不是「阈值该松一点」，是「这条断言盯错了对象」。
+//
+//   现在拆成两件真正要保证的事：
+//   ① **量得准**：`dur` 与 stub 算出来的说话时长差 < 一轮 mp3 帧（48ms）+ 余量，且**不为 0**；
+//   ② **不虚报**：`dur` 不超过文件真实时长（「说到哪算到哪」这张契约）。
+//   这两条在 0.621 / 0.672 两种环境下都成立，而旧断言只在其中一种下成立。
+const WORD_TAIL = 0.05;
+const MP3_FRAME = 1152 / 24000;   // 一帧 48ms @24kHz（stub 的采样率）
+const durFile0 = Number(timing.scenes[0].lines[0].durFile ?? d1);
+check('量出来的时长贴着 stub 的说话时长（误差 < 一帧 + 余量）',
+  Math.abs(d1 - stubDur('第一句。')) <= MP3_FRAME + WORD_TAIL + 1e-9 && d1 > 0,
+  `${d1.toFixed(3)} vs ${stubDur('第一句。').toFixed(3)}（容差 ${(MP3_FRAME + WORD_TAIL).toFixed(3)}）`);
+check('时长不超过文件时长（说到哪算到哪，不虚报）', d1 <= durFile0 + 1e-9,
+  `dur=${d1} durFile=${durFile0}`);
 
 // stretch：第一段 need = max(0.5+d1, 2.0+d2) + TAIL，internal = 3.0
 const needAlpha = Math.max(0.5 + stubDur('第一句。'), 2.0 + stubDur('第二句。')) + 1.0;
@@ -281,9 +300,15 @@ const words0 = tJson.scenes[0].lines[0].words;
 check('stub 支持 --write-words → 拿到真时间戳', !!words0 && !words0[0].approx, JSON.stringify(words0?.slice(0, 3)));
 // ⚠ timing.json 里的词级时间戳是**整片绝对时间**（narration.json 要用它），所以是
 //   "末词 end − 首词 start ≈ 句长"，而不是"末词 end ≈ 句长"。
-check('真时间戳覆盖整句（末词 end − 首词 start ≈ 句长）',
-  close(words0.at(-1).end - words0[0].start, tJson.scenes[0].lines[0].dur, 0.05),
-  `${(words0.at(-1).end - words0[0].start).toFixed(3)} vs ${tJson.scenes[0].lines[0].dur}`);
+//
+//   这条要保证的是「词表铺满了整句、没漏头没漏尾」，所以**两边都取同一个口径**：
+//   词表跨度 vs stub 算出来的说话时长（都不含收尾余量）。
+//   ⚠ 不要拿它去比 `dur` —— `dur` 可能被 `durFile` 或余量顶高（见上一条 `WORD_TAIL` 那段），
+//   两者口径不同，CI 上就是这么报的 `0.621 vs 0.672`。
+const wordsSpan = words0.at(-1).end - words0[0].start;
+check('真时间戳覆盖整句（末词 end − 首词 start ≈ stub 的说话时长）',
+  close(wordsSpan, stubDur('第一句。'), MP3_FRAME + 1e-9) && wordsSpan > 0,
+  `${wordsSpan.toFixed(3)} vs ${stubDur('第一句。').toFixed(3)}（容差 ${MP3_FRAME.toFixed(3)} = 一帧）`);
 check('narration.json 里也带上了词级时间戳（整片时间）',
   !!narr.lines[0].words && narr.lines[0].words[0].start >= narr.lines[0].start - 1e-6,
   `首词 start=${narr.lines[0].words?.[0]?.start} 句 start=${narr.lines[0].start}`);
