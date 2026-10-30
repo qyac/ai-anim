@@ -42,7 +42,26 @@ const only = (() => {
  * @property {string} [note]
  * @property {boolean} [expectFail] 已知会失败（红 ≠ 回归），但仍然要打印
  * @property {number} [timeout] 毫秒
+ * @property {boolean} [ciExclude] 这一项**不能**在 CI 上跑（要 GPU / Chrome / 本机私有任务目录 / 联网）
+ * @property {string} [ciWhy] 为什么不能跑 —— 必填，写给人看；`tools/test-ci-coverage.mjs` 会验它不是空话
  */
+
+/**
+ * **哪些项算「CI 能跑」**（2026-10-30）。
+ *
+ * 起因是一个真事故：`.github/workflows/verify.yml` 只硬写了 4 条纯 JS 测试，
+ * 而这份清单里已经有 43 条 `unit:`。于是 `anim say` 的节拍回落被改坏时
+ * （`resolveBeat` 漏了「没有 analysis 就回落 narration.mjs 的 BPM」那一支），
+ * 本地 `regress-all --only unit` 红 3 项，**CI 却是绿的** —— 因为它压根没跑那一条。
+ *
+ * 从此 CI 不再手抄清单，而是 `node tools/regress-all.mjs --ci`：
+ * **按前缀收**，新加的 `unit:` / `meta:` / `harness:` 自动进 CI，不需要有人记得改 yml。
+ * 唯一的出口是显式 `ciExclude: true` + `ciWhy`（会被 `tools/test-ci-coverage.mjs` 检查）。
+ */
+const CI_GROUPS = ['unit:', 'meta:', 'harness:', 'say:'];
+
+/** @param {{name:string, ciExclude?:boolean}} it */
+const isCiEligible = (it) => !it.ciExclude && CI_GROUPS.some((g) => it.name.startsWith(g));
 
 /** @type {Item[]} */
 const ITEMS = [
@@ -51,6 +70,10 @@ const ITEMS = [
   { name: 'unit:doc-facts-selftest', cmd: ['tools/lint-doc-facts.mjs', '--selftest'], note: '上面那个守门的判据自测（7 项，含"不误吃那 3 个面"的反例）' },
   { name: 'unit:agents-refs', cmd: ['tools/lint-agents-refs.mjs'], note: 'AGENTS.md 的章节号是外部锚点：全部 § 引用可解析（docs/history/ 的归档断链不计）' },
   { name: 'unit:agents-size', cmd: ['tools/lint-agents-size.mjs'], note: 'AGENTS.md 体积预算：超过 65536 B 会被注入器从尾部静默截断（当前余 ~10 KB）' },
+  // CI 自己的守门（2026-10-30）：verify.yml 必须还在按清单跑（不是手抄），且清单没被悄悄排空。
+  // 它守的不是某个功能，而是**「CI 有没有在跑东西」这件事本身** —— 上一版手抄了 4 条、
+  // 清单里 43 条，漂移方向只有少跑，而少跑没有任何输出会提醒你。
+  { name: 'unit:ci-coverage', cmd: ['tools/test-ci-coverage.mjs'], note: 'CI 覆盖守门：verify.yml 必须调 regress-all --ci（不许手抄）/ 组内每项要么被收要么写 ciWhy / 收的项数不低于下限（7 项）' },
   { name: 'unit:timeline-guard', cmd: ['tools/test-timeline-guard.mjs'], note: 'P0-2 伪时间线必须抛错 + 配置档展开（40 项）' },
   { name: 'unit:easing-warn', cmd: ['tools/test-easing-warn.mjs'], note: 'P2-3 缓动名写错要警告（7 项）' },
   { name: 'unit:narration', cmd: ['tools/test-narration.mjs'], note: 'P1-5 旁白表 + C 档词级时间戳（44 项）' },
@@ -59,7 +82,8 @@ const ITEMS = [
   { name: 'unit:cam-math', cmd: ['tools/test-cam-math.mjs'], note: '3D 相机/投影/透视变换 + **手性**（33 项）' },
   { name: 'unit:segment-cuts', cmd: ['tools/test-segment-cuts.mjs'], note: 'P2-4 分块切点只落在安全处' },
   { name: 'unit:shots', cmd: ['tools/test-shots.mjs'], note: 'A 档镜头库：模板登记/参数名/任务段名（写错就响）' },
-  { name: 'style:palette', cmd: ['tools/test-style-palette.mjs'], note: '风格包的底色是否真的画到画面上（比对 __animPalette.hex.bg 与画面像素 + 亮/暗分档）', slow: true },
+  // 要 Chrome：它把页面真的渲一遍再比对像素
+  { name: 'style:palette', cmd: ['tools/test-style-palette.mjs'], note: '风格包的底色是否真的画到画面上（比对 __animPalette.hex.bg 与画面像素 + 亮/暗分档）', slow: true, ciExclude: true, ciWhy: '要 Chrome + 真 GPU（起私有 Vite 渲一帧再读回像素）' },
   { name: 'unit:event-density', cmd: ['tools/test-event-density.mjs'], note: '事件密度判据回归（合成静止/运动片）：静止跨度与稀薄窗口必须分开报对，纯静止片必须被报成问题' },
   { name: 'unit:tempo', cmd: ['tools/test-tempo.mjs'], note: 'tempo 估计回归（合成鼓 80/96/120/140 + 半拍踩镲诱饵）：bpm 偏 ≤0.6%、网格间隔偏 ≤1% —— 修的是「analyze 把 80bpm 报成 83.3」那个 4% 偏差' },
   { name: 'unit:tasks-meta', cmd: ['tools/test-tasks-meta.mjs'], note: 'tasks --json（1-58）的字段解析 + 变体块不许污染任务级字段 + 真实任务能解析；--table 表路径（1-23③）的接线自检' },
@@ -105,8 +129,9 @@ const ITEMS = [
 
   // ── Node 侧整条链（合成/摆位/闪避；不需要 GPU，但要 ffmpeg）──
   { name: 'say:offline', cmd: ['tools/test-say.mjs'], note: 'B 档 anim say + anim mix 全链路（stub 驱动，30 项）', timeout: 10 * 60e3 },
-  { name: 'say:real-tts', cmd: ['tools/probe-tts-edge.mjs'], allowSkip: true, note: 'B/C 档真 TTS（联网；连不上会「跳过」退出码 2 —— 服务端 403 也算这一类）', timeout: 10 * 60e3 },
+  { name: 'say:real-tts', cmd: ['tools/probe-tts-edge.mjs'], allowSkip: true, ciExclude: true, ciWhy: '要联网、要真 TTS 服务（edge-tts 端点），CI 上必然退化成 skip', note: 'B/C 档真 TTS（联网；连不上会「跳过」退出码 2 —— 服务端 403 也算这一类）', timeout: 10 * 60e3 },
   // ⚠ 这一项**会**在没有 ffmpeg 的机器上退出 2（"跳过，不算通过"）—— 所以挂 allowSkip
+  // ⚠ CI 上必须有这一项：显式装 ffmpeg 之后它是硬门（不是 allowSkip 的挡箭牌）
   { name: 'unit:loudness', cmd: ['tools/test-loudness.mjs'], allowSkip: true, note: '响度数字守门：合成已知响度的测试音、对不上就是函数错了 + **-t 是输入侧选项**与"真的截断"（39 项）' },
   // `anim mix --target`：**默认关**是硬约束（已交付片子的音轨不能因为这次改动而重新编码），
   // 所以这里同时钉"开"与"不开"两条路 —— 不开时逐字节相同、开了真的落在靶子上。
@@ -214,7 +239,33 @@ if (process.argv.includes('--list')) {
   process.exit(0);
 }
 
-const list = only ? ITEMS.filter((it) => it.name.includes(only)) : ITEMS;
+// `--list-ci`：把「能在 CI 上跑 / 被排除且为什么」两张表打出来（人看的，不进退出码）
+//
+// 排除分两类，**只有第一类需要写理由**：
+//   ① 组内的项（`unit:` `meta:` `harness:` `say:offline`）被单独摘掉 —— 那是刻意的例外，必须写 `ciWhy`；
+//   ② 组外的项（`check:` `probe:` `smoke:` `hashes:` …）根本不进 CI 的收口 —— 它们默认就要 GPU/Chrome。
+if (process.argv.includes('--list-ci')) {
+  const inc = ITEMS.filter(isCiEligible);
+  const inGroupButExcluded = ITEMS.filter((it) => it.ciExclude && CI_GROUPS.some((g) => it.name.startsWith(g)));
+  const outOfGroup = ITEMS.filter((it) => !it.ciExclude && !CI_GROUPS.some((g) => it.name.startsWith(g)));
+  console.log(`CI 收 ${inc.length} / 共 ${ITEMS.length} 项`);
+  console.log(`  组外 ${outOfGroup.length} 项（check/probe/smoke/hashes …，默认要 GPU/Chrome，不进 CI）`);
+  console.log(`  组内显式排除 ${inGroupButExcluded.length} 项：`);
+  for (const it of inGroupButExcluded) console.log(`    ✗ ${it.name.padEnd(24)} ${it.ciWhy ?? '(没写理由 —— test-ci-coverage 会红)'}`);
+  process.exit(0);
+}
+
+// `--ci`：只跑 CI 能跑的那一批（判据见文件头的 CI_GROUPS / isCiEligible）。
+// 加了这一条之后 `.github/workflows/verify.yml` 不再手抄清单 —— 手抄必然漂移，
+// 而且漂移的方向永远是「少跑」（2026-10-30 那次 test-say 变红而 CI 全绿就是这样来的）。
+const ciMode = process.argv.includes('--ci');
+if (ciMode) {
+  const picked = ITEMS.filter(isCiEligible);
+  console.log(`CI 模式：清单 ${ITEMS.length} 项，其中 ${picked.length} 项在 CI 上跑；`
+    + `${ITEMS.length - picked.length} 项显式排除（--list-ci 看为什么）。\n`);
+}
+
+const list = (ciMode ? ITEMS.filter(isCiEligible) : ITEMS).filter((it) => (only ? it.name.includes(only) : true));
 if (!list.length) {
   console.error(`✗ --only ${only} 没匹配到任何项。用 --list 看清单。`);
   process.exit(2);

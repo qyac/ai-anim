@@ -1,8 +1,15 @@
 name: verify
 
-# 只跑**不需要 GPU / Chrome / ffmpeg** 的部分：模块能加载、契约测试能过、文档守门不红。
+# 只跑**不需要 GPU / Chrome / 本机私有任务目录 / 联网**的部分。
 # 渲染相关的判据（卡点 / 事件密度 / 底色 / 一致性）在本地用 `node scripts/anim.mjs report <任务>` 验收，
 # 它们读成片，CI 上没有产物 —— 硬塞进来只会变成永远 skipped 的假绿灯。
+#
+# ⚠ **不要在这里手抄测试清单**（2026-10-30 改）。
+#   上一版硬写了 4 条 `node tools/test-*.mjs`，而 `tools/regress-all.mjs` 里已经有 43 条 unit。
+#   于是 `anim say` 的节拍回落被改坏时（`resolveBeat` 漏了「没有 analysis 就回落 narration.mjs 的 BPM」），
+#   本地 `regress-all --only unit` 红 3 项、**CI 却是绿的** —— 手抄的清单漂移了，而且漂移的方向只有"少跑"，
+#   少跑不会有任何输出提醒你。现在一律走 `--ci`：按前缀收（unit: / meta: / harness: / say:），
+#   新加的测试自动进 CI；确实不能跑的在清单里写 `ciExclude + ciWhy`，由 `tools/test-ci-coverage.mjs` 守着。
 
 on:
   push:
@@ -19,19 +26,28 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci || npm install
+
+      # 清单里有一批（unit:loudness / unit:mix-loudnorm / unit:media-qa / say:offline / unit:pin-timing-e2e …）
+      # 要真 ffmpeg：没有时它们会按约定 exit 2「跳过，不算通过」。CI 上**装真的**，
+      # 别让它们退化成 skip —— 那等于这一批从来没验过。
+      - name: 装 ffmpeg（清单里有一批项要它，缺了会变成 skip）
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
       - name: 语法（src / scripts / tools 全部能加载）
         run: |
           find src scripts tools -name '*.mjs' -o -name '*.js' | xargs -n1 node --check
-      - name: 契约与守门（纯 JS，无 GPU）
-        run: |
-          node tools/test-timeline-guard.mjs
-          node tools/test-say.mjs
-          node tools/test-tempo.mjs
-          node tools/lint-prog-range.mjs
+
+      # 这一条就是全部纯 JS 回归（2026-10-30：47 项；实测在本机干净 clone 里 47/47）。
+      # 加测试**不用**改这个文件 —— 改 `tools/regress-all.mjs` 的清单即可。
+      - name: 纯 JS 回归（tools/regress-all.mjs --ci）
+        run: node tools/regress-all.mjs --ci
+
+      # CI 自己的覆盖守门：防有人把上面那一行换回手抄、或一口气排掉一堆测试。
+      - name: CI 覆盖守门（verify.yml 必须还在按清单跑）
+        run: node tools/test-ci-coverage.mjs
+
       - name: 镜头卡（分类齐全）
-        run: |
-          node tools/gen-shot-cards.mjs --check
-      - name: 文档守门
-        run: |
-          node tools/lint-agents-size.mjs
-          node tools/lint-agents-refs.mjs
+        run: node tools/gen-shot-cards.mjs --check
+
+      # 文档守门（AGENTS.md 体积 + 章节号引用）本来就在 unit: 组里，--ci 已经跑过；
+      # 这里不再重复列，避免"改了清单但 CI 还在跑旧命令"这种两套真相。

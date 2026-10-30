@@ -869,6 +869,8 @@ node tools/test-cam-math.mjs / test-say.mjs / test-karaoke.mjs / test-timeline-g
 node scripts/anim.mjs verify <任务>             # 抽帧 vs 重渲（拼接/帧数/色彩）
 node scripts/anim.mjs hashes <任务> --baseline  # 变更探测器（变了 ⇒ 对比图 + 退出码 1）
 node tools/regress-all.mjs [--only smoke]       # 整份回归（日志 out/_regress/）
+node tools/regress-all.mjs --ci                # **CI 跑的那一批**（unit:/meta:/harness:/say:，48 项）
+                                               # ← 加测试只改清单，不要改 verify.yml（手抄必漂移，且只会少跑）
 ```
 
 > 输出里出现不认识的诊断词 → **`docs/DIAGNOSIS.md`**：三列（输出词 / 含义 / 修法），每条带 `文件:行号` 证据，

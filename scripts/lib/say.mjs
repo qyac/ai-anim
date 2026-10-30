@@ -315,6 +315,17 @@ export function resolveBeat({ taskDir, script, bpm, audioSpec }) {
       }
       return out;
     }
+    // ⚠ 没有 analysis 时必须**回落 narration.mjs 声明的拍长**（老行为）。
+    //   这一支曾被漏掉：声明了 music 但还没 analyze 的任务会静默按 100bpm 兜底，
+    //   slot 取整 / overlap / 段起点全跟着错（`tools/test-say.mjs` 三项红，而 CI 就跑它）。
+    if (declaredBeat) {
+      return {
+        beat: declaredBeat,
+        from: 'narration.mjs 的 BPM（music 轨还没 analyze）',
+        warning: `task.audio 里声明了 music 轨（${path.basename(spec.music)}），但没有 ${path.relative(process.cwd(), f)}`
+          + ` —— 先跑 node scripts/anim.mjs analyze <任务>；现在按 narration.mjs 写的一拍 ${declaredBeat}s 排。`,
+      };
+    }
     return noBeat(
       `task.audio 里声明了 music 轨（${path.basename(spec.music)}），但没有 ${path.relative(process.cwd(), f)}`
       + ` —— 先跑 node scripts/anim.mjs analyze <任务>；现在按 ${FALLBACK_BEAT}s 一拍兜底。`,

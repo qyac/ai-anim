@@ -39,6 +39,10 @@ export function chartShot(opts = {}) {
     setup(ctx) {
       const P = ctx.P;
       // 纸面：骨白纸 + 细横线（让画面有"印刷品"的质感）
+      // ⚠ 这里**刻意**用 bone，不要改成 P.bg：本模板的字 / 坐标轴 / 柱子全画 P.ink（暗色），
+      //   纸面必须是亮底才读得出来。「底色语义统一（P.bg）」那轮把它换成 P.bg 之后，
+      //   print/flat 下 bg === ink ⇒ 暗底暗字、整屏几乎看不见（demo 基线 3/11 帧变、mean≈150）。
+      //   bg 是「整帧底色」的语义，只给 gl.clear / worldPass / 全屏 Pass 用。
       this.paper = new Pass(ctx.gl, /* glsl */ `
         uniform vec3 paper, rule;
         void main() {
@@ -49,7 +53,7 @@ export function chartShot(opts = {}) {
           col = mix(col, rule, (1.0 - smoothstep(w, w * 3.0, l)) * 0.25);
           col *= 1.0 - 0.35 * smoothstep(0.55, 1.2, length((p - 0.5) * vec2(1.1, 1.0)));
           fragColor = vec4(col, 1.0);
-        }`, { paper: P.bg, rule: P.ash }, { key: 'demo_chart_paper', blend: false });
+        }`, { paper: P.bone, rule: P.ash }, { key: 'demo_chart_paper', blend: false });
     },
 
     render(ctx) {

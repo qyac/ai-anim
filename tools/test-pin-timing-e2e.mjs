@@ -5,7 +5,7 @@
 //
 // 需要 ffmpeg（假驱动用 anullsrc 生成静音 mp3）；不需要 GPU、不需要联网、不需要真 TTS。
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -26,6 +26,14 @@ const say = (extra = '') => execFileSync(process.execPath,
   { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 const readTiming = () => JSON.parse(readFileSync(TIMING, 'utf8'));
 const orig = readFileSync(NARR, 'utf8');
+// 三份产物跑之前的原样快照（不存在就记 null ⇒ 跑完删掉，别凭空多出一个文件）
+const snapshot = (rel) => {
+  const p = join(ROOT, 'tasks', TASK, rel);
+  return existsSync(p) ? readFileSync(p, 'utf8') : null;
+};
+const timingOrig = snapshot('audio/timing.json');
+const timingMjsOrig = snapshot('audio/timing.mjs');
+const narrationOrig = snapshot('audio/narration.json');
 
 try {
   console.log('--pin-timing 端到端（真跑 anim say + 假 TTS）：');
@@ -59,8 +67,20 @@ try {
     out3.split('\n').filter((l) => l.includes('重解')).join(' | '));
   check('警告说清「放不进原来的 slot」', /放不进原来的 slot/.test(out3));
 } finally {
+  // ⚠ 这个夹具的产物**是入库的**（`audio/timing.{json,mjs}` 与 `narration.json` 都被任务
+  //   `task.config.mjs` 直接引用，见 .gitignore 里那条"必须入库"的注释）。所以跑完必须**原样还原**，
+  //   否则跑一次回归就把工作区弄脏、下一次 `git commit -a` 会顺手提交一份假的时长表。
+  //   以前这里只把 timing.json 复制成 .bak（既没还原它、也没管另两份），本轮修掉。
   writeFileSync(NARR, orig);
-  if (existsSync(TIMING)) copyFileSync(TIMING, TIMING + '.bak');
+  for (const f of [
+    ['audio/timing.json', timingOrig],
+    ['audio/timing.mjs', timingMjsOrig],
+    ['audio/narration.json', narrationOrig],
+  ]) {
+    const p = join(ROOT, 'tasks', TASK, f[0]);
+    if (f[1] === null) rmSync(p, { force: true });
+    else writeFileSync(p, f[1]);
+  }
 }
 
 console.log(fail ? '\n✗ 有 ' + fail + ' 项失败' : '\n✓ 全部通过（' + pass + ' 项）');
