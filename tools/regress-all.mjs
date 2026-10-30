@@ -22,7 +22,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -324,4 +324,31 @@ writeFileSync(
   + '\n',
 );
 console.log(`\n汇总：out/_regress/summary.md`);
+
+// ⚠ **同时写一份到 GitHub Actions 的 Job Summary**（2026-10-30 加）。
+//
+//   为什么：CI 红了的时候 `out/_regress/*.log` 随 job 一起消失，而下载完整 raw 日志要仓库
+//   admin 权限（`/actions/jobs/<id>/logs` 对普通协作者返回 403）。Job Summary 是 Actions 页面上
+//   直接能看的一段 Markdown，**不用下载、不用权限** —— 失败的项名与实测值会出现在那里，
+//   而不是埋在 200 行日志中间。本地跑没有这个环境变量，整段静默跳过。
+const stepSummary = process.env.GITHUB_STEP_SUMMARY;
+if (stepSummary && failed.length) {
+  const md = [
+    `## 回归失败 ${failed.length} 项（共 ${results.length}）`,
+    '',
+    '| 项 | 退出码 | 最像结论的一行 |',
+    '|---|---|---|',
+    ...failed.map((f) => `| \`${f.name}\` | ${f.code} | ${headline(f).replace(/\|/g, '\\|')} |`),
+    '',
+    '### 失败项完整输出（前 120 行）',
+    '',
+    ...failed.flatMap((f) => [
+      `\`\`\`\n--- ${f.name} (exit ${f.code}) ---\n${(f.out ?? '').split(/\r?\n/).slice(0, 120).join('\n')}\n\`\`\``,
+      '',
+    ]),
+    `跳过（没跑 ≠ 通过）：${skipped.length ? skipped.map((k) => k.name).join(', ') : '无'}`,
+  ].join('\n');
+  try { appendFileSync(stepSummary, md + '\n'); } catch { /* 写不进去就算了，别把回归本身带崩 */ }
+}
+
 process.exit(failed.length ? 1 : 0);
