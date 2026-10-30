@@ -12,6 +12,8 @@
  * ```
  */
 
+
+import { endingOnly } from './pick.js';
 import { css, ease, prog } from '../core/util.js';
 
 /** 全部参数 = "什么都不传时的画面"（demo 用的就是这一套）。 */
@@ -111,3 +113,10 @@ outroShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+outroShot.tags = ['ending', 'calm'];
+outroShot.w = 1.2;
+outroShot.fits = endingOnly;
+outroShot.fitsNote = '只抽收尾位（slot: ending）';

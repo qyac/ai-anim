@@ -12,6 +12,8 @@
  * ```
  */
 
+
+import { contentOk, atMost } from './pick.js';
 import { Pass } from '../core/gl.js';
 import { css, ease, prog, rng } from '../core/util.js';
 
@@ -163,3 +165,10 @@ kineticShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+kineticShot.tags = ['title', 'pop', 'tech'];
+kineticShot.w = 0.9;
+kineticShot.fits = (q) => contentOk(q) && atMost(q?.chars, 12);
+kineticShot.fitsNote = '两行 × ≤6 字（chars ≤12）；收尾位抽不到';

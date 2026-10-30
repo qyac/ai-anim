@@ -13,6 +13,8 @@
  * 注意原文读的是**段内时间** `f.lt`（不是整片时间）：同心圆的年龄是相对本段开头的。
  */
 
+
+import { musicOk } from './pick.js';
 import { css } from '../core/util.js';
 
 /** 全部参数 = "什么都不传时的画面"（beat 用的就是这一套）。 */
@@ -118,3 +120,10 @@ pulseShot.spec = {
   requires: ['music', 'analyze'],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+pulseShot.tags = ['music', 'structure'];
+pulseShot.w = 0.8;
+pulseShot.fits = musicOk;
+pulseShot.fitsNote = '要音频（hasMusic !== false）；收尾位/转场位抽不到';

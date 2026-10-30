@@ -105,10 +105,10 @@ J.register('layout', 'myKey', {
 
 | 动作 | 对应条目 | 判据 |
 |---|---|---|
-| 给 `src/shots/` 的 11 个模板补 `tags` / `w` / `fits` 元数据，并让 `anim shots` 打出来 | `1-48` 的前置 | `anim shots --json` 每项都有这三个字段；`test-shots` 断言齐全 |
-| 模板登记改成"扫目录 + 自报"，`src/shots/index.js` 不再手写清单 | `1-48` | 新建一个模板文件、不改 `index.js`，`anim shots` 立刻能看到它 |
-| `infoShot` 段落骨架按"筛部件 → 抽 → 填内容"写，而不是"写代码" | `1-50` | 新片子手写行数占比 < 30%（现在的判据不变） |
-| 绿幕/透明导出 | 新条目（暂记 `1-56`，不排期） | `video --alpha` 出两条轨，ffprobe 复核帧数 |
+| ✅ **已完成（2026-10-30，`1-62`）**：23 个模板全员自报 `tags`（封闭词表 `SHOT_TAGS`）/ `w`（0.4–1.5）/ `fits(q)` / `fitsNote`，`anim shots --json` 带出；并新增 `src/shots/pick.js` 的 `pickShot` / `pickSequence`（**先筛后抽、seed 定结果**）与 `anim shots --pick`（`--slot`/`--tags`/`--points`/`--seed`/`--n`/`--exclude`/`--json`）——比当初"只打出来"更进一步：**选型本身交给了引擎**。契约见 [`ENGINE.md`](ENGINE.md) §14.10；回归 `tools/test-shot-pick.mjs`（36 项）+ `test-shots.mjs` §2.6 | ~~`1-48` 的前置~~ → `1-62` | `anim shots --json` 每项都有 tags/w/fitsNote；`test-shots` §2.6 断言齐全；同 seed 同结果、角色锁 200-seed 零泄漏 |
+| ✅ **半完成（2026-10-30，`1-62`）**：登记收敛成 `REGISTRY` **单表**（键=各工厂自报 `meta.name`，缺了当场抛错），删掉 23 个没人用的具名导出 —— 加模板=加一行 import+数组塞一行。**刻意没做**"扫目录"：`import.meta.glob` 是 Vite 专属 API，而这份登记要 CLI（裸 Node）与浏览器共用，为省一行 import 引入双环境分叉不值 —— 这是对本文 §3 的修正，不是放弃 | ~~`1-48`~~ → `1-62` | `test-shots` §1：SHOTS 键集合与手写 `TEMPLATES` 表相等（多一个少一个都红） |
+| ✅ **已完成（2026-10-26，`1-50`）**：`src/kit/info.js` 的 `infoShot()` —— 眉标/标题/面板底/侧标注/出处行/页脚全包，用户只写 `draw(ctx, rect)`（夹具三个信息段共 69 行，手写占比 <30% 达标） | `1-50` | `tools/test-info.mjs` 11 项 + `_info-lab` check 0 红 |
+| 绿幕/透明导出 | `1-56`（**仍不排期**） | 两条轨帧数与主片一致（ffprobe 复核） |
 
 ---
 

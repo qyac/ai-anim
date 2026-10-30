@@ -14,6 +14,8 @@
  * ```
  */
 
+
+import { contentOk, noScreenshot } from './pick.js';
 import { Pass } from '../core/gl.js';
 import { css, ease, prog, clamp, cycle, mixColor } from '../core/util.js';
 import { resolveTypeSize } from '../style/tokens.js';
@@ -218,3 +220,10 @@ deviceShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+deviceShot.tags = ['tech', 'process'];
+deviceShot.w = 0.8;
+deviceShot.fits = (q) => contentOk(q) && noScreenshot(q);
+deviceShot.fitsNote = '没有真截图时（hasScreenshot !== true）；收尾位/转场位抽不到';

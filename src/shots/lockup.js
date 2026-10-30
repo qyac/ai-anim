@@ -14,6 +14,8 @@
  * ```
  */
 
+
+import { endingOnly } from './pick.js';
 import { Pass } from '../core/gl.js';
 import { css, ease, prog, clamp, TAU } from '../core/util.js';
 import { resolveTypeSize } from '../style/tokens.js';
@@ -219,3 +221,10 @@ lockupShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+lockupShot.tags = ['ending', 'graphic'];
+lockupShot.w = 0.9;
+lockupShot.fits = endingOnly;
+lockupShot.fitsNote = '只抽收尾位（slot: ending）';

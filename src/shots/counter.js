@@ -10,6 +10,8 @@
  * ```
  */
 
+
+import { contentOk } from './pick.js';
 import { Pass } from '../core/gl.js';
 import { css, ease, prog, clamp, TAU } from '../core/util.js';
 
@@ -213,3 +215,10 @@ counterShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+counterShot.tags = ['data', 'pop'];
+counterShot.w = 1.2;
+counterShot.fits = contentOk;
+counterShot.fitsNote = '单个读数；收尾位/转场位抽不到';

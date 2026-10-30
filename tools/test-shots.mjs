@@ -23,6 +23,7 @@
 //   §6 报错路径：未知模板名 / 每个模板的未知参数名都必须抛错并点名
 //   §7 任务侧集成：tasks/*/scenes/*.js 的段名没变（旧的手写场景也照样只断 id）
 //   §8 静态扫描：镜头库源码里不许有 Math.random / Date.now / performance.now（每帧必须是 t 的纯函数）
+//   §2.6 选型元数据（1-62）：tags/w/fits/fitsNote 全员自报且在词表与量程内；角色锁的语义锚点
 //
 // 模块用 `import()` 动态加载：镜头库还没就位时给出的是一条 FAIL 加一句人话，
 // 而不是一屏 ERR_MODULE_NOT_FOUND 堆栈。有失败项 → 退出码 1（可挂进 tools/regress-all.mjs）。
@@ -221,9 +222,13 @@ async function main() {
   check('SHOTS 的每个值都是工厂函数', !!keys && keys.length > 0 && notFn.length === 0,
     notFn.length ? `不是函数的：${notFn.join(', ')}` : 'SHOTS 是空的');
 
-  const missingExports = TEMPLATES.filter((n) => typeof M[`${n}Shot`] !== 'function');
-  check('每个模板都有对应的具名导出（xxxShot）', missingExports.length === 0,
-    `缺：${missingExports.map((n) => `${n}Shot`).join(', ')}`);
+  // 1-62 起 index.js 不再具名重导出各工厂（没人外部 import 它们；登记收敛成 REGISTRY 一张表），
+  // 所以这里的守门从「有具名导出」换成更根本的：TEMPLATES 里的每个名字都能从 SHOTS 拿到工厂，
+  // 且工厂自报的 meta.name 与键一致 —— 键张冠李戴（比如缺 meta.name 静默变成函数名）会在这里红。
+  const missingShots = TEMPLATES.filter((n) => typeof M.SHOTS?.[n] !== 'function'
+    || M.SHOTS[n]?.meta?.name !== n);
+  check('每个模板名都登记在 SHOTS 且工厂自报的 meta.name 与之一致', missingShots.length === 0,
+    `对不上的：${missingShots.join(', ')}`);
 
   /* ---------------- §2 文档与代码一致 ---------------- */
   console.log('\n§2 文档与代码一致（listShots().params ↔ 工厂的 defaults）');
@@ -344,6 +349,55 @@ async function main() {
   }
   check('listShots() 报的 type 就是 meta.params 里的 type（人读那张表一个字不变）',
     typeJam.length === 0, typeJam.slice(0, 4).join('；'));
+
+  /* ---------------- §2.6 选型元数据（1-62，学 JIZURA 的部件表） ---------------- */
+  console.log('\n§2.6 选型元数据（tags / w / fits / fitsNote，1-62）');
+  const TAGS = Array.isArray(M.SHOT_TAGS) ? M.SHOT_TAGS : null;
+  check('SHOT_TAGS 词表非空且无重复（封闭词表，--tags 查询按它点名拼错）',
+    !!TAGS && TAGS.length >= 10 && new Set(TAGS).size === TAGS.length,
+    TAGS ? `实际 ${TAGS.length} 个，重复了吗：${TAGS.length - new Set(TAGS).size}` : '没有导出 SHOT_TAGS');
+  check('SHOT_SLOTS 四个角色槽（opening/content/ending/transition）',
+    Array.isArray(M.SHOT_SLOTS) && M.SHOT_SLOTS.join(',') === 'opening,content,ending,transition',
+    `实际：${JSON.stringify(M.SHOT_SLOTS)}`);
+
+  const pickJam = [];
+  for (const name of TEMPLATES) {
+    const factory = M.SHOTS?.[name] ?? {};
+    const entry = byName.get(name);
+    if (!Array.isArray(factory.tags) || !factory.tags.length) pickJam.push(`${name}: tags 缺/空`);
+    else if (TAGS && factory.tags.some((t) => !TAGS.includes(t))) {
+      pickJam.push(`${name}: tags 有词表外的词（${factory.tags.filter((t) => !TAGS.includes(t)).join('/')}）—— 词表在 pick.js，要加新词先加词表`);
+    }
+    if (typeof factory.w !== 'number' || !(factory.w >= 0.4 && factory.w <= 1.5)) {
+      pickJam.push(`${name}: w=${JSON.stringify(factory.w)} 越界（0.4 冷门 – 1.5 主力）`);
+    }
+    if (typeof factory.fits !== 'function') pickJam.push(`${name}: fits 不是函数（eligibleShots 按 typeof 判，放字符串会静默跳过）`);
+    else if (typeof factory.fits({}) !== 'boolean') pickJam.push(`${name}: fits({}) 不返回布尔`);
+    if (typeof factory.fitsNote !== 'string' || !factory.fitsNote.trim()) pickJam.push(`${name}: fitsNote 缺（--json 里读者看的就是它）`);
+    if (entry && !Array.isArray(entry.tags)) pickJam.push(`${name}: listShots() 没带出 tags`);
+    if (entry && entry.w !== factory.w) pickJam.push(`${name}: listShots() 的 w 与工厂不一致`);
+  }
+  check(`${TEMPLATES.length} 个模板都有词表内的 tags / 0.4–1.5 的 w / fits 函数 / fitsNote，listShots() 原样带出`,
+    pickJam.length === 0, pickJam.slice(0, 5).join('；'));
+
+  // 角色锁与默认放行的两条锚（fits 语义变了先红这里，别等成片才发现 outro 混进正文）：
+  check('角色锁：outro/lockup 在 slot 缺省时不可抽、whip 只进 transition',
+    ['outro', 'lockup'].every((n) => M.SHOTS[n].fits({}) === false)
+      && M.SHOTS.whip.fits({ slot: 'content' }) === false
+      && M.SHOTS.whip.fits({ slot: 'transition' }) === true,
+    'fits 语义漂了 —— outro/whip 会浮进任意选型池');
+  check('缺省放行：chart 不给 points 时可抽、wave 不给 hasMusic 时可抽（brief 字段缺省 = 不设限）',
+    M.SHOTS.chart.fits({}) === true && M.SHOTS.chart.fits({ points: 12 }) === false
+      && M.SHOTS.wave.fits({}) === true && M.SHOTS.wave.fits({ hasMusic: false }) === false,
+    '缺省语义漂了：要么"缺字段=筛空"要么"false 淘汰不了"');
+
+  // `anim shots --json` 的载荷（shotsCatalog）必须把新元数据带出去 —— 读 anim.mjs 源码锚它（同 §2.5 的接法）。
+  const animSrc2 = readFileSync(path.join(ROOT, 'scripts', 'anim.mjs'), 'utf8');
+  const catStart = animSrc2.indexOf('function shotsCatalog(');
+  const catBody = catStart > 0 ? animSrc2.slice(catStart, animSrc2.indexOf('\n}', catStart)) : '';
+  check('shotsCatalog 转发 tags / w / fitsNote（--json 的读者靠它做选型）',
+    /'tags'/.test(catBody) && /'w'/.test(catBody) && /'fitsNote'/.test(catBody),
+    'shotsCatalog 里没有转发这三个字段');
 
   /* ---------------- §3 能拿到场景对象 ---------------- */
   console.log('\n§3 shot(名字) 拿到的场景对象');

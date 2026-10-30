@@ -14,6 +14,8 @@
  * ```
  */
 
+
+import { contentOk, within } from './pick.js';
 import { Pass } from '../core/gl.js';
 import { css, ease, prog, clamp, polylineLengths, pointAtLength, mixColor } from '../core/util.js';
 import { resolveTypeSize } from '../style/tokens.js';
@@ -236,3 +238,10 @@ morphShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+morphShot.tags = ['data', 'graphic'];
+morphShot.w = 0.7;
+morphShot.fits = (q) => contentOk(q) && within(q?.points, 3, 8);
+morphShot.fitsNote = '3–8 个值（points）；收尾位/转场位抽不到';

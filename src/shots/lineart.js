@@ -15,6 +15,8 @@
  * ```
  */
 
+
+import { contentOk, atMost } from './pick.js';
 import { Pass } from '../core/gl.js';
 import { css, ease, prog, clamp, polylineLengths, pointAtLength } from '../core/util.js';
 
@@ -214,3 +216,10 @@ lineartShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+lineartShot.tags = ['flow', 'handmade', 'graphic'];
+lineartShot.w = 0.8;
+lineartShot.fits = (q) => contentOk(q) && atMost(q?.points, 7);
+lineartShot.fitsNote = '≤7 个节点（points）；收尾位/转场位抽不到';

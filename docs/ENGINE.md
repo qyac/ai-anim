@@ -1791,7 +1791,10 @@ node scripts/anim.mjs shots chart --json    # 只给一个模板（同样是这�
       "outputs": { "visual": "full-frame", "handlesTransition": false },
       "use": "一屏一组可比的量（3–8 根柱），让观众看出谁高谁低",
       "energy": "中",
-      "avoid": "超过 8 个值、或需要精确读小数时改 counter；没有出处的数字不要画"
+      "avoid": "超过 8 个值、或需要精确读小数时改 counter；没有出处的数字不要画",
+      "tags": ["data", "editorial", "graphic"],
+      "w": 1.4,
+      "fitsNote": "3–8 个值（points）；收尾位/转场位抽不到"
     }
   ]
 }
@@ -1815,6 +1818,9 @@ node scripts/anim.mjs shots chart --json    # 只给一个模板（同样是这�
 | `shots[].use` | string | **1-42 新增**（可选键）：什么时候该用它，一句话。来源是模板的 `meta.use`（见 §14.2） |
 | `shots[].energy` | string | **1-42 新增**（可选键）：能量档位，取值见 `src/shots/index.js` 的 `SHOT_ENERGY`（低 / 中低 / 中 / 中高 / 高） |
 | `shots[].avoid` | string | **1-42 新增**（可选键）：什么时候**别**用它。`avoid` 与 `use` 一样进 `filterShots()` 的检索面 |
+| `shots[].tags` | string[] | **1-62 新增**（可选键）：气质/职能词，取值见 `src/shots/pick.js` 的 `SHOT_TAGS`（封闭词表，只许加）。§14.10 |
+| `shots[].w` | number | **1-62 新增**（可选键）：抽取权重，0.4（冷门）– 1.5（主力）。§14.10 |
+| `shots[].fitsNote` | string | **1-62 新增**（可选键）：适用条件的人话版。**真条件是工厂上的 `fits(q)` 函数，不进 JSON**（序列化会丢函数），`--json` 的读者看 `fitsNote`。§14.10 |
 
 三条**读法**（与字段名一样是契约的一部分）：
 
@@ -1858,6 +1864,56 @@ node scripts/anim.mjs shots chart --json    # 只给一个模板（同样是这�
   判据很简单：**载荷的第一个字节必须是 `{`（0x7B）**。要落文件就在 `node -e` 里
   `execFileSync(process.execPath, ['scripts/anim.mjs','shots','--json'], { encoding: 'utf8' })`
   拿到字符串再 `writeFileSync(…, 'utf8')`；这条对 `anim note --list --json` 同样适用。
+
+---
+
+### 14.10 选型：`tags` / `w` / `fits` 与确定性抽签 `anim shots --pick`（BACKLOG 1-62）
+
+学 [`REFERENCE-jizura.md`](REFERENCE-jizura.md) §2 的核心设计：JIZURA 真正值钱的不是部件多，
+而是**每个部件带元数据**（`tags` 气质、`w` 抽取权重、`fits(n)` 适用条件），选镜头 = **先按条件筛、
+再按权重抽、seed 决定抽到谁** —— 内容的作者只写内容，不负责选型。落在引擎里是三层：
+
+**① 每个模板自报四件选型元数据**（挂在工厂函数上，`src/shots/<名>.js` 文件尾；全员都有，
+`tools/test-shots.mjs` §2.6 断言）：
+
+| 字段 | 含义 |
+|---|---|
+| `tags` | 气质/职能词，取值在封闭词表 `SHOT_TAGS` 里（气质 `calm pop graphic editorial emotional tech handmade`；职能 `title data flow structure process music ending transition`）。**词表只许加不许改** |
+| `w` | 抽取权重：0.4–0.7 冷门 / 0.9–1.2 常用 / 1.2–1.5 主力。改它不改画面，只改 `--pick` 抽到谁 |
+| `fits(q)` | 适用条件，`q` 是选型 brief（见下）。**缺省字段 = 不设限**；`slot` 是例外——不指明角色槽时，角色锁定模板（`outro`/`lockup`/`whip`）**不可抽** |
+| `fitsNote` | `fits` 的人话版（`--json` 里读者看的就是它；函数本体不序列化） |
+
+**② brief（`fits` 的查询对象）**：`slot`（`opening`/`content`/`ending`/`transition`，词表 `SHOT_SLOTS`）、
+`chars`（主文本字数）、`rows`（行数）、`points`（数据点/事件/节点/层数）、`hasMusic`、
+`hasScreenshot`、`energy`（五档，硬筛）、`tags`（**任一命中即可**）、`exclude`（模板名数组）、`seed`。
+拼错点名（`slot`/`tags` 不在词表直接抛错，不当成"筛空"）。
+
+**③ 抽签**（`src/shots/pick.js`，纯函数；同一个 list + 同一个 q 永远同一个结果，`rng(seed)` 与画面的
+随机数同源同纪律）：
+
+```js
+import { pickShot, pickSequence } from '../../src/shots/pick.js';
+import { listShots } from '../../src/shots/index.js';
+
+const r = pickShot(listShots(), { slot: 'content', tags: ['data'], points: 5, seed: 7 });
+// → { name: 'chart', w: 1.4, tags: [...], fitsNote, pool: [...], seed }
+const seq = pickSequence(listShots(), { slot: 'content', seed: 3 }, 6);  // 版内不重复的一串
+```
+
+CLI 一条路：`anim shots --pick --slot content --tags data --points 5 --seed 7`
+（`--n 6` 抽一串；`--music` / `--no-music` / `--shot` / `--no-shot` 是两个布尔 brief；
+`--exclude chart` = "只换这一项"；`--json` 给 `anim.shots.pick/1`）。
+筛空**不返回 undefined**：抛错并说清是哪一步筛空的、筛前还剩谁 —— 放宽哪个条件一看便知。
+
+两条边界：
+- `--pick` 只负责**选型**；选完之后时间线里照旧写 `{ type: '<名字>', … }`（§14.8）或 `shot('<名字>', …)`。
+  它不改任何模板的画面（`w`/`tags`/`fits` 不进渲染路径），`anim shots` 不带 `--pick` 的人读输出一个字不变。
+- 登记仍是**一张手写表**（`src/shots/index.js` 的 `REGISTRY` 数组，键取各工厂的 `meta.name`）：
+  没用 `import.meta.glob` 自动扫目录 —— **这是硬约束，不是取舍**：`src/shots/index.js` 被
+  `src/timeline.js` 与 6+ 个 CLI 工具（`test-timeline-audit` / `test-block-sig` / `gen-shot-cards` /
+  `test-shot-pick`…）在**裸 Node 里直接 import**，而 glob 是 Vite 专属 API（同 `src/tasks.js`
+  顶层的下场：Node import 当场炸，所以那个文件也从进不了 Node 工具链）。
+  想让"加模板连 index.js 都不改"，先得给 Node 做 glob 的 loader polyfill —— 那是另一个量级的工程。
 
 ---
 

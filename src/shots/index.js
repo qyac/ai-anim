@@ -49,6 +49,23 @@
  *   变成可以被机器读的字段。没有 `spec` 的模板，`listShots()` 里**根本不会出现** `requires` / `outputs`
  *   这两个键：读到"没有这个键"要理解成"还没声明过"，绝不能当成"不需要"。
  *
+ * ## 选型（BACKLOG 1-62，学 JIZURA 的"部件表"）—— 见 `./pick.js`
+
+ * 每个模板除了 defaults / meta / spec，还自报四件**选型元数据**（挂在工厂函数上）：
+ * `tags`（气质/职能，封闭词表 `SHOT_TAGS`）、`w`（抽取权重 0.4–1.5）、
+ * `fits(q)`（适用条件，见 pick.js 头注释的 brief 表）、`fitsNote`（人话版）。
+ * `pickShot(list, q)` = 先按条件筛、再按权重抽、seed 决定抽到谁 —— 选型交给引擎，
+ * 内容的作者只写内容。`SHOT_ENERGY` 也迁到了 pick.js（它本来就是这个家族的词），这里只转发。
+ *
+ * ## 登记就是一张表
+ *
+ * 本文件里唯一的清单是下面的 `REGISTRY` 数组 —— 加一个模板 = 加一行 import + 往数组里塞一行。
+ * `SHOTS` 的键来自各工厂自己的 `meta.name`（缺了当场抛错，不会静默变成 "titleShot"）。
+ * **没有用 `import.meta.glob` 自动扫目录**：CLI（`node scripts/anim.mjs`，裸 Node）与浏览器
+ * （Vite）要共用这份登记，glob 是 Vite 专属 API，裸 Node 里是 undefined —— 为省一行 import
+ * 引入双环境分叉不值（JIZURA 可以只活在一个环境里，我们不能）。
+ * `tools/test-shots.mjs` 的 `TEMPLATES` 手写表保留：它要的就是"多一个少一个都红"。
+ *
  * ## 边界（什么不该进这里）
  *
  * 只放**反复出现、与具体片子无关**的整镜头。某一支片子特有的视觉母题
@@ -85,9 +102,12 @@ import { lockupShot } from './lockup.js';
 import { timelineShot } from './timeline.js';
 import { radialShot } from './radial.js';
 
-export { titleShot, chartShot, kineticShot, whipShot, outroShot, waveShot, pulseShot, gridShot,
-  quoteShot, counterShot, compareShot, bigtypeShot, scanShot, deviceShot, lineartShot,
-  morphShot, layersShot, isometricShot, celShot, liquidShot, lockupShot, timelineShot, radialShot };
+export {
+  pickShot, pickSequence, eligibleShots,
+  SHOT_TAGS, SHOT_SLOTS,
+  // 选型词表从 `./pick.js` 转发（1-62 迁移）：老读者（anim.mjs / test-shots）从这里拿，不受影响。
+  SHOT_ENERGY,
+} from './pick.js';
 
 /**
  * `spec.requires` 认得的**依赖令牌**（词表 = 契约的一部分）。
@@ -110,47 +130,28 @@ export const SHOT_REQUIRES = {
 export const SHOT_VISUALS = ['full-frame', 'transition'];
 
 /**
- * 镜头模板的**能量档位**（`meta.energy` 的取值范围，`anim shots --use` 按它筛）。
+ * 镜头模板 → 工厂函数。键 = `shot('名字', {…})` 里的名字（B 档 `{ type: '名字' }` 分发也读它）。
  *
- * 为什么要有这个字段（BACKLOG 1-42，来源见 `docs/REFERENCE-eac-design-world.md` §5）：
- * `anim shots` 以前只有一句 `summary` ——"这个模板长什么样"。但选镜头时真正要回答的是
- * 另外两个问题：**这一拍该有多响**（能量）与**什么时候不该用它**（`avoid`）。
- * 外部项目的 124 篇配方把这两栏写成了固定格式（`use` / `energy` / `avoid`），
- * 我们照这个形状把 11 个模板补齐 —— 只加元数据，画面零变化。
- *
- * ⚠ 词表只许**加**不许改：`--use 低` 这类查询依赖它。
+ * **登记的唯一清单是 `REGISTRY`**（学 JIZURA 的"加表达只加一个 pack 文件"——
+ * `docs/REFERENCE-jizura.md` §3）：加模板 = 加一行 import + 往数组塞一行。
+ * 键取自各工厂自报的 `meta.name`；缺了当场抛错，不会静默登记成 "titleShot"。
  */
-export const SHOT_ENERGY = ['低', '中低', '中', '中高', '高'];
+const REGISTRY = [
+  titleShot, chartShot, kineticShot, whipShot, outroShot, waveShot, pulseShot, gridShot,
+  quoteShot, counterShot, compareShot, bigtypeShot, scanShot, deviceShot, lineartShot,
+  morphShot, layersShot, isometricShot, celShot, liquidShot, lockupShot, timelineShot, radialShot,
+];
 
-/**
- * 模板名 → 工厂函数。
- * 键就是 `shot('名字', {...})` 里的名字（B 档的 `{ type: '名字' }` 分发也会读这张表）。
- */
-export const SHOTS = {
-  title: titleShot,
-  chart: chartShot,
-  kinetic: kineticShot,
-  whip: whipShot,
-  outro: outroShot,
-  wave: waveShot,
-  pulse: pulseShot,
-  grid: gridShot,
-  quote: quoteShot,
-  counter: counterShot,
-  compare: compareShot,
-  bigtype: bigtypeShot,
-  scan: scanShot,
-  device: deviceShot,
-  lineart: lineartShot,
-  morph: morphShot,
-  layers: layersShot,
-  isometric: isometricShot,
-  cel: celShot,
-  liquid: liquidShot,
-  lockup: lockupShot,
-  timeline: timelineShot,
-  radial: radialShot,
+const keyOf = (factory) => {
+  const k = /** @type {any} */ (factory).meta?.name;
+  if (typeof k !== 'string' || !k) {
+    throw new Error(`镜头模板工厂 ${factory.name} 没有自报 meta.name（SHOTS 的键来自它，登记前先补上）`);
+  }
+  return k;
 };
+
+/** 模板名 → 工厂函数（顺序 = REGISTRY 顺序 = `anim shots` 列表顺序，别打乱）。 */
+export const SHOTS = Object.fromEntries(REGISTRY.map((f) => [keyOf(f), f]));
 
 /**
  * 取一个镜头模板，返回可以直接放进时间线的场景对象。
@@ -225,8 +226,14 @@ export function shot(name, opts = {}) {
  * `use` / `energy` / `avoid` 来自 `meta`（BACKLOG 1-42）：同样"有才加键"。它们是
  * `anim shots --use <词>` 的检索面 —— 选镜头时先回答"这一拍多响、什么时候别用"。
  *
+ * `tags` / `w` / `fits` / `fitsNote` 来自工厂自报的选型元数据（BACKLOG 1-62，`./pick.js`）：
+ * 同样"有才加键"。`tags` 是气质/职能（封闭词表 `SHOT_TAGS`），`w` 是抽取权重（0.4 冷门 – 1.5 主力），
+ * `fits` 是**函数本体**（`eligibleShots`/`pickShot` 读它；`JSON.stringify` 会自动略过函数，
+ * 所以 `--json` 里天然只见 `fitsNote`），`fitsNote` 是它的人话版。
+ *
  * @returns {{ name: string, summary: string, notes: string,
  *             use?: string, energy?: string, avoid?: string,
+ *             tags?: string[], w?: number, fits?: (q: any) => boolean, fitsNote?: string,
  *             params: { name: string, type: string, desc: string, default: any }[],
  *             requires?: string[], outputs?: any }[]}
  */
@@ -250,6 +257,13 @@ export function listShots() {
       ...(typeof meta.use === 'string' && meta.use.trim() ? { use: meta.use } : {}),
       ...(typeof meta.energy === 'string' && meta.energy.trim() ? { energy: meta.energy } : {}),
       ...(typeof meta.avoid === 'string' && meta.avoid.trim() ? { avoid: meta.avoid } : {}),
+      // 选型元数据（1-62）：tags/w/fits/fitsNote 有才加。⚠ fits 必须是**函数本体**
+      //   （eligibleShots 按 `typeof s.fits === 'function'` 判）—— 以前这里误放人话字符串，
+      //   筛选器静默跳过 → 角色锁全失效（outro 混进正文池）。人话版单独走 fitsNote。
+      ...(Array.isArray(/** @type {any} */ (factory).tags) ? { tags: /** @type {any} */ (factory).tags } : {}),
+      ...(typeof /** @type {any} */ (factory).w === 'number' ? { w: /** @type {any} */ (factory).w } : {}),
+      ...(typeof /** @type {any} */ (factory).fits === 'function' ? { fits: /** @type {any} */ (factory).fits } : {}),
+      ...(typeof /** @type {any} */ (factory).fitsNote === 'string' ? { fitsNote: /** @type {any} */ (factory).fitsNote } : {}),
     };
   });
 }
@@ -257,7 +271,9 @@ export function listShots() {
 /**
  * 按用途筛镜头（`anim shots --use <词>` 的实现，纯函数、可单测）。
  *
- * 匹配面：模板名 / summary / `use` / `energy` / `avoid`，大小写不敏感、子串匹配。
+ * 匹配面：模板名 / summary / `use` / `energy` / `avoid` / `tags`，大小写不敏感、子串匹配。
+ * `tags`（1-62）进匹配面后，`--use 数据` 这种中文词命不中英文 tag —— 但 tag 检索有专门一条路：
+ * `anim shots --pick --tags data`（或 `--use` 里写英文 tag 本身，它也在子串匹配面里）。
  * 为什么把 `avoid` 也放进来：搜"字幕"时，一个"**别**用它做字幕"的说明同样是有效答案
  * （查的人往往分不清"我要什么"和"我该躲什么"）。
  *
@@ -268,6 +284,7 @@ export function listShots() {
 export function filterShots(list, query) {
   const q = String(query ?? '').trim().toLowerCase();
   if (!q) return list;
-  return (list ?? []).filter((s) => [s.name, s.summary, s.use, s.energy, s.avoid]
+  return (list ?? []).filter((s) => [s.name, s.summary, s.use, s.energy, s.avoid,
+    ...(Array.isArray(s.tags) ? s.tags : [])]
     .filter(Boolean).join(' ').toLowerCase().includes(q));
 }

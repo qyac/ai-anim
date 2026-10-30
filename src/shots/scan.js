@@ -15,6 +15,8 @@
  * ```
  */
 
+
+import { contentOk } from './pick.js';
 import { Pass } from '../core/gl.js';
 import { css, ease, prog, clamp, mixColor, hash2 } from '../core/util.js';
 
@@ -196,3 +198,10 @@ scanShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+scanShot.tags = ['process', 'tech', 'graphic'];
+scanShot.w = 0.7;
+scanShot.fits = contentOk;
+scanShot.fitsNote = '示意推进，无硬条件；收尾位/转场位抽不到';

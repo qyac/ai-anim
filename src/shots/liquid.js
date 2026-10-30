@@ -12,6 +12,8 @@
  * ```
  */
 
+
+import { contentOk } from './pick.js';
 import { css, prog, sat, mixColor } from '../core/util.js';
 import { liquidPass } from '../kit/liquid.js';
 import { resolveTypeSize } from '../style/tokens.js';
@@ -112,3 +114,10 @@ liquidShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+liquidShot.tags = ['pop', 'emotional'];
+liquidShot.w = 0.6;
+liquidShot.fits = contentOk;
+liquidShot.fitsNote = '流体/涟漪，无硬条件；收尾位/转场位抽不到';

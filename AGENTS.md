@@ -152,6 +152,8 @@ tasks/我的片子/
 >
 > 有哪些模板、参数叫什么、默认值是多少：`node scripts/anim.mjs shots`（全部）、
 > `node scripts/anim.mjs shots chart`（某一个的全部参数与默认值）。**参数名写错会抛错**，不会静默忽略。
+> **"这一段用哪个模板"不想自己挑时**：`node scripts/anim.mjs shots --pick --slot content --chars 8 --seed 7`
+> —— 按条件筛+按权重抽，同 seed 同结果（契约见 `docs/ENGINE.md` §14.10）。
 > 需要新视觉时照旧写场景代码（§3）。
 >
 > **比这更省事的是「配置档」（B 档，已落地）**：连这个场景文件都不用建 —— 时间线里直接写
