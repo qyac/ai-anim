@@ -69,6 +69,10 @@ npm run dev                                     # 浏览器里实时预览（空
 > 而报错位置在 `openSession`，看不出是权限问题。另外在 PowerShell 里**别用管道接原生程序的输出**
 > （`node scripts/anim.mjs ... | Select-Object` 会被以"命名管道"为由拒绝）—— 直接跑，让输出自己打印。
 > （`docs/history/IMPROVEMENTS-1-3.md` 第一轮 §5）
+>
+> **沙箱里推仓库**：`git push` 走 MSYS 版 `ssh.exe` 会崩（`NtCreateDirectoryObject` 被拒），
+> 用 Windows 自带的 OpenSSH 即可：`git -c core.sshCommand='C:/Windows/System32/OpenSSH/ssh.exe' push qyac HEAD`。
+> 预提交钩子是 sh 脚本，同样起不来 —— 那种情况下用 `--no-verify`，但**手动跑一遍钩子里的三项自检**。
 
 ---
 
