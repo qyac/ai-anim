@@ -263,13 +263,17 @@ check('narration 的起点 == timing 的 start + offset',
 
 /* ── 3) 缓存 ── */
 console.log('\n③ 缓存：同一份旁白再跑一次');
-const before = readFileSync(path.join(TASK_DIR, 'audio', 'vo', 'alpha-1.mp3'), 'utf8');
+// ⚠ 必须**按字节**读：mp3 是二进制，用 'utf8' 读会把非法字节都替换成 U+FFFD ——
+//   于是两份**不同**的音频会被解成同一个字符串，这条断言就变成永远真（假通过）。
+//   实测：\xFF\xFB\x90\x00\x41\x80\xE0 与 \xFF\xFB\x90\x00\x41\x81\xE0 解码后完全相同。
+const before = readFileSync(path.join(TASK_DIR, 'audio', 'vo', 'alpha-1.mp3'));
 const logs2 = [];
 await runSay(TASK, { taskDir: TASK_DIR, tts: STUB, log: (...a) => logs2.push(a.join(' ')) });
-const after = readFileSync(path.join(TASK_DIR, 'audio', 'vo', 'alpha-1.mp3'), 'utf8');
+const after = readFileSync(path.join(TASK_DIR, 'audio', 'vo', 'alpha-1.mp3'));
 check('第二次跑 0 句新合成', /（0 句新合成/.test(logs2.join('\n')),
   logs2.join('\n').split('\n').find((l) => l.includes('句新合成'))?.trim() ?? '');
-check('音频文件没有被重写（字节相同）', before === after);
+check('音频文件没有被重写（字节相同）', Buffer.compare(before, after) === 0,
+  `${before.length} B → ${after.length} B${before.length === after.length ? '' : '（长度变了）'}`);
 
 /* ── 4) 词级时间戳 ── */
 console.log('\n④ 词级时间戳');
