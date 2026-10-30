@@ -33,6 +33,29 @@ assets         1       12       0     ← 共享素材 manifest
 以及 17 个老模板（bigtype、counter、kinetic、layers、lineart、lockup、morph、quote、radial、scan、
 timeline、title、wave、whip、grid、outro、pulse 全部原样）—— **渲染地基一个字没改**，这是刻意保持的。
 
+| # | 提交 | 内容 |
+|---|---|---|
+| 1 | `dc03518` | 配置档任务的按段切片签名（1-59）+ 表情包图层 + nekoclicker 介绍片 |
+| 2 | `8c3f1c9` | 卡点/事件密度两条守门 + 多语言配音链路 |
+| 3 | `cd9044d` | 预览工作台首发 + 15 套 MG 风格包 |
+| 4 | `3b69297` | 风格调色板：world Pass 缓存 key + 底色判据 |
+| 5 | `0a47f6c` | 底色语义统一（bg）+ 像素化 post 参数 |
+| 6 | `b7ae42b` | 工作台拖动快路径（skipPost）+ 更正 scrub 度量口径 |
+| 7 | `938b2a0` | `anim report`：一屏 5 项自检 |
+| 8 | `a960eb2` | 主片事件密度 43% → 13% |
+| 9 | `7b93be6` | 工作台第二阶段：参数面板 + 实时后处理覆盖 |
+| 10 | `6d9aaf1` | 新模板 `isometric`（等距 2.5D 体块） |
+| 11 | `7880a89` | 预提交钩子 + GitHub Actions 纯 JS 回归 |
+| 12 | `11e3620` | AGENTS §10 加 11.7（钩子会跑 report） |
+| 13 | `d9956f5` | 线条沸腾原语 + `cel` 模板 |
+| 14 | `0d387ba` | 流体原语（域扭曲 + 涟漪）+ `liquid` 模板 |
+| 15 | `d15a222` | 内置矢量图标 26 个 + 素材库分层策略 |
+| 16 | `37b9a9c` | 共享位图素材（manifest + 加载器 + 校验） |
+| 17 | `364f23d` | 图标接进 `compare` / `device` |
+| 18 | `685b491` | 镜头卡 23 张 + 判例式准则 `docs/RULES.md` |
+| 19 | `e146cd9` | AGENTS：沙箱里怎么推仓库 |
+| 20 | `4d57d6a` | 音效层：SoundDino 抓取工具 |
+
 ## 二、六块改动
 
 ### A. 引擎核心（`src/core/`，+356 行）
