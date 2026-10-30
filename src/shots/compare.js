@@ -15,6 +15,7 @@
 
 import { Pass } from '../core/gl.js';
 import { css, ease, prog, clamp } from '../core/util.js';
+import { drawIcon } from '../kit/icons.js';
 
 /** 全部参数 = "什么都不传时的画面"。rows 里每一项是 `{ label, a, b }`，a/b 都是 0..1。 */
 const DEFAULTS = {
@@ -30,6 +31,9 @@ const DEFAULTS = {
     { label: '首屏时间', a: 0.80, b: 0.28 },
   ],
   footer: '示意数据 —— 换成真实数值之前不要当结论',
+  // 可选的行业图标（与 rows 同序；空数组 = 不画，旧画面逐像素不变）。
+  // ⚠ 必须写在这里：shot() 的参数白名单就是 DEFAULTS —— 只写进 meta/spec 会报「没有参数 icons」。
+  icons: [],
 };
 
 /**
@@ -70,6 +74,9 @@ export function compareShot(opts = {}) {
       const n = Math.max(1, rows.length);
 
       const L = W * 0.10;
+      // 每行可选一个图标（默认空数组 = 不画，旧画面逐像素不变）。
+      // 图标画在行标签左侧，颜色跟调色板；用途：✅/❌/⚠ 这种"这一行是好是坏"的快速判读。
+      const rowIcons = Array.isArray(o.icons) ? o.icons : [];
       const labelR = W * 0.30;          // 行标签右对齐到这里
       const trackX = W * 0.33;          // 条形的起点
       const trackW = W * 0.46;
@@ -159,6 +166,18 @@ export function compareShot(opts = {}) {
         const aV = clamp(Number(row.a) || 0);
         const bV = clamp(Number(row.b) || 0);
         const delay = 0.55 + i * 0.20;
+        // 可选的行业图标（icons[i]）：画在标签左侧；没给就什么都不画
+        if (rowIcons[i]) {
+          // 固定列：图标居中在 W*0.135，和右对齐的标签（labelR）之间留够空隙。
+          // 之前把它放在 labelR 左侧 = 直接压在标签文字上，24px 时几乎看不见（实测）。
+          const iconSize = Math.min(26, rowH * 0.32);
+          const ap = clamp((t - delay) * 3);
+          const iconCx = W * 0.135;
+          drawIcon(lines, String(rowIcons[i]), iconCx - iconSize / 2,
+            yc - iconSize / 2 + 4, iconSize, [P.ash[0], P.ash[1], P.ash[2], 0.9 * ap], { lw: 1.7 });
+          // 图标是在第二次 flush 之后才加进批里的：这里立刻提交，否则这一段永远画不出来
+          lines.flush(ctx.out);
+        }
         type.writeLine(String(row.label == null ? '' : row.label), labelR, yc + 9, {
           size: 27, weight: 600, family: 'sans', color: css(P.bone),
           anchor: 'right', alpha: [0, 1], t: t - delay,
@@ -216,6 +235,7 @@ compareShot.meta = {
     { name: 'aTitle', type: 'string', desc: 'A 条（上面那条、灰色）的图例名' },
     { name: 'bTitle', type: 'string', desc: 'B 条（下面那条、信号色）的图例名' },
     { name: 'rows', type: 'object[]', desc: '每行一个 { label, a, b }：a / b 都是 0..1 的比例' },
+    { name: 'icons', type: 'string[]', desc: '可选的行业图标（与 rows 同序，名字见 anim icons）；不写就不画' },
     { name: 'footer', type: 'string', desc: '底部一行（脚注带里，最后淡入；空串则不画）' },
   ],
 };
@@ -230,7 +250,7 @@ compareShot.meta = {
 compareShot.spec = {
   params: {
     id: 'string', title: 'string', sub: 'string', aTitle: 'string', bTitle: 'string',
-    rows: 'object[]', footer: 'string',
+    rows: 'object[]', footer: 'string', icons: 'string[]',
   },
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },

@@ -210,11 +210,11 @@ node scripts/anim.mjs analyze 我的片子      # 分析拍子/小节/段落/包
   教程见 `docs/CONFIG-ONLY.md`，可以照抄的完整示例是 `tasks/example-config-only/`。
 
   ```sh
-  node scripts/anim.mjs shots                   # 有哪些模板（11 个）、参数叫什么、默认值是多少
+  node scripts/anim.mjs shots                   # 有哪些模板（20 个）、参数叫什么、默认值是多少
   node scripts/anim.mjs video <任务>             # 只写了 task.config.mjs 也能出完整 mp4
   ```
 
-- **现成模板**（A 档镜头库 `src/shots/`，也就是配置档查的那张表）：常见镜头现在是**一行**。11 个参数化模板（`title` `chart` `kinetic` `whip` `outro` `wave` `pulse` `grid` `quote` `counter` `compare`），场景文件退化成「取模板 + 给参数」：
+- **现成模板**（A 档镜头库 `src/shots/`，也就是配置档查的那张表）：常见镜头现在是**一行**。20 个参数化模板（`title` `chart` `kinetic` `whip` `outro` `wave` `pulse` `grid` `quote` `counter` `compare` `bigtype` `scan` `device` `lineart` `morph` `layers` `lockup` `timeline` `radial`），场景文件退化成「取模板 + 给参数」：
 
   ```js
   // tasks/<任务>/scenes/chart.js

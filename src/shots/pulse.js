@@ -36,7 +36,7 @@ export function pulseShot(opts = {}) {
       const t = f.lt;
       const a = f.a;
 
-      gl.clear(ctx.out, [P.ink[0] * 0.8, P.ink[1] * 0.8, P.ink[2] * 0.8]);
+      gl.clear(ctx.out, [P.bg[0] * 0.8, P.bg[1] * 0.8, P.bg[2] * 0.8]);
 
       // 同心圆：每次 kick 扩一圈（用真实的打击事件，不是手写时间）
       const cx = W * 0.5, cy = H * 0.46;

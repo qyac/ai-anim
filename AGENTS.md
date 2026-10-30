@@ -51,6 +51,8 @@
 npm install                                     # 第一次
 
 node scripts/anim.mjs tasks                     # 列出所有任务（一支片子 = 一个任务）
+node scripts/anim.mjs tasks --json               # 机器可读清单（1-58）：尺寸/帧率/风格/旁白/变体/时长 + schema 串
+                                                 # 批量跑（queue / 变体矩阵 / 外部脚本）用它，别去 grep 配置文本
 node scripts/anim.mjs shots [名字]              # 列出镜头模板（A 档镜头库）与参数
 node scripts/anim.mjs still demo -t 1,6,9.5     # 出单帧 PNG（agent 主要靠这个看效果）
 node scripts/anim.mjs shot  demo --from 0 --to 6   # 出短 mp4（快速看运动）
@@ -67,6 +69,10 @@ npm run dev                                     # 浏览器里实时预览（空
 > 而报错位置在 `openSession`，看不出是权限问题。另外在 PowerShell 里**别用管道接原生程序的输出**
 > （`node scripts/anim.mjs ... | Select-Object` 会被以"命名管道"为由拒绝）—— 直接跑，让输出自己打印。
 > （`docs/history/IMPROVEMENTS-1-3.md` 第一轮 §5）
+>
+> **沙箱里推仓库**：`git push` 走 MSYS 版 `ssh.exe` 会崩（`NtCreateDirectoryObject` 被拒），
+> 用 Windows 自带的 OpenSSH 即可：`git -c core.sshCommand='C:/Windows/System32/OpenSSH/ssh.exe' push qyac HEAD`。
+> 预提交钩子是 sh 脚本，同样起不来 —— 那种情况下用 `--no-verify`，但**手动跑一遍钩子里的三项自检**。
 
 ---
 
@@ -99,6 +105,8 @@ npm run dev                                     # 浏览器里实时预览（空
 export default {
   title: '我的片子', width: 1920, height: 1080, fps: 60, scale: 1,
   style: 'paper',                                // ← 风格包（anim styles 看全部；不写 = print）
+  // export const variants = { dark: { style: 'noir', palette: { signal: '#0ff' } } };
+  //   → node scripts/anim.mjs video <任务> --variant dark（深合并覆盖；数组整体替换；产物落 out/<任务>/dark/）
   captions: true,                                // ← 引擎字幕层（有旁白时开；见 docs/CAPTIONS.md）
   timeline: [                                    // 数组、seq([...]) 都行
     { type: 'title', title: '我的片子', sub: '副标题', dur: { beat: 8 } },
@@ -133,8 +141,8 @@ tasks/我的片子/
 
 改这两个文件就能出片。**不需要动 `src/` 里的引擎**（除非确实要加底层能力）。
 
-> **要写多少代码？** 常见镜头现在是**一行**——A 档镜头库 `src/shots/` 有 11 个参数化模板
-> （`title` `chart` `kinetic` `whip` `outro` `wave` `pulse` `grid` `quote` `counter` `compare`），场景文件退化成「取模板 + 给参数」：
+> **要写多少代码？** 常见镜头现在是**一行**——A 档镜头库 `src/shots/` 有 23 个参数化模板
+> （`title` `chart` `kinetic` `whip` `outro` `wave` `pulse` `grid` `quote` `counter` `compare` `bigtype` `scan` `device` `lineart` `morph` `layers` `isometric` `cel` `liquid` `lockup` `timeline` `radial`），场景文件退化成「取模板 + 给参数」：
 >
 > ```js
 > // tasks/<任务>/scenes/chart.js
@@ -250,7 +258,7 @@ export default {
     镜头模板 "chart" 没有参数 "value"（大概是拼错了）。可用参数：id / values / title / sub / footer / peak
   ```
 
-**什么时候必须回去写场景**：模板只有这 11 个，参数只能调它们**本来就有的画面**。要新视觉
+**什么时候必须回去写场景**：模板只有这 23 个，参数只能调它们**本来就有的画面**。要新视觉
 （raymarch 晶格、燃烧的引线、某支片子特有的母题）就回 §3 手写场景 / §3.5 的 `makeShot`；
 要自己掌控转场与背景时同理。**别为了"纯配置"把模板撑成万能 DSL。**
 
@@ -296,8 +304,10 @@ export default makeShot('chart', {
 | 想要 | 用什么 |
 |---|---|
 | 一个完整镜头的骨架 | `makeShot(id, { setup, draw, post })` |
+| **一个信息段的骨架**（标题/面板底/侧标注/出处/页脚/错峰全包，只写 `draw(ctx, rect)`；1-50） | `infoShot(id, { title, kicker, caption, source, draw })`（`src/kit/info.js`；版面纪律与 focus 声明由骨架承担） |
 | 一个 **Three.js 镜头**（真网格，第 3 种 3D） | `makeThreeShot(id, { camera, setup, update, overlay, post })`（见 §5.5 ③ 与 `docs/THREE.md`） |
 | 一个现成的整镜头（画面本身） | `shot('chart', { values: [...], title: '…' })`（A 档镜头库 `src/shots/`，也可直接写进时间线） |
+| **动图表情包**（GIF 当图层） | `stickerShot(id, { frame: (i) => url, count })`（`src/kit/sticker.js`）。⚠ **别直接播 GIF**：`render(t)` 必须是 t 的纯函数，播放器时钟一 seek 就乱 —— 先 `ffmpeg -vf "fps=12,scale=320:-1"` 抽成 PNG 序列，按 `floor(lt*fps)%n` 取帧；`comp.draw` **没有旋转**，手感靠缩放与浮动 |
 | 只要背景 + 转场 | `makeWorldKit(ctx)` → `wk.openFrame(ctx)` |
 | 按锚点写整行字 | `type.writeLine(text, x, y, { anchor })` —— 与 `type.write(…, { align })` **等价**（`align` 自 2026-10-24 起是整行对齐） |
 | 整行淡入 | `fade(f.lt, delay)` → `{ alpha: [0,1], t, staggerDur }` |
@@ -381,7 +391,7 @@ export default {
 | 工具 | 用途 | 关键点 |
 |---|---|---|
 | `lines`（LineBatch） | 矢量图形：线、折线、圆、矩形、填充矩形、刻度 | 颜色是**线性**值 `[r,g,b]` 或 **`[r,g,b,a]`**（`a` 是真半透明叠加），可以 >1 让它发光；`fillRect` 是填充；一次 `flush` 就是一次 draw call；容量 6 万条 |
-| `text` + `type` | 文字排版 | `type.write` 逐字动画；`type.writeLine` **按锚点写整行**（与 `write(…,{align})` 等价，两者都是整行）；`type.karaoke` 逐词同步；`type.wrap` 折行；画完必须 `text.upload()` 再 `comp.draw` |
+| `text` + `type` | 文字排版 | `type.write` 逐字动画；`size` 可写**语义字号** `'hero'/'h1'/'h2'/'body'/'label'/'mono'`（按风格取值、写错抛；规则见 `docs/STYLE.md` §4.1）；`type.writeLine` **按锚点写整行**（与 `write(…,{align})` 等价，两者都是整行）；`type.karaoke` 逐词同步；`type.wrap` 折行；画完必须 `text.upload()` 再 `comp.draw` |
 | `new Pass(gl, glsl)` | 全屏 shader：背景、扭曲、后处理式效果 | shader 里直接写 `void main(){ fragColor = ...; }`；`GLSL_COMMON` 已提供 `vUv`/`t`/`res`/`FRAG_PX`/调色板常量 `C_INK` `C_SIGNAL`…/噪声/SDF |
 | `comp.draw(gl, 图层, out, opts)` | 叠图层 | `mode: 'normal'\|'add'\|'screen'\|'multiply'\|'max'`；Canvas2D 图层传 `premult: false` |
 
@@ -494,6 +504,9 @@ music.hit('kick', t, 0.12)          // 衰减脉冲（做撞击位移/闪白最�
 ```sh
 node scripts/anim.mjs say <任务> [--voice zh-CN-YunxiNeural] [--rate -6%] [--dry-run]
 node scripts/anim.mjs mix <任务>          # 旁白摆位 + 给音乐做闪避 → 一条混音轨
+node scripts/anim.mjs say <任务> --table en   # 表写到 audio/en.{timing,narration}.json，默认那份不动
+                                            # → task.config 里 narration: './audio/en.narration.json'
+                                            #   就是多语言 / 剪短版 / 回放旧表的落点（1-23③）
 ```
 
 > 贴平台响度靶子要**显式**：`anim mix <任务> --target streaming`（默认只报数字、不动音轨；见 `docs/NARRATION.md` §7）。
@@ -558,7 +571,8 @@ captions: true,                    // ← 就这一行；场景里一个字都�
    `node tools/lint-narration-dup.mjs <任务>` 自查（它会把逐字重复报到 `文件:行号`）。
 2. **字幕带是保留区**：别把面板/计量条放进去。kit 的 `assertInBand()` 会在压上时警告，
    `check` 会把这类警告打出来（走 `ctx.warnings`，不是 `console.warn` —— 它每帧都会发生）。
-3. **别做逐词高亮**（`karaoke: true` 要显式开）：12 分钟 / 96 人的对照实验里，字幕本身
+3. **断行交给引擎**（`src/core/cjk.js`）：行首禁则 / 不拆词 / 两行平衡 / 超长句不丢字 —— 别在旁白文本里手打换行（见 `docs/CAPTIONS.md` §3.5）。
+4. **别做逐词高亮**（`karaoke: true` 要显式开）：12 分钟 / 96 人的对照实验里，字幕本身
    对记忆与理解没有负面影响，**关键词突显是负效应**（受试者把它当成筛选信息的替代品）。
 
 平台字幕（上传用）另有一条命令：`node scripts/anim.mjs subs <任务>` → `out/<任务>/*.srt|.ass`
@@ -571,6 +585,17 @@ captions: true,                    // ← 就这一行；场景里一个字都�
 ```sh
 # 单帧（看图用）
 node scripts/anim.mjs still <任务> -t 1.5,2,3.25            # 逗号分隔多个时刻
+
+# 封面（B 站）：取 t 时刻那帧 + 压字（底部渐变压暗 → 主标题 → 信号色短线 → 副标）
+# ⚠ 字用的是**引擎那套字体**（Noto Sans SC / Archivo / Plex Mono），不是 ffmpeg drawtext 另找一份
+node scripts/anim.mjs cover <任务> -t 12 --title "把信号拆开" --sub "SPECTRUM · 72s"
+node scripts/anim.mjs cover <任务> -t 12 --title "…" --scale 2      # 4K 封面
+
+# 章节时间码（B 站/YouTube 的 `mm:ss 名字`）：从时间线的段名与起点生成
+# 三条规则：首段必是 00:00（否则平台不认整组章节）/ 短于 --min（默认 4s）的段不单独成章、
+# 时长并进上一章 / 起点取段自己的 start（转场重叠时也对）
+node scripts/anim.mjs chapters <任务>                    # 打印 + 写 out/<任务>/chapters.txt
+node scripts/anim.mjs chapters <任务> --min 6 --json     # 机器可读（--json 不进文件）
 
 # 切点两侧 ±1.5s（三点采样不落在切点上；画方框那格 = 切点）
 node scripts/anim.mjs cuts <任务> [--window 1.5] [--n 7]
@@ -586,6 +611,8 @@ node scripts/anim.mjs video <任务>                          # 1080p60，自动
 
 # 长片子分块渲染（`--segments` 后面是**目标块时长（秒）**；已渲好的块会跳过，改一个镜头不用整片重来）
 # 切点只落在段边界、且避开转场交叠 —— 每块都是完整的镜头
+# 2026-10-26 起是**块级**判断（BACKLOG 1-45）：只改 tasks/ 下的场景 ⇒ 只重渲它所在的那一块；
+# 改了 src/（引擎）或渲染参数 ⇒ 整批重渲。判据与实测见 docs/BACKLOG.md 1-45。
 # ⚠ 长时间单进程推流**会中途卡死**（实测 spectrum 跑到 1260/4550 帧后 12 分钟无进度、
 #   推流积压涨到 382MB，进程还活着但不推进）。**超过 30 秒的片子默认就加 --segments** ——
 #   分块每块重启浏览器，天然规避；每块还会 ffprobe 逐块复核。
@@ -661,6 +688,16 @@ ffmpeg 用 `-pix_fmt nv12` 直接吃 —— 瓶颈与验收数字见 `docs/PERF.
 scale 接受 1..4；场景写法不用改，只要 shader 里别拿物理像素当逻辑像素用。
 （历史上 `--scale 2` 曾被 CLI 拒绝，因为 `LineBatch` 顶点着色器用物理分辨率换算裁剪空间导致矢量在 4K 下消失 —— 已修，见 `docs/history/STATUS-rounds-1-6.md` §6.3。）
 
+**竖屏（1080×1920）也可以直接出**：任务里写 `width: 1080, height: 1920` 即可 —— 引擎在 `load()` 里自动换栅格（`GRID_PORTRAIT`，按**短边=宽**缩放）并把字号阶梯 ×1.35，
+场景不用改一行。字幕自动抬到 61%–70% 高度（避开 B 站底部 UI）。写竖屏场景前读
+`docs/LAYOUT.md` §6.5（实测标定：判据**不需要放宽**，但正文不许越过 `contentBottom`、
+标注要合并成一行）；回归 `node tools/test-portrait.mjs`。
+
+**编码器不可用会自动兜底**：默认 `libx264`，出片前会探一次"这台 ffmpeg 到底有没有它" ——
+Windows 上最常见的 **LGPL 构建没有 libx264**（`--disable-libx264`），硬写默认值的结果是 ffmpeg
+打一行 `Unrecognized option 'x264-params'` 就退出。现在自动退到 `h264_mf` / `libopenh264` 并打一行警告；
+要原配方（crf16 + tune grain）就装 GPL 构建，或用 `--vcodec` / `ANIM_VCODEC` 指定。
+
 ---
 
 ## 8. 遇到问题时
@@ -709,7 +746,7 @@ node scripts/anim.mjs check <任务>
 | 要改什么 | 去哪 |
 |---|---|
 | 渲染一帧 / 合成 / 后处理 / 自适应运动模糊 | `src/core/`（先读 `docs/ENGINE.md`） |
-| 镜头模板（A 档，11 个） | `src/shots/`；参数：`node scripts/anim.mjs shots [名字]` |
+| 镜头模板（A 档，23 个） | `src/shots/`；参数：`node scripts/anim.mjs shots [名字]` |
 | 写镜头的骨架与元件 | `src/kit/`（`index.js` 是统一出口：`makeShot` `makeWorldKit` `panel` …） |
 | 时间线 DSL、任务加载、配置档节点判定 | `src/timeline.js`、`src/tasks.js` |
 | 风格包 | `src/style/`（见 `docs/STYLE.md`） |
@@ -724,12 +761,17 @@ node scripts/anim.mjs check <任务>
 |---|---|
 | `docs/ENGINE.md` | 引擎规格（`src/` 的地基；**改引擎之前读**） |
 | `docs/COOKBOOK.md` | 常见效果怎么做 —— 按「画面要什么」找做法 |
+| `docs/MOTIFS.md` | **母题库**`src/kit/motifs/`：拆方波 / 8×8 DCT / 波形+游标 —— 同一件事只写一次 |
+| `docs/shots/` | **镜头卡索引**（按叙事功能分组，23 张；生成物：`anim shot-cards`）—— 选镜头先查这里 |
 | `docs/CONFIG-ONLY.md` | 零代码出片（B 档，§3.2 的完整版） |
 | `docs/STYLE.md` | 风格包与反审美疲劳（相邻两片换脸是**建议**：风格由内容决定） |
 | `docs/CAPTIONS.md` | 字幕层与信息分工（画面只放标注） |
+| `docs/RULES.md` | **判例式准则**（R/Q/S/C/P，每条 = 规则 + 用户原话 + 自检）—— 机器判不了的看这里 |
 | `docs/LAYOUT.md` | 版面纪律与「版面守门」（一屏一个主体） |
 | `docs/MOTION.md` | 运动规则表（什么时候用哪个、数值上限、证据分级） |
 | `docs/NARRATION.md` | 旁白 / 口播这一层（A/B/C 三档） |
+| `docs/CHANGES-vs-upstream.md` | **相对上游 237e985 的全部改动**（20 提交 / 311 文件，按引擎·工作台·模板·风格·判据·流程分块） |
+| `docs/SFX.md` | 音效层：从 SoundDino 取（授权/配额/记账）、`anim` 侧的接入缺口 |
 | `docs/THREE.md` | 第 3 种 3D：Three.js 镜头 |
 | `docs/DIAGNOSIS.md` | 输出词 → 含义 → 修法（**看到不认识的诊断词就查**） |
 | `docs/PERF.md` | 渲染性能实测与验收口径 |
@@ -781,6 +823,17 @@ node scripts/anim.mjs check <任务>
     而**算出来的数**（模板串插值 / 字符串拼接 / `String()` / `.padStart()` / `.toFixed()` / `values` 里的变量）
     单列一段 `算出来的值：N 处 —— 这些位置静态查不到等于几，这一项**没验**`（**0 处也打一行**）。
     它**不进退出码** ⇒ "零命中"不等于这些位置验过了 —— 要么在 FACTS.md 里**登记口径**，要么写成占位符。
+11.5 **切点对得上拍子**（有音乐时）：`check` 的「卡点」那行要是 `✓ N/N 个切点都在 ±30ms 内`；
+    `--strict` 下要求 **≥90%** 对齐。对不上就改段长（`dur: { beat: n }`）或把 `narration.mjs` 的 `BPM` 设成实测值；
+    单独体检：`node tools/lint-beat-align.mjs <任务>`（它从音频**自己重建**网格，不信 `analysis.json` 的 bpm 估计）。
+11.6 **每一秒都有东西看**（有音乐时也要）：`check` 的「事件密度」那行读的是**成片**的帧间差 ——
+    `最长静止 ≤ 3.5s`、`稀薄窗口 ≤ 25%`（低于均值一半的 2 秒窗口）。超了就给它补持续运动（推近/扫线/逐条落位），
+    别指望 2px 游标或 0.09 alpha 的水印——检测器和人眼都看不见。单独体检：`node tools/lint-event-density.mjs <任务>`。
+11.7 **提交前钩子会自动跑一次自检**（只读已有成片，不渲染）：`node tools/install-git-hooks.mjs` 装一次，
+    之后 `git commit` 会对**你改到的任务**跑 `anim report`；判据红就拦住提交。
+    只是被引擎改动顺带扫到的片子只提醒、不拦（重渲与否是人决定的）。绕过：`git commit --no-verify`。
+11.8 **机器判据过了之后，还要人过一遍 docs/RULES.md**（R/Q/S/C/P 十二条判例准则：节奏、构图、声音、文案、流程）。
+    输出格式：R1 ✓ / Q2 ✗(第 3 段)；有意违反要在 tasks/<任务>/FACTS.md 里写明违反了哪条、为什么。
 12. **自检最多 3 轮，3 轮不过就交人**（第 4 轮开始就是在猜）；发布前派一个只挑毛病不夸的审查者，
     交回**按时间码排序的问题清单 + 证据**（哪一秒、哪张图、什么问题）。两条的原文与理由见
     [`docs/REFERENCE-video-use.md`](docs/REFERENCE-video-use.md) §3.3；切点优先看 `anim cuts`。

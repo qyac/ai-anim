@@ -69,9 +69,25 @@ import { gridShot } from './grid.js';
 import { quoteShot } from './quote.js';
 import { counterShot } from './counter.js';
 import { compareShot } from './compare.js';
+// BACKLOG 1-48 第一批（11 → 15）：一屏一句 / 扫描格阵 / 界面窗口 / 一笔线稿
+import { bigtypeShot } from './bigtype.js';
+import { scanShot } from './scan.js';
+import { deviceShot } from './device.js';
+import { lineartShot } from './lineart.js';
+// BACKLOG 1-48 第二批（15 → 18）：图表形变 / 分层纸片 / 署名定版
+import { morphShot } from './morph.js';
+import { layersShot } from './layers.js';
+import { isometricShot } from './isometric.js';
+import { celShot } from './cel.js';
+import { liquidShot } from './liquid.js';
+import { lockupShot } from './lockup.js';
+// 1-48 收尾批（18 → 20）：横向事件轴 / 径向分布
+import { timelineShot } from './timeline.js';
+import { radialShot } from './radial.js';
 
 export { titleShot, chartShot, kineticShot, whipShot, outroShot, waveShot, pulseShot, gridShot,
-  quoteShot, counterShot, compareShot };
+  quoteShot, counterShot, compareShot, bigtypeShot, scanShot, deviceShot, lineartShot,
+  morphShot, layersShot, isometricShot, celShot, liquidShot, lockupShot, timelineShot, radialShot };
 
 /**
  * `spec.requires` 认得的**依赖令牌**（词表 = 契约的一部分）。
@@ -122,6 +138,18 @@ export const SHOTS = {
   quote: quoteShot,
   counter: counterShot,
   compare: compareShot,
+  bigtype: bigtypeShot,
+  scan: scanShot,
+  device: deviceShot,
+  lineart: lineartShot,
+  morph: morphShot,
+  layers: layersShot,
+  isometric: isometricShot,
+  cel: celShot,
+  liquid: liquidShot,
+  lockup: lockupShot,
+  timeline: timelineShot,
+  radial: radialShot,
 };
 
 /**
@@ -144,6 +172,9 @@ export function shot(name, opts = {}) {
       + '（看参数：node scripts/anim.mjs shots <名字>）',
     );
   }
+  // ⚠ 参数白名单就是 factory.defaults（不是 spec.params、也不是 meta.params）。
+  //   加一个可选参数要三处都写：DEFAULTS（校验用）、meta.params（--help）、spec.params（契约）。
+  //   只写后两处的话 check / still 会报「没有参数 xxx」，而 node --check 不会 —— 实测踩过。
   const valid = factory.defaults ?? {};
   if (opts && typeof opts === 'object') {
     for (const k of Object.keys(opts)) {

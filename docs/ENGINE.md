@@ -507,7 +507,7 @@ render(ctx) {
 
 | 想要 | 用什么 |
 |---|---|
-| 交叠期把上一帧**甩走**（不是原地淡出） | `transitionPass(gl, { push = 0.36, blur = 0.085, fadeAt = 0.55 })` —— **文字量大的画面必须用它**，交叉溶解会把两屏字叠糊 |
+| 交叠期把上一帧**甩走**（不是原地淡出） | `transitionPass(gl, { push = 0.36, blur = 0.085, fadeAt = 0.55, victimRatio })` —— **文字量大的画面必须用它**，交叉溶解会把两屏字叠糊 |
 | 每帧第一句就"铺背景 + 甩走上一帧" | `makeTransitionKit(ctx)` → `const k = tk.openFrame(ctx)`（返回入场进度） |
 | 全片一台摄影机 | `cameraPost(f.t, { …这一段的 post })`（= `cameraAt(f.t)` + 你的参数；**用 `f.t` 不是 `f.lt`**） |
 | 新内容从**反方向**落位 | `enterOffset(f.t, k, 220)` → `[dx, dy]` 直接加到坐标上 |
@@ -1627,10 +1627,10 @@ export default shot('chart', {
   唯一来源，所以"文档里写的默认值"与"代码实际用的默认值"不可能对不上。
 - **参数名写错会抛错**，不静默忽略：`shot('chart', { value: [...] })`（少个 `s`）会点名
   「没有参数 "value"」并列出可用参数；未知模板名抛 `未知的镜头模板 "xxx"`。
-- 查询方式：`node scripts/anim.mjs shots`（列全部 11 个）、`node scripts/anim.mjs shots chart`（某个模板的全部参数与默认值）；
+- 查询方式：`node scripts/anim.mjs shots`（列全部 23 个）、`node scripts/anim.mjs shots chart`（某个模板的全部参数与默认值）；
   **机器可读**的那一份是 `node scripts/anim.mjs shots --json`（字段契约见 §14.9）。
 
-### 14.2 11 个模板
+### 14.2 23 个模板
 
 | 名字 | 画什么 | 参数（默认值） |
 |---|---|---|
@@ -1645,6 +1645,18 @@ export default shot('chart', {
 | `quote` | 引言：眉标逐字打出 + 一条生长的竖线 + 大段引文逐行上浮 + 出处署名（`align: 'center'` 是居中版） | `id` `label` `text`（两行示例引文）`cite` `role` `align`（`'left'`） |
 | `counter` | 计数：环形刻度盘 + 从正上方扫过的进度弧 + 从 `from` 滚到 `to` 的大数字（等宽、千分位、固定小数位） | `id` `from`（`0`）`to`（`96`）`decimals`（`0`）`unit` `label` `sub` `footer` |
 | `compare` | 对比：一行一个指标，上下两条水平条（A 灰 / B 信号色）+ 右侧一组 `A → B` 读数 | `id` `title` `sub` `aTitle` `bTitle` `rows`（4 项 `{ label, a, b }`）`footer` |
+| `bigtype` | 一屏一句：hero 级大字逐行上浮 + 一处关键词换信号色（**切段画**，不是叠色重画）+ 左侧引导线与下划线（1-48） | `id` `kicker` `line1` `line2` `mark` `footer` |
+| `scan` | 扫描格阵：扫描线从左走到右，走过的格子按 `hash2` 的确定性读数填块、当前列偏信号色；**不读音乐**（与 `grid` 的分工） | `id` `kicker` `label` `cols`（`26`）`rows`（`12`）`footer` |
+| `device` | 界面窗口：四条边依次展开 + 标题栏（三个圆点 + 一行等宽小字）+ 一句标题 + 逐行填出来的内容骨架 + 闪烁光标 | `id` `kicker` `chrome` `title` `rows`（4 个宽度比例）`footer` |
+| `lineart` | 一笔线稿：折线按**弧长**自己画出来（幽灵线先铺全貌）+ 走过的节点留圆点/刻度 + 笔尖带当前节点的名字 | `id` `kicker` `points`（归一化 0..1 的 x,y 对）`labels`（`|` 分隔）`footer` |
+| `morph` | 图表形变：同一组数先当柱子立起来 → 缩回基线只剩顶端刻度 → 刻度连成折线 → 折线下铺排线面积 | `id` `values`（9 个数）`title` `sub` `footer` |
+| `layers` | 分层纸片：带透视的梯形纸页从后往前往上落位（实心 + 横线 + 左侧信号色标记），最前面那张写标题 | `id` `kicker` `sheets`（`4`）`title` `footer` |
+| `isometric` | 等距 2.5D 体块：地面网格上一格格方块长起来（2:1 等距投影），按 `gx+gy+gz` 从远到近画、每个盒子只画朝镜头的三个面（画家算法，`src/shots/isometric.js`） | `id` `kicker` `title` `sub` `cols`（`7`）`rows`（`5`）`cell`（`78`）`height`（`150`）`footer` |
+| `cel` | 逐帧手绘 · 线条沸腾：暖纸底上重描线条，抖动来自 `hash(帧组, 线号)`（每 2 帧换一次 = 12fps 手感），圆不圆、线不直；`src/kit/boil.js` | `id` `kicker` `title` `sub` `amp`（`1.8`，抖动像素）`footer` |
+| `liquid` | 液体动态：`src/kit/liquid.js` 的域扭曲 fbm 流体底 + 一圈圈 `ripple(t - birth)` 的液滴涟漪（不是粒子系统） | `id` `kicker` `title` `sub` `drops`（`3`）`footer` |
+| `lockup` | 署名定版：环/菱形/方块标记画出来 + 字标 + 副标 + 从中间展开的分隔线 + 署名行，停住不压黑 | `id` `mark`（`'ring'`）`kicker` `name` `tagline` `meta` `footer` |
+| `timeline` | 横向事件轴：轴从左画到右，笔尖路过的事件节点依次弹出（外圈+信号色中心点+短刻度），事件名上下交替淡入 | `id` `kicker` `title` `events`（4 个名字）`footer` |
+| `radial` | 径向分布：中心呼吸核 + 一圈轮辐（节点/名字/沿辐条的读数条）+ 外圈慢转的缺口环 | `id` `kicker` `title` `nodes`（5 个）`weights`（读数条 0..1）`footer` |
 
 `values` / `headline` 这类数组参数的**元素个数决定画面**（柱子数、两行大字），不是随便塞几个都行。
 
@@ -1667,7 +1679,7 @@ export default shot('chart', {
 
 ### 14.4 每个模板都自己铺满整帧（`whip` 是转场）
 
-- **11 个模板都自己画整帧背景**（`gl.clear(ctx.out, …)` 或自带的全屏 `Pass`），所以一个模板镜头就是**一段完整的画面**，
+- **23 个模板都自己画整帧背景**（`gl.clear(ctx.out, …)` 或自带的全屏 `Pass`），所以一个模板镜头就是**一段完整的画面**，
   不要在同一个 `cut` 里把两个模板叠起来。
 - `whip` 用 `ctx.under`（上一段的成帧）做甩镜，所以**必须**在时间线上给它交叠与转场声明：
 
@@ -1689,7 +1701,7 @@ export default shot('chart', {
 | 交付什么 | **画面本身**（柱子、字、背景、post 全在里面） | **骨架**：`handlesTransition`、共享背景、交叠期把上一帧甩走、`cameraPost(f.t, …)` |
 | 你写什么 | `shot('chart', { 参数 })` | `draw(ctx, { k, dx, dy, enter })` 里的前景代码 |
 | 背景 | 模板自己铺 | `makeShot` 铺（或 `cut(shot, { world: 'auto' })` 让引擎铺） |
-| 什么时候用 | 11 个常见镜头之一 | 要有新视觉，但又不想自己记那四件容易漏的事 |
+| 什么时候用 | 23 个常见镜头之一 | 要有新视觉，但又不想自己记那四件容易漏的事 |
 
 **不要指望把模板塞进 `makeShot().draw()`**：模板的 `render` 会自己 `gl.clear(ctx.out, …)` / 画全屏 Pass，
 覆盖掉 `makeShot` 铺的背景。要用模板就用模板，要自己画就用 `makeShot`，一段里二选一。
@@ -1755,7 +1767,7 @@ export default {
 （都来自 `listShots()`，§14.1）以固定字段名打出来：
 
 ```sh
-node scripts/anim.mjs shots --json          # 11 个模板
+node scripts/anim.mjs shots --json          # 23 个模板
 node scripts/anim.mjs shots chart --json    # 只给一个模板（同样是这个形状，count = 1）
 ```
 
@@ -1806,10 +1818,10 @@ node scripts/anim.mjs shots chart --json    # 只给一个模板（同样是这�
 
 三条**读法**（与字段名一样是契约的一部分）：
 
-1. **`required: true` ⟺ 缺默认值**，不代表"画面离不开它"。当前 11 个模板的每一个参数都有默认值 ⇒
+1. **`required: true` ⟺ 缺默认值**，不代表"画面离不开它"。当前 23 个模板的每一个参数都有默认值 ⇒
    全是 `false`：省掉任何参数都不会报错，画面就是模板自带的那一段。
 2. **缺字段 ≠ `false` / 空**：`requires` 与 `outputs` 是 **1-21 补上的声明式 spec**
-   （`src/shots/*.js` 的 `xxxShot.spec`）—— 现在 11 个模板都有了。**没有 spec 的模板，这两个键
+   （`src/shots/*.js` 的 `xxxShot.spec`）—— 现在 23 个模板都有了。**没有 spec 的模板，这两个键
    根本不出现**，读到"没有这个键"要理解成**"还没声明过"**，不能当成"不需要"。
    1-21 只加字段、没改任何已有字段名 ⇒ `schema` 仍是 `anim.shots/1`，老的读者不会坏。
    （`required` 已经按同一条规矩设计：模板哪天去掉某个参数的默认值，它自动变成 `true`，
@@ -1875,7 +1887,7 @@ seq([ cut(a, { dur: 4 }), cut(b, { dur: 3, overlap: 0.5 }), par(1.0, [cut(c, {du
 
 // 镜头库（A 档，§14）：一行一个整镜头；参数写错会抛错
 import { shot, SHOTS, listShots } from '../../src/shots/index.js';
-export default shot('chart', { values: [0.3, 0.7, 0.95], title: '成绩' });   // 11 个：title chart kinetic whip outro wave pulse grid quote counter compare
+export default shot('chart', { values: [0.3, 0.7, 0.95], title: '成绩' });   // 23 个：title chart kinetic whip outro wave pulse grid quote counter compare bigtype scan device lineart morph layers isometric cel liquid lockup timeline radial
 export default shot('wave', { id: 'intro' });                               // id 覆盖段名（wave/pulse/grid 需要音乐）
 
 // 配置档（B 档，§9.7 / §14.8）：时间线里直接写模板；任务可以没有 scenes/、整个文件没有任何 import

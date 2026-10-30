@@ -1,0 +1,449 @@
+{
+  "source": "./audio/nuomi11-vo.mp3",
+  "lines": [
+    {
+      "id": "s1-1",
+      "text": "一声喵，几种意思",
+      "start": 0.25,
+      "dur": 2.718,
+      "words": [
+        {
+          "w": "一",
+          "start": 0.25,
+          "end": 0.615,
+          "approx": true
+        },
+        {
+          "w": "声",
+          "start": 0.615,
+          "end": 0.98,
+          "approx": true
+        },
+        {
+          "w": "喵",
+          "start": 0.98,
+          "end": 1.344,
+          "approx": true
+        },
+        {
+          "w": "，",
+          "start": 1.344,
+          "end": 1.509,
+          "approx": true
+        },
+        {
+          "w": "几",
+          "start": 1.509,
+          "end": 1.874,
+          "approx": true
+        },
+        {
+          "w": "种",
+          "start": 1.874,
+          "end": 2.238,
+          "approx": true
+        },
+        {
+          "w": "意",
+          "start": 2.238,
+          "end": 2.603,
+          "approx": true
+        },
+        {
+          "w": "思",
+          "start": 2.603,
+          "end": 2.968,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s2-1",
+      "text": "喵的三层意思",
+      "start": 3.545,
+      "dur": 1.732,
+      "words": [
+        {
+          "w": "喵",
+          "start": 3.545,
+          "end": 3.834,
+          "approx": true
+        },
+        {
+          "w": "的",
+          "start": 3.834,
+          "end": 4.122,
+          "approx": true
+        },
+        {
+          "w": "三",
+          "start": 4.122,
+          "end": 4.411,
+          "approx": true
+        },
+        {
+          "w": "层",
+          "start": 4.411,
+          "end": 4.7,
+          "approx": true
+        },
+        {
+          "w": "意",
+          "start": 4.7,
+          "end": 4.988,
+          "approx": true
+        },
+        {
+          "w": "思",
+          "start": 4.988,
+          "end": 5.277,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s3-1",
+      "text": "字面一层、情绪一层、真正想要的，在最",
+      "start": 6.383,
+      "dur": 6.155,
+      "words": [
+        {
+          "w": "字",
+          "start": 6.383,
+          "end": 6.759,
+          "approx": true
+        },
+        {
+          "w": "面",
+          "start": 6.759,
+          "end": 7.136,
+          "approx": true
+        },
+        {
+          "w": "一",
+          "start": 7.136,
+          "end": 7.512,
+          "approx": true
+        },
+        {
+          "w": "层",
+          "start": 7.512,
+          "end": 7.889,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 7.889,
+          "end": 8.058,
+          "approx": true
+        },
+        {
+          "w": "情",
+          "start": 8.058,
+          "end": 8.435,
+          "approx": true
+        },
+        {
+          "w": "绪",
+          "start": 8.435,
+          "end": 8.811,
+          "approx": true
+        },
+        {
+          "w": "一",
+          "start": 8.811,
+          "end": 9.188,
+          "approx": true
+        },
+        {
+          "w": "层",
+          "start": 9.188,
+          "end": 9.564,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 9.564,
+          "end": 9.733,
+          "approx": true
+        },
+        {
+          "w": "真",
+          "start": 9.733,
+          "end": 10.11,
+          "approx": true
+        },
+        {
+          "w": "正",
+          "start": 10.11,
+          "end": 10.486,
+          "approx": true
+        },
+        {
+          "w": "想",
+          "start": 10.486,
+          "end": 10.863,
+          "approx": true
+        },
+        {
+          "w": "要",
+          "start": 10.863,
+          "end": 11.239,
+          "approx": true
+        },
+        {
+          "w": "的",
+          "start": 11.239,
+          "end": 11.616,
+          "approx": true
+        },
+        {
+          "w": "，",
+          "start": 11.616,
+          "end": 11.785,
+          "approx": true
+        },
+        {
+          "w": "在",
+          "start": 11.785,
+          "end": 12.162,
+          "approx": true
+        },
+        {
+          "w": "最",
+          "start": 12.162,
+          "end": 12.538,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s4-1",
+      "text": "一天里叫你的五次",
+      "start": 13.305,
+      "dur": 1.927,
+      "words": [
+        {
+          "w": "一",
+          "start": 13.305,
+          "end": 13.546,
+          "approx": true
+        },
+        {
+          "w": "天",
+          "start": 13.546,
+          "end": 13.787,
+          "approx": true
+        },
+        {
+          "w": "里",
+          "start": 13.787,
+          "end": 14.028,
+          "approx": true
+        },
+        {
+          "w": "叫",
+          "start": 14.028,
+          "end": 14.269,
+          "approx": true
+        },
+        {
+          "w": "你",
+          "start": 14.269,
+          "end": 14.509,
+          "approx": true
+        },
+        {
+          "w": "的",
+          "start": 14.509,
+          "end": 14.75,
+          "approx": true
+        },
+        {
+          "w": "五",
+          "start": 14.75,
+          "end": 14.991,
+          "approx": true
+        },
+        {
+          "w": "次",
+          "start": 14.991,
+          "end": 15.232,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s5-1",
+      "text": "每次都一样，每次都不太一样",
+      "start": 16.141,
+      "dur": 3.097,
+      "words": [
+        {
+          "w": "每",
+          "start": 16.141,
+          "end": 16.39,
+          "approx": true
+        },
+        {
+          "w": "次",
+          "start": 16.39,
+          "end": 16.639,
+          "approx": true
+        },
+        {
+          "w": "都",
+          "start": 16.639,
+          "end": 16.887,
+          "approx": true
+        },
+        {
+          "w": "一",
+          "start": 16.887,
+          "end": 17.136,
+          "approx": true
+        },
+        {
+          "w": "样",
+          "start": 17.136,
+          "end": 17.385,
+          "approx": true
+        },
+        {
+          "w": "，",
+          "start": 17.385,
+          "end": 17.497,
+          "approx": true
+        },
+        {
+          "w": "每",
+          "start": 17.497,
+          "end": 17.745,
+          "approx": true
+        },
+        {
+          "w": "次",
+          "start": 17.745,
+          "end": 17.994,
+          "approx": true
+        },
+        {
+          "w": "都",
+          "start": 17.994,
+          "end": 18.243,
+          "approx": true
+        },
+        {
+          "w": "不",
+          "start": 18.243,
+          "end": 18.492,
+          "approx": true
+        },
+        {
+          "w": "太",
+          "start": 18.492,
+          "end": 18.74,
+          "approx": true
+        },
+        {
+          "w": "一",
+          "start": 18.74,
+          "end": 18.989,
+          "approx": true
+        },
+        {
+          "w": "样",
+          "start": 18.989,
+          "end": 19.238,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s6-1",
+      "text": "同一个「喵」，翻出几种意思",
+      "start": 20.044,
+      "dur": 2.761,
+      "words": [
+        {
+          "w": "同",
+          "start": 20.044,
+          "end": 20.287,
+          "approx": true
+        },
+        {
+          "w": "一",
+          "start": 20.287,
+          "end": 20.531,
+          "approx": true
+        },
+        {
+          "w": "个",
+          "start": 20.531,
+          "end": 20.774,
+          "approx": true
+        },
+        {
+          "w": "「",
+          "start": 20.774,
+          "end": 20.883,
+          "approx": true
+        },
+        {
+          "w": "喵",
+          "start": 20.883,
+          "end": 21.127,
+          "approx": true
+        },
+        {
+          "w": "」",
+          "start": 21.127,
+          "end": 21.236,
+          "approx": true
+        },
+        {
+          "w": "，",
+          "start": 21.236,
+          "end": 21.345,
+          "approx": true
+        },
+        {
+          "w": "翻",
+          "start": 21.345,
+          "end": 21.589,
+          "approx": true
+        },
+        {
+          "w": "出",
+          "start": 21.589,
+          "end": 21.832,
+          "approx": true
+        },
+        {
+          "w": "几",
+          "start": 21.832,
+          "end": 22.075,
+          "approx": true
+        },
+        {
+          "w": "种",
+          "start": 22.075,
+          "end": 22.318,
+          "approx": true
+        },
+        {
+          "w": "意",
+          "start": 22.318,
+          "end": 22.562,
+          "approx": true
+        },
+        {
+          "w": "思",
+          "start": 22.562,
+          "end": 22.805,
+          "approx": true
+        }
+      ]
+    }
+  ]
+}

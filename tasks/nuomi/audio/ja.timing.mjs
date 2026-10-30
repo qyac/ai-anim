@@ -1,0 +1,498 @@
+// 由 `node scripts/anim.mjs say <任务>` 生成，不要手改；改旁白请改 narration.mjs 再重跑。
+export default {
+  "voice": "cotton-ja",
+  "rate": "+10%",
+  "bpm": 92.34,
+  "beat": 0.649772579597141,
+  "overlap": 0,
+  "tail": 0.3,
+  "maxStretch": 1.3,
+  "total": 23.392,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "s1",
+      "start": 0,
+      "slot": 4.548,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "うちの子、小糯米です。",
+          "file": "audio/vo/ja/s1-1.mp3",
+          "dur": 2.523,
+          "offset": 0.2,
+          "start": 0.2,
+          "words": [
+            {
+              "w": "う",
+              "start": 0.2,
+              "end": 0.455,
+              "approx": true
+            },
+            {
+              "w": "ち",
+              "start": 0.455,
+              "end": 0.71,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 0.71,
+              "end": 0.965,
+              "approx": true
+            },
+            {
+              "w": "子",
+              "start": 0.965,
+              "end": 1.219,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 1.219,
+              "end": 1.334,
+              "approx": true
+            },
+            {
+              "w": "小",
+              "start": 1.334,
+              "end": 1.589,
+              "approx": true
+            },
+            {
+              "w": "糯",
+              "start": 1.589,
+              "end": 1.844,
+              "approx": true
+            },
+            {
+              "w": "米",
+              "start": 1.844,
+              "end": 2.099,
+              "approx": true
+            },
+            {
+              "w": "で",
+              "start": 2.099,
+              "end": 2.353,
+              "approx": true
+            },
+            {
+              "w": "す",
+              "start": 2.353,
+              "end": 2.608,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 2.608,
+              "end": 2.723,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "start": 4.548,
+      "slot": 4.548,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "べつに、さみしいわけじゃない。",
+          "file": "audio/vo/ja/s2-1.mp3",
+          "dur": 2.378,
+          "offset": 0.2,
+          "start": 4.748,
+          "words": [
+            {
+              "w": "べ",
+              "start": 4.748,
+              "end": 4.919,
+              "approx": true
+            },
+            {
+              "w": "つ",
+              "start": 4.919,
+              "end": 5.09,
+              "approx": true
+            },
+            {
+              "w": "に",
+              "start": 5.09,
+              "end": 5.261,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 5.261,
+              "end": 5.338,
+              "approx": true
+            },
+            {
+              "w": "さ",
+              "start": 5.338,
+              "end": 5.509,
+              "approx": true
+            },
+            {
+              "w": "み",
+              "start": 5.509,
+              "end": 5.68,
+              "approx": true
+            },
+            {
+              "w": "し",
+              "start": 5.68,
+              "end": 5.851,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 5.851,
+              "end": 6.023,
+              "approx": true
+            },
+            {
+              "w": "わ",
+              "start": 6.023,
+              "end": 6.194,
+              "approx": true
+            },
+            {
+              "w": "け",
+              "start": 6.194,
+              "end": 6.365,
+              "approx": true
+            },
+            {
+              "w": "じ",
+              "start": 6.365,
+              "end": 6.536,
+              "approx": true
+            },
+            {
+              "w": "ゃ",
+              "start": 6.536,
+              "end": 6.707,
+              "approx": true
+            },
+            {
+              "w": "な",
+              "start": 6.707,
+              "end": 6.878,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 6.878,
+              "end": 7.049,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 7.049,
+              "end": 7.126,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "start": 9.097,
+      "slot": 5.198,
+      "stretch": 1.3,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "心の中の番号は、1029。",
+          "file": "audio/vo/ja/s3-1.mp3",
+          "dur": 4.196,
+          "offset": 0.26,
+          "start": 9.357,
+          "words": [
+            {
+              "w": "心",
+              "start": 9.357,
+              "end": 9.71,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 9.71,
+              "end": 10.062,
+              "approx": true
+            },
+            {
+              "w": "中",
+              "start": 10.062,
+              "end": 10.415,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 10.415,
+              "end": 10.767,
+              "approx": true
+            },
+            {
+              "w": "番",
+              "start": 10.767,
+              "end": 11.12,
+              "approx": true
+            },
+            {
+              "w": "号",
+              "start": 11.12,
+              "end": 11.473,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 11.473,
+              "end": 11.825,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 11.825,
+              "end": 11.984,
+              "approx": true
+            },
+            {
+              "w": "1",
+              "start": 11.984,
+              "end": 12.337,
+              "approx": true
+            },
+            {
+              "w": "0",
+              "start": 12.337,
+              "end": 12.689,
+              "approx": true
+            },
+            {
+              "w": "2",
+              "start": 12.689,
+              "end": 13.042,
+              "approx": true
+            },
+            {
+              "w": "9",
+              "start": 13.042,
+              "end": 13.394,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 13.394,
+              "end": 13.553,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "start": 14.295,
+      "slot": 4.548,
+      "stretch": 1.022,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "口では、いらないって言うのに。",
+          "file": "audio/vo/ja/s4-1.mp3",
+          "dur": 3.18,
+          "offset": 0.204,
+          "start": 14.499,
+          "words": [
+            {
+              "w": "口",
+              "start": 14.499,
+              "end": 14.728,
+              "approx": true
+            },
+            {
+              "w": "で",
+              "start": 14.728,
+              "end": 14.957,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 14.957,
+              "end": 15.185,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 15.185,
+              "end": 15.288,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 15.288,
+              "end": 15.517,
+              "approx": true
+            },
+            {
+              "w": "ら",
+              "start": 15.517,
+              "end": 15.746,
+              "approx": true
+            },
+            {
+              "w": "な",
+              "start": 15.746,
+              "end": 15.975,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 15.975,
+              "end": 16.203,
+              "approx": true
+            },
+            {
+              "w": "っ",
+              "start": 16.203,
+              "end": 16.432,
+              "approx": true
+            },
+            {
+              "w": "て",
+              "start": 16.432,
+              "end": 16.661,
+              "approx": true
+            },
+            {
+              "w": "言",
+              "start": 16.661,
+              "end": 16.89,
+              "approx": true
+            },
+            {
+              "w": "う",
+              "start": 16.89,
+              "end": 17.118,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 17.118,
+              "end": 17.347,
+              "approx": true
+            },
+            {
+              "w": "に",
+              "start": 17.347,
+              "end": 17.576,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 17.576,
+              "end": 17.679,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "start": 18.843,
+      "slot": 4.548,
+      "stretch": 1.148,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "橘白の猫娘、鈴付き。",
+          "file": "audio/vo/ja/s5-1.mp3",
+          "dur": 3.632,
+          "offset": 0.23,
+          "start": 19.073,
+          "words": [
+            {
+              "w": "橘",
+              "start": 19.073,
+              "end": 19.481,
+              "approx": true
+            },
+            {
+              "w": "白",
+              "start": 19.481,
+              "end": 19.889,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 19.889,
+              "end": 20.297,
+              "approx": true
+            },
+            {
+              "w": "猫",
+              "start": 20.297,
+              "end": 20.705,
+              "approx": true
+            },
+            {
+              "w": "娘",
+              "start": 20.705,
+              "end": 21.113,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 21.113,
+              "end": 21.297,
+              "approx": true
+            },
+            {
+              "w": "鈴",
+              "start": 21.297,
+              "end": 21.705,
+              "approx": true
+            },
+            {
+              "w": "付",
+              "start": 21.705,
+              "end": 22.113,
+              "approx": true
+            },
+            {
+              "w": "き",
+              "start": 22.113,
+              "end": 22.521,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 22.521,
+              "end": 22.705,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};

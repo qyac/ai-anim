@@ -1,0 +1,465 @@
+{
+  "source": "./audio/ja-vo.mp3",
+  "lines": [
+    {
+      "id": "s1-1",
+      "text": "日向ぼっこの、物理学。",
+      "start": 0.2,
+      "dur": 2.499,
+      "words": [
+        {
+          "w": "日",
+          "start": 0.2,
+          "end": 0.452,
+          "approx": true
+        },
+        {
+          "w": "向",
+          "start": 0.452,
+          "end": 0.705,
+          "approx": true
+        },
+        {
+          "w": "ぼ",
+          "start": 0.705,
+          "end": 0.957,
+          "approx": true
+        },
+        {
+          "w": "っ",
+          "start": 0.957,
+          "end": 1.21,
+          "approx": true
+        },
+        {
+          "w": "こ",
+          "start": 1.21,
+          "end": 1.462,
+          "approx": true
+        },
+        {
+          "w": "の",
+          "start": 1.462,
+          "end": 1.715,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 1.715,
+          "end": 1.828,
+          "approx": true
+        },
+        {
+          "w": "物",
+          "start": 1.828,
+          "end": 2.081,
+          "approx": true
+        },
+        {
+          "w": "理",
+          "start": 2.081,
+          "end": 2.333,
+          "approx": true
+        },
+        {
+          "w": "学",
+          "start": 2.333,
+          "end": 2.585,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 2.585,
+          "end": 2.699,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s2-1",
+      "text": "朝は窓、昼は床、夕方はあなたの脚。",
+      "start": 4.229,
+      "dur": 6.11,
+      "words": [
+        {
+          "w": "朝",
+          "start": 4.229,
+          "end": 4.627,
+          "approx": true
+        },
+        {
+          "w": "は",
+          "start": 4.627,
+          "end": 5.025,
+          "approx": true
+        },
+        {
+          "w": "窓",
+          "start": 5.025,
+          "end": 5.423,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 5.423,
+          "end": 5.602,
+          "approx": true
+        },
+        {
+          "w": "昼",
+          "start": 5.602,
+          "end": 6,
+          "approx": true
+        },
+        {
+          "w": "は",
+          "start": 6,
+          "end": 6.398,
+          "approx": true
+        },
+        {
+          "w": "床",
+          "start": 6.398,
+          "end": 6.796,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 6.796,
+          "end": 6.976,
+          "approx": true
+        },
+        {
+          "w": "夕",
+          "start": 6.976,
+          "end": 7.374,
+          "approx": true
+        },
+        {
+          "w": "方",
+          "start": 7.374,
+          "end": 7.772,
+          "approx": true
+        },
+        {
+          "w": "は",
+          "start": 7.772,
+          "end": 8.17,
+          "approx": true
+        },
+        {
+          "w": "あ",
+          "start": 8.17,
+          "end": 8.568,
+          "approx": true
+        },
+        {
+          "w": "な",
+          "start": 8.568,
+          "end": 8.966,
+          "approx": true
+        },
+        {
+          "w": "た",
+          "start": 8.966,
+          "end": 9.364,
+          "approx": true
+        },
+        {
+          "w": "の",
+          "start": 9.364,
+          "end": 9.762,
+          "approx": true
+        },
+        {
+          "w": "脚",
+          "start": 9.762,
+          "end": 10.16,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 10.16,
+          "end": 10.339,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s3-1",
+      "text": "貯めた小魚、数え間違えないで。",
+      "start": 11.034,
+      "dur": 4.988,
+      "words": [
+        {
+          "w": "貯",
+          "start": 11.034,
+          "end": 11.393,
+          "approx": true
+        },
+        {
+          "w": "め",
+          "start": 11.393,
+          "end": 11.752,
+          "approx": true
+        },
+        {
+          "w": "た",
+          "start": 11.752,
+          "end": 12.111,
+          "approx": true
+        },
+        {
+          "w": "小",
+          "start": 12.111,
+          "end": 12.469,
+          "approx": true
+        },
+        {
+          "w": "魚",
+          "start": 12.469,
+          "end": 12.828,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 12.828,
+          "end": 12.99,
+          "approx": true
+        },
+        {
+          "w": "数",
+          "start": 12.99,
+          "end": 13.349,
+          "approx": true
+        },
+        {
+          "w": "え",
+          "start": 13.349,
+          "end": 13.707,
+          "approx": true
+        },
+        {
+          "w": "間",
+          "start": 13.707,
+          "end": 14.066,
+          "approx": true
+        },
+        {
+          "w": "違",
+          "start": 14.066,
+          "end": 14.425,
+          "approx": true
+        },
+        {
+          "w": "え",
+          "start": 14.425,
+          "end": 14.784,
+          "approx": true
+        },
+        {
+          "w": "な",
+          "start": 14.784,
+          "end": 15.143,
+          "approx": true
+        },
+        {
+          "w": "い",
+          "start": 15.143,
+          "end": 15.502,
+          "approx": true
+        },
+        {
+          "w": "で",
+          "start": 15.502,
+          "end": 15.861,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 15.861,
+          "end": 16.022,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s4-1",
+      "text": "働くあなたと、日向の私。",
+      "start": 16.69,
+      "dur": 3.907,
+      "words": [
+        {
+          "w": "働",
+          "start": 16.69,
+          "end": 17.048,
+          "approx": true
+        },
+        {
+          "w": "く",
+          "start": 17.048,
+          "end": 17.407,
+          "approx": true
+        },
+        {
+          "w": "あ",
+          "start": 17.407,
+          "end": 17.765,
+          "approx": true
+        },
+        {
+          "w": "な",
+          "start": 17.765,
+          "end": 18.124,
+          "approx": true
+        },
+        {
+          "w": "た",
+          "start": 18.124,
+          "end": 18.482,
+          "approx": true
+        },
+        {
+          "w": "と",
+          "start": 18.482,
+          "end": 18.841,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 18.841,
+          "end": 19.002,
+          "approx": true
+        },
+        {
+          "w": "日",
+          "start": 19.002,
+          "end": 19.36,
+          "approx": true
+        },
+        {
+          "w": "向",
+          "start": 19.36,
+          "end": 19.719,
+          "approx": true
+        },
+        {
+          "w": "の",
+          "start": 19.719,
+          "end": 20.077,
+          "approx": true
+        },
+        {
+          "w": "私",
+          "start": 20.077,
+          "end": 20.436,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 20.436,
+          "end": 20.597,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s5-1",
+      "text": "日向と、小魚と、起こさないで。",
+      "start": 21.492,
+      "dur": 3.58,
+      "words": [
+        {
+          "w": "日",
+          "start": 21.492,
+          "end": 21.76,
+          "approx": true
+        },
+        {
+          "w": "向",
+          "start": 21.76,
+          "end": 22.028,
+          "approx": true
+        },
+        {
+          "w": "と",
+          "start": 22.028,
+          "end": 22.296,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 22.296,
+          "end": 22.417,
+          "approx": true
+        },
+        {
+          "w": "小",
+          "start": 22.417,
+          "end": 22.685,
+          "approx": true
+        },
+        {
+          "w": "魚",
+          "start": 22.685,
+          "end": 22.953,
+          "approx": true
+        },
+        {
+          "w": "と",
+          "start": 22.953,
+          "end": 23.222,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 23.222,
+          "end": 23.342,
+          "approx": true
+        },
+        {
+          "w": "起",
+          "start": 23.342,
+          "end": 23.611,
+          "approx": true
+        },
+        {
+          "w": "こ",
+          "start": 23.611,
+          "end": 23.879,
+          "approx": true
+        },
+        {
+          "w": "さ",
+          "start": 23.879,
+          "end": 24.147,
+          "approx": true
+        },
+        {
+          "w": "な",
+          "start": 24.147,
+          "end": 24.415,
+          "approx": true
+        },
+        {
+          "w": "い",
+          "start": 24.415,
+          "end": 24.683,
+          "approx": true
+        },
+        {
+          "w": "で",
+          "start": 24.683,
+          "end": 24.951,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 24.951,
+          "end": 25.072,
+          "approx": true
+        }
+      ]
+    }
+  ]
+}

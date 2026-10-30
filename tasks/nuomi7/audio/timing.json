@@ -1,0 +1,571 @@
+{
+  "voice": "zh-CN-XiaoyiNeural",
+  "rate": "+6%",
+  "bpm": 214.68,
+  "beat": 0.27948574622694244,
+  "overlap": 0,
+  "tail": 0.3,
+  "maxStretch": 1.25,
+  "total": 26.831,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "s1",
+      "start": 0,
+      "slot": 2.795,
+      "stretch": 1,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "屋里没人的时候",
+          "file": "audio/vo/s1-1.mp3",
+          "dur": 1.433,
+          "offset": 0.2,
+          "start": 0.2,
+          "words": [
+            {
+              "w": "屋",
+              "start": 0.2,
+              "end": 0.405,
+              "approx": true
+            },
+            {
+              "w": "里",
+              "start": 0.405,
+              "end": 0.609,
+              "approx": true
+            },
+            {
+              "w": "没",
+              "start": 0.609,
+              "end": 0.814,
+              "approx": true
+            },
+            {
+              "w": "人",
+              "start": 0.814,
+              "end": 1.019,
+              "approx": true
+            },
+            {
+              "w": "的",
+              "start": 1.019,
+              "end": 1.224,
+              "approx": true
+            },
+            {
+              "w": "时",
+              "start": 1.224,
+              "end": 1.428,
+              "approx": true
+            },
+            {
+              "w": "候",
+              "start": 1.428,
+              "end": 1.633,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "start": 2.795,
+      "slot": 5.31,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "每层只回答一个问题：这里晒得到几点",
+          "file": "audio/vo/s2-1.mp3",
+          "dur": 4.713,
+          "offset": 0.25,
+          "start": 3.045,
+          "words": [
+            {
+              "w": "每",
+              "start": 3.045,
+              "end": 3.332,
+              "approx": true
+            },
+            {
+              "w": "层",
+              "start": 3.332,
+              "end": 3.618,
+              "approx": true
+            },
+            {
+              "w": "只",
+              "start": 3.618,
+              "end": 3.905,
+              "approx": true
+            },
+            {
+              "w": "回",
+              "start": 3.905,
+              "end": 4.191,
+              "approx": true
+            },
+            {
+              "w": "答",
+              "start": 4.191,
+              "end": 4.478,
+              "approx": true
+            },
+            {
+              "w": "一",
+              "start": 4.478,
+              "end": 4.764,
+              "approx": true
+            },
+            {
+              "w": "个",
+              "start": 4.764,
+              "end": 5.051,
+              "approx": true
+            },
+            {
+              "w": "问",
+              "start": 5.051,
+              "end": 5.337,
+              "approx": true
+            },
+            {
+              "w": "题",
+              "start": 5.337,
+              "end": 5.624,
+              "approx": true
+            },
+            {
+              "w": "：",
+              "start": 5.624,
+              "end": 5.752,
+              "approx": true
+            },
+            {
+              "w": "这",
+              "start": 5.752,
+              "end": 6.039,
+              "approx": true
+            },
+            {
+              "w": "里",
+              "start": 6.039,
+              "end": 6.325,
+              "approx": true
+            },
+            {
+              "w": "晒",
+              "start": 6.325,
+              "end": 6.612,
+              "approx": true
+            },
+            {
+              "w": "得",
+              "start": 6.612,
+              "end": 6.898,
+              "approx": true
+            },
+            {
+              "w": "到",
+              "start": 6.898,
+              "end": 7.185,
+              "approx": true
+            },
+            {
+              "w": "几",
+              "start": 7.185,
+              "end": 7.471,
+              "approx": true
+            },
+            {
+              "w": "点",
+              "start": 7.471,
+              "end": 7.758,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "start": 8.105,
+      "slot": 4.192,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "窗外那点响动，有五个来源",
+          "file": "audio/vo/s3-1.mp3",
+          "dur": 3.368,
+          "offset": 0.25,
+          "start": 8.355,
+          "words": [
+            {
+              "w": "窗",
+              "start": 8.355,
+              "end": 8.649,
+              "approx": true
+            },
+            {
+              "w": "外",
+              "start": 8.649,
+              "end": 8.943,
+              "approx": true
+            },
+            {
+              "w": "那",
+              "start": 8.943,
+              "end": 9.237,
+              "approx": true
+            },
+            {
+              "w": "点",
+              "start": 9.237,
+              "end": 9.532,
+              "approx": true
+            },
+            {
+              "w": "响",
+              "start": 9.532,
+              "end": 9.826,
+              "approx": true
+            },
+            {
+              "w": "动",
+              "start": 9.826,
+              "end": 10.12,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 10.12,
+              "end": 10.252,
+              "approx": true
+            },
+            {
+              "w": "有",
+              "start": 10.252,
+              "end": 10.546,
+              "approx": true
+            },
+            {
+              "w": "五",
+              "start": 10.546,
+              "end": 10.841,
+              "approx": true
+            },
+            {
+              "w": "个",
+              "start": 10.841,
+              "end": 11.135,
+              "approx": true
+            },
+            {
+              "w": "来",
+              "start": 11.135,
+              "end": 11.429,
+              "approx": true
+            },
+            {
+              "w": "源",
+              "start": 11.429,
+              "end": 11.723,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "start": 12.297,
+      "slot": 2.795,
+      "stretch": 1,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "我的尾巴",
+          "file": "audio/vo/s4-1.mp3",
+          "dur": 0.849,
+          "offset": 0.2,
+          "start": 12.497,
+          "words": [
+            {
+              "w": "我",
+              "start": 12.497,
+              "end": 12.709,
+              "approx": true
+            },
+            {
+              "w": "的",
+              "start": 12.709,
+              "end": 12.922,
+              "approx": true
+            },
+            {
+              "w": "尾",
+              "start": 12.922,
+              "end": 13.134,
+              "approx": true
+            },
+            {
+              "w": "巴",
+              "start": 13.134,
+              "end": 13.346,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "start": 15.092,
+      "slot": 6.149,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "中心是窗户，辐条是竖起来的耳朵",
+          "file": "audio/vo/s5-1.mp3",
+          "dur": 5.356,
+          "offset": 0.25,
+          "start": 15.342,
+          "words": [
+            {
+              "w": "中",
+              "start": 15.342,
+              "end": 15.713,
+              "approx": true
+            },
+            {
+              "w": "心",
+              "start": 15.713,
+              "end": 16.083,
+              "approx": true
+            },
+            {
+              "w": "是",
+              "start": 16.083,
+              "end": 16.454,
+              "approx": true
+            },
+            {
+              "w": "窗",
+              "start": 16.454,
+              "end": 16.825,
+              "approx": true
+            },
+            {
+              "w": "户",
+              "start": 16.825,
+              "end": 17.195,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 17.195,
+              "end": 17.362,
+              "approx": true
+            },
+            {
+              "w": "辐",
+              "start": 17.362,
+              "end": 17.733,
+              "approx": true
+            },
+            {
+              "w": "条",
+              "start": 17.733,
+              "end": 18.103,
+              "approx": true
+            },
+            {
+              "w": "是",
+              "start": 18.103,
+              "end": 18.474,
+              "approx": true
+            },
+            {
+              "w": "竖",
+              "start": 18.474,
+              "end": 18.845,
+              "approx": true
+            },
+            {
+              "w": "起",
+              "start": 18.845,
+              "end": 19.215,
+              "approx": true
+            },
+            {
+              "w": "来",
+              "start": 19.215,
+              "end": 19.586,
+              "approx": true
+            },
+            {
+              "w": "的",
+              "start": 19.586,
+              "end": 19.957,
+              "approx": true
+            },
+            {
+              "w": "耳",
+              "start": 19.957,
+              "end": 20.327,
+              "approx": true
+            },
+            {
+              "w": "朵",
+              "start": 20.327,
+              "end": 20.698,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s6",
+      "start": 21.241,
+      "slot": 5.59,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "没人看着的时候，，一只猫才最像它自己",
+          "file": "audio/vo/s6-1.mp3",
+          "dur": 4.805,
+          "offset": 0.25,
+          "start": 21.491,
+          "words": [
+            {
+              "w": "没",
+              "start": 21.491,
+              "end": 21.775,
+              "approx": true
+            },
+            {
+              "w": "人",
+              "start": 21.775,
+              "end": 22.06,
+              "approx": true
+            },
+            {
+              "w": "看",
+              "start": 22.06,
+              "end": 22.344,
+              "approx": true
+            },
+            {
+              "w": "着",
+              "start": 22.344,
+              "end": 22.628,
+              "approx": true
+            },
+            {
+              "w": "的",
+              "start": 22.628,
+              "end": 22.913,
+              "approx": true
+            },
+            {
+              "w": "时",
+              "start": 22.913,
+              "end": 23.197,
+              "approx": true
+            },
+            {
+              "w": "候",
+              "start": 23.197,
+              "end": 23.481,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 23.481,
+              "end": 23.609,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 23.609,
+              "end": 23.737,
+              "approx": true
+            },
+            {
+              "w": "一",
+              "start": 23.737,
+              "end": 24.021,
+              "approx": true
+            },
+            {
+              "w": "只",
+              "start": 24.021,
+              "end": 24.306,
+              "approx": true
+            },
+            {
+              "w": "猫",
+              "start": 24.306,
+              "end": 24.59,
+              "approx": true
+            },
+            {
+              "w": "才",
+              "start": 24.59,
+              "end": 24.874,
+              "approx": true
+            },
+            {
+              "w": "最",
+              "start": 24.874,
+              "end": 25.159,
+              "approx": true
+            },
+            {
+              "w": "像",
+              "start": 25.159,
+              "end": 25.443,
+              "approx": true
+            },
+            {
+              "w": "它",
+              "start": 25.443,
+              "end": 25.727,
+              "approx": true
+            },
+            {
+              "w": "自",
+              "start": 25.727,
+              "end": 26.012,
+              "approx": true
+            },
+            {
+              "w": "己",
+              "start": 26.012,
+              "end": 26.296,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

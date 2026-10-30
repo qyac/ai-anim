@@ -1,0 +1,565 @@
+{
+  "voice": "cotton-ja",
+  "rate": "+10%",
+  "bpm": 207.12,
+  "beat": 0.28968713789107764,
+  "overlap": 0,
+  "tail": 0.3,
+  "maxStretch": 1.3,
+  "total": 26.651,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "s1",
+      "start": 0,
+      "slot": 4.345,
+      "stretch": 1.109,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "夜中の三時、猫が走る。",
+          "file": "audio/vo/ja/s1-1.mp3",
+          "dur": 3.491,
+          "offset": 0.222,
+          "start": 0.222,
+          "words": [
+            {
+              "w": "夜",
+              "start": 0.222,
+              "end": 0.575,
+              "approx": true
+            },
+            {
+              "w": "中",
+              "start": 0.575,
+              "end": 0.927,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 0.927,
+              "end": 1.28,
+              "approx": true
+            },
+            {
+              "w": "三",
+              "start": 1.28,
+              "end": 1.633,
+              "approx": true
+            },
+            {
+              "w": "時",
+              "start": 1.633,
+              "end": 1.985,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 1.985,
+              "end": 2.144,
+              "approx": true
+            },
+            {
+              "w": "猫",
+              "start": 2.144,
+              "end": 2.496,
+              "approx": true
+            },
+            {
+              "w": "が",
+              "start": 2.496,
+              "end": 2.849,
+              "approx": true
+            },
+            {
+              "w": "走",
+              "start": 2.849,
+              "end": 3.202,
+              "approx": true
+            },
+            {
+              "w": "る",
+              "start": 3.202,
+              "end": 3.554,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 3.554,
+              "end": 3.713,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "start": 4.345,
+      "slot": 4.345,
+      "stretch": 1.092,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "昼に貯めた分を、夜に返す。",
+          "file": "audio/vo/ja/s2-1.mp3",
+          "dur": 3.431,
+          "offset": 0.218,
+          "start": 4.563,
+          "words": [
+            {
+              "w": "昼",
+              "start": 4.563,
+              "end": 4.851,
+              "approx": true
+            },
+            {
+              "w": "に",
+              "start": 4.851,
+              "end": 5.14,
+              "approx": true
+            },
+            {
+              "w": "貯",
+              "start": 5.14,
+              "end": 5.428,
+              "approx": true
+            },
+            {
+              "w": "め",
+              "start": 5.428,
+              "end": 5.716,
+              "approx": true
+            },
+            {
+              "w": "た",
+              "start": 5.716,
+              "end": 6.005,
+              "approx": true
+            },
+            {
+              "w": "分",
+              "start": 6.005,
+              "end": 6.293,
+              "approx": true
+            },
+            {
+              "w": "を",
+              "start": 6.293,
+              "end": 6.581,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 6.581,
+              "end": 6.711,
+              "approx": true
+            },
+            {
+              "w": "夜",
+              "start": 6.711,
+              "end": 6.999,
+              "approx": true
+            },
+            {
+              "w": "に",
+              "start": 6.999,
+              "end": 7.288,
+              "approx": true
+            },
+            {
+              "w": "返",
+              "start": 7.288,
+              "end": 7.576,
+              "approx": true
+            },
+            {
+              "w": "す",
+              "start": 7.576,
+              "end": 7.864,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 7.864,
+              "end": 7.994,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "start": 8.691,
+      "slot": 4.345,
+      "stretch": 1.101,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "寝てる十六時間は、充電。",
+          "file": "audio/vo/ja/s3-1.mp3",
+          "dur": 3.463,
+          "offset": 0.22,
+          "start": 8.911,
+          "words": [
+            {
+              "w": "寝",
+              "start": 8.911,
+              "end": 9.229,
+              "approx": true
+            },
+            {
+              "w": "て",
+              "start": 9.229,
+              "end": 9.546,
+              "approx": true
+            },
+            {
+              "w": "る",
+              "start": 9.546,
+              "end": 9.864,
+              "approx": true
+            },
+            {
+              "w": "十",
+              "start": 9.864,
+              "end": 10.182,
+              "approx": true
+            },
+            {
+              "w": "六",
+              "start": 10.182,
+              "end": 10.5,
+              "approx": true
+            },
+            {
+              "w": "時",
+              "start": 10.5,
+              "end": 10.817,
+              "approx": true
+            },
+            {
+              "w": "間",
+              "start": 10.817,
+              "end": 11.135,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 11.135,
+              "end": 11.453,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 11.453,
+              "end": 11.596,
+              "approx": true
+            },
+            {
+              "w": "充",
+              "start": 11.596,
+              "end": 11.913,
+              "approx": true
+            },
+            {
+              "w": "電",
+              "start": 11.913,
+              "end": 12.231,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 12.231,
+              "end": 12.374,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "start": 13.036,
+      "slot": 5.214,
+      "stretch": 1.3,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "跳んで、棚、往復、枕、知らん顔。",
+          "file": "audio/vo/ja/s4-1.mp3",
+          "dur": 4.501,
+          "offset": 0.26,
+          "start": 13.296,
+          "words": [
+            {
+              "w": "跳",
+              "start": 13.296,
+              "end": 13.636,
+              "approx": true
+            },
+            {
+              "w": "ん",
+              "start": 13.636,
+              "end": 13.975,
+              "approx": true
+            },
+            {
+              "w": "で",
+              "start": 13.975,
+              "end": 14.315,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 14.315,
+              "end": 14.468,
+              "approx": true
+            },
+            {
+              "w": "棚",
+              "start": 14.468,
+              "end": 14.808,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 14.808,
+              "end": 14.961,
+              "approx": true
+            },
+            {
+              "w": "往",
+              "start": 14.961,
+              "end": 15.3,
+              "approx": true
+            },
+            {
+              "w": "復",
+              "start": 15.3,
+              "end": 15.64,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 15.64,
+              "end": 15.793,
+              "approx": true
+            },
+            {
+              "w": "枕",
+              "start": 15.793,
+              "end": 16.132,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 16.132,
+              "end": 16.285,
+              "approx": true
+            },
+            {
+              "w": "知",
+              "start": 16.285,
+              "end": 16.625,
+              "approx": true
+            },
+            {
+              "w": "ら",
+              "start": 16.625,
+              "end": 16.965,
+              "approx": true
+            },
+            {
+              "w": "ん",
+              "start": 16.965,
+              "end": 17.304,
+              "approx": true
+            },
+            {
+              "w": "顔",
+              "start": 17.304,
+              "end": 17.644,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 17.644,
+              "end": 17.797,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "start": 18.25,
+      "slot": 4.345,
+      "stretch": 1.081,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "狩りの本能は、家具に向かう。",
+          "file": "audio/vo/ja/s5-1.mp3",
+          "dur": 3.393,
+          "offset": 0.216,
+          "start": 18.466,
+          "words": [
+            {
+              "w": "狩",
+              "start": 18.466,
+              "end": 18.729,
+              "approx": true
+            },
+            {
+              "w": "り",
+              "start": 18.729,
+              "end": 18.992,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 18.992,
+              "end": 19.255,
+              "approx": true
+            },
+            {
+              "w": "本",
+              "start": 19.255,
+              "end": 19.518,
+              "approx": true
+            },
+            {
+              "w": "能",
+              "start": 19.518,
+              "end": 19.781,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 19.781,
+              "end": 20.044,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 20.044,
+              "end": 20.163,
+              "approx": true
+            },
+            {
+              "w": "家",
+              "start": 20.163,
+              "end": 20.426,
+              "approx": true
+            },
+            {
+              "w": "具",
+              "start": 20.426,
+              "end": 20.689,
+              "approx": true
+            },
+            {
+              "w": "に",
+              "start": 20.689,
+              "end": 20.952,
+              "approx": true
+            },
+            {
+              "w": "向",
+              "start": 20.952,
+              "end": 21.215,
+              "approx": true
+            },
+            {
+              "w": "か",
+              "start": 21.215,
+              "end": 21.478,
+              "approx": true
+            },
+            {
+              "w": "う",
+              "start": 21.478,
+              "end": 21.741,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 21.741,
+              "end": 21.859,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s6",
+      "start": 22.596,
+      "slot": 4.056,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "夜勤の猫娘。",
+          "file": "audio/vo/ja/s6-1.mp3",
+          "dur": 2.071,
+          "offset": 0.2,
+          "start": 22.796,
+          "words": [
+            {
+              "w": "夜",
+              "start": 22.796,
+              "end": 23.176,
+              "approx": true
+            },
+            {
+              "w": "勤",
+              "start": 23.176,
+              "end": 23.556,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 23.556,
+              "end": 23.936,
+              "approx": true
+            },
+            {
+              "w": "猫",
+              "start": 23.936,
+              "end": 24.316,
+              "approx": true
+            },
+            {
+              "w": "娘",
+              "start": 24.316,
+              "end": 24.696,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 24.696,
+              "end": 24.867,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

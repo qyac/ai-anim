@@ -16,7 +16,14 @@ export default makeShot('token', {
   draw(ctx) {
     const { f, lines, text, type, P, comp, gl } = ctx;
     const after = ctx.params?.mode !== 'before';
-    const T = after ? TOKENS : BEFORE_TOKENS;
+    // after = **这套风格的 token**（`ctx.style.tokens`，随 `--style` 走）；
+    // before = 实测到的"改造前"分布（固定值，不跟风格走 —— 它就是要当对照组）。
+    const T = after ? (ctx.style?.tokens ?? TOKENS) : BEFORE_TOKENS;
+    /**
+     * 语义字号（BACKLOG 1-46）：after 这条路写的是**名字**，不是数字 ——
+     * 同一份场景换 `--style`，层级跟着风格包走；before 那条路保留数字（对照组）。
+     */
+    const sz = (k) => (after ? k : T.type[k]);
     const t = f.lt;
 
     // 入场：after = 弹簧（带回弹）+ 错峰；before = 匀速 prog（现存场景的主流写法）
@@ -76,19 +83,19 @@ export default makeShot('token', {
 
     // 眉标
     type.write('FOURIER · 4 项', X0, after ? 176 : 126, {
-      size: T.type.label, weight: T.weight.label, family: 'mono', color: css(P.ash),
+      size: sz('label'), weight: T.weight.label, family: 'mono', color: css(P.ash),
       alpha: alpha(eTitle), t: t - 0.10, stagger: T.motion.stagger,
     });
 
     // 主张（hero：整屏只有一个）
     type.write('把方波拆开', X0, after ? 330 : 176, {
-      size: T.type.hero, weight: T.weight.hero, family: 'sans', color: css(P.bone),
+      size: sz('hero'), weight: T.weight.hero, family: 'sans', color: css(P.bone),
       alpha: alpha(eTitle), t: t - 0.16, stagger: T.motion.stagger,
     });
 
     // 一句解释（副题）
     type.write('四条正弦叠起来，边就直了', X0, after ? 418 : 214, {
-      size: T.type.h2, weight: T.weight.h2, family: 'sans', color: css(P.ash),
+      size: sz('h2'), weight: T.weight.h2, family: 'sans', color: css(P.ash),
       alpha: alpha(eTitle), t: t - 0.24, stagger: T.motion.stagger,
     });
 
@@ -96,14 +103,14 @@ export default makeShot('token', {
     for (let k = 0; k < HARM.length; k++) {
       const lx = X0 + 160 + k * (after ? 132 : 96);
       type.write('n = ' + HARM[k], lx, yc - amp - 56, {
-        size: T.type.label, weight: T.weight.label, family: 'mono', color: css(P.ash),
+        size: sz('label'), weight: T.weight.label, family: 'mono', color: css(P.ash),
         alpha: alpha(eWave), t: t - 0.30 - k * T.motion.stagger, stagger: T.motion.stagger,
       });
     }
 
     // 出处（公式）
     type.write('y = Σ sin(nx) / n', X1, after ? 980 : 968, {
-      size: T.type.label, weight: T.weight.label, family: 'mono', color: css(P.ash),
+      size: sz('label'), weight: T.weight.label, family: 'mono', color: css(P.ash),
       align: 'right', alpha: alpha(eWave), t: t - 0.34,   // ⚠ 数组型 alpha 必须配 t，否则取 k=0 → 整行隐形
     });
 

@@ -29,7 +29,10 @@ export const DEFAULT_PALETTE = {
 
 /** 建立调色板对象：既是线性颜色表，也能生成 GLSL 常量。 */
 export function makePalette(overrides = {}) {
-  const hexes = { ...DEFAULT_PALETTE, ...overrides };
+  // `bg` = 整帧底色（缺省 = ink）。以前底色是隐含约定：gl.clear / worldPass 用 ink，
+  // 个别模板（chart 的纸面）用 bone 当底 —— 换风格时两套约定打架，看起来像"背景反色"。
+  // 现在底色只有一个名字，模板一律读 P.bg。
+  const hexes = { bg: overrides.bg ?? overrides.ink ?? DEFAULT_PALETTE.ink, ...DEFAULT_PALETTE, ...overrides };
   /** @type {Record<string, RGB>} */
   const linear = {};
   /** @type {Record<string, string>} */

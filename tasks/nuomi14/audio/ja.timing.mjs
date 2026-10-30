@@ -1,0 +1,542 @@
+// 由 `node scripts/anim.mjs say <任务>` 生成，不要手改；改旁白请改 narration.mjs 再重跑。
+export default {
+  "voice": "cotton-ja",
+  "rate": "+10%",
+  "bpm": 210.14,
+  "beat": 0.28552393642333684,
+  "overlap": 0,
+  "tail": 0.3,
+  "maxStretch": 1.3,
+  "total": 24.841,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "s1",
+      "start": 0,
+      "slot": 3.997,
+      "stretch": 1.015,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "君の帰りを待つ、八時間。",
+          "file": "audio/vo/ja/s1-1.mp3",
+          "dur": 3.153,
+          "offset": 0.203,
+          "start": 0.203,
+          "words": [
+            {
+              "w": "君",
+              "start": 0.203,
+              "end": 0.492,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 0.492,
+              "end": 0.782,
+              "approx": true
+            },
+            {
+              "w": "帰",
+              "start": 0.782,
+              "end": 1.071,
+              "approx": true
+            },
+            {
+              "w": "り",
+              "start": 1.071,
+              "end": 1.36,
+              "approx": true
+            },
+            {
+              "w": "を",
+              "start": 1.36,
+              "end": 1.649,
+              "approx": true
+            },
+            {
+              "w": "待",
+              "start": 1.649,
+              "end": 1.939,
+              "approx": true
+            },
+            {
+              "w": "つ",
+              "start": 1.939,
+              "end": 2.228,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 2.228,
+              "end": 2.358,
+              "approx": true
+            },
+            {
+              "w": "八",
+              "start": 2.358,
+              "end": 2.647,
+              "approx": true
+            },
+            {
+              "w": "時",
+              "start": 2.647,
+              "end": 2.937,
+              "approx": true
+            },
+            {
+              "w": "間",
+              "start": 2.937,
+              "end": 3.226,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 3.226,
+              "end": 3.356,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "start": 3.997,
+      "slot": 3.997,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "寝た回数は、数えてない。",
+          "file": "audio/vo/ja/s2-1.mp3",
+          "dur": 2.857,
+          "offset": 0.2,
+          "start": 4.197,
+          "words": [
+            {
+              "w": "寝",
+              "start": 4.197,
+              "end": 4.459,
+              "approx": true
+            },
+            {
+              "w": "た",
+              "start": 4.459,
+              "end": 4.721,
+              "approx": true
+            },
+            {
+              "w": "回",
+              "start": 4.721,
+              "end": 4.983,
+              "approx": true
+            },
+            {
+              "w": "数",
+              "start": 4.983,
+              "end": 5.245,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 5.245,
+              "end": 5.508,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 5.508,
+              "end": 5.625,
+              "approx": true
+            },
+            {
+              "w": "数",
+              "start": 5.625,
+              "end": 5.888,
+              "approx": true
+            },
+            {
+              "w": "え",
+              "start": 5.888,
+              "end": 6.15,
+              "approx": true
+            },
+            {
+              "w": "て",
+              "start": 6.15,
+              "end": 6.412,
+              "approx": true
+            },
+            {
+              "w": "な",
+              "start": 6.412,
+              "end": 6.674,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 6.674,
+              "end": 6.936,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 6.936,
+              "end": 7.054,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "start": 7.995,
+      "slot": 4.283,
+      "stretch": 1.102,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "音は、五つの方角から。",
+          "file": "audio/vo/ja/s3-1.mp3",
+          "dur": 3.468,
+          "offset": 0.22,
+          "start": 8.215,
+          "words": [
+            {
+              "w": "音",
+              "start": 8.215,
+              "end": 8.565,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 8.565,
+              "end": 8.916,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 8.916,
+              "end": 9.073,
+              "approx": true
+            },
+            {
+              "w": "五",
+              "start": 9.073,
+              "end": 9.424,
+              "approx": true
+            },
+            {
+              "w": "つ",
+              "start": 9.424,
+              "end": 9.774,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 9.774,
+              "end": 10.124,
+              "approx": true
+            },
+            {
+              "w": "方",
+              "start": 10.124,
+              "end": 10.474,
+              "approx": true
+            },
+            {
+              "w": "角",
+              "start": 10.474,
+              "end": 10.825,
+              "approx": true
+            },
+            {
+              "w": "か",
+              "start": 10.825,
+              "end": 11.175,
+              "approx": true
+            },
+            {
+              "w": "ら",
+              "start": 11.175,
+              "end": 11.525,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 11.525,
+              "end": 11.683,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "start": 12.278,
+      "slot": 4.568,
+      "stretch": 1.134,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "同じ数字、三つの描き方。",
+          "file": "audio/vo/ja/s4-1.mp3",
+          "dur": 3.581,
+          "offset": 0.227,
+          "start": 12.505,
+          "words": [
+            {
+              "w": "同",
+              "start": 12.505,
+              "end": 12.834,
+              "approx": true
+            },
+            {
+              "w": "じ",
+              "start": 12.834,
+              "end": 13.162,
+              "approx": true
+            },
+            {
+              "w": "数",
+              "start": 13.162,
+              "end": 13.491,
+              "approx": true
+            },
+            {
+              "w": "字",
+              "start": 13.491,
+              "end": 13.819,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 13.819,
+              "end": 13.967,
+              "approx": true
+            },
+            {
+              "w": "三",
+              "start": 13.967,
+              "end": 14.296,
+              "approx": true
+            },
+            {
+              "w": "つ",
+              "start": 14.296,
+              "end": 14.624,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 14.624,
+              "end": 14.953,
+              "approx": true
+            },
+            {
+              "w": "描",
+              "start": 14.953,
+              "end": 15.281,
+              "approx": true
+            },
+            {
+              "w": "き",
+              "start": 15.281,
+              "end": 15.61,
+              "approx": true
+            },
+            {
+              "w": "方",
+              "start": 15.61,
+              "end": 15.938,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 15.938,
+              "end": 16.086,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "start": 16.846,
+      "slot": 3.997,
+      "stretch": 1.005,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "帰った日と、帰らない日。",
+          "file": "audio/vo/ja/s5-1.mp3",
+          "dur": 3.117,
+          "offset": 0.201,
+          "start": 17.047,
+          "words": [
+            {
+              "w": "帰",
+              "start": 17.047,
+              "end": 17.333,
+              "approx": true
+            },
+            {
+              "w": "っ",
+              "start": 17.333,
+              "end": 17.619,
+              "approx": true
+            },
+            {
+              "w": "た",
+              "start": 17.619,
+              "end": 17.905,
+              "approx": true
+            },
+            {
+              "w": "日",
+              "start": 17.905,
+              "end": 18.191,
+              "approx": true
+            },
+            {
+              "w": "と",
+              "start": 18.191,
+              "end": 18.477,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 18.477,
+              "end": 18.606,
+              "approx": true
+            },
+            {
+              "w": "帰",
+              "start": 18.606,
+              "end": 18.891,
+              "approx": true
+            },
+            {
+              "w": "ら",
+              "start": 18.891,
+              "end": 19.177,
+              "approx": true
+            },
+            {
+              "w": "な",
+              "start": 19.177,
+              "end": 19.463,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 19.463,
+              "end": 19.749,
+              "approx": true
+            },
+            {
+              "w": "日",
+              "start": 19.749,
+              "end": 20.035,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 20.035,
+              "end": 20.164,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s6",
+      "start": 20.843,
+      "slot": 3.997,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "いってらっしゃい。",
+          "file": "audio/vo/ja/s6-1.mp3",
+          "dur": 1.024,
+          "offset": 0.2,
+          "start": 21.043,
+          "words": [
+            {
+              "w": "い",
+              "start": 21.043,
+              "end": 21.164,
+              "approx": true
+            },
+            {
+              "w": "っ",
+              "start": 21.164,
+              "end": 21.285,
+              "approx": true
+            },
+            {
+              "w": "て",
+              "start": 21.285,
+              "end": 21.407,
+              "approx": true
+            },
+            {
+              "w": "ら",
+              "start": 21.407,
+              "end": 21.528,
+              "approx": true
+            },
+            {
+              "w": "っ",
+              "start": 21.528,
+              "end": 21.649,
+              "approx": true
+            },
+            {
+              "w": "し",
+              "start": 21.649,
+              "end": 21.77,
+              "approx": true
+            },
+            {
+              "w": "ゃ",
+              "start": 21.77,
+              "end": 21.891,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 21.891,
+              "end": 22.012,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 22.012,
+              "end": 22.067,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};

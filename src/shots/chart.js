@@ -49,7 +49,7 @@ export function chartShot(opts = {}) {
           col = mix(col, rule, (1.0 - smoothstep(w, w * 3.0, l)) * 0.25);
           col *= 1.0 - 0.35 * smoothstep(0.55, 1.2, length((p - 0.5) * vec2(1.1, 1.0)));
           fragColor = vec4(col, 1.0);
-        }`, { paper: P.bone, rule: P.ash }, { key: 'demo_chart_paper', blend: false });
+        }`, { paper: P.bg, rule: P.ash }, { key: 'demo_chart_paper', blend: false });
     },
 
     render(ctx) {

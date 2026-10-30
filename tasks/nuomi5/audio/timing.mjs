@@ -1,0 +1,360 @@
+// 由 `node scripts/anim.mjs say <任务>` 生成，不要手改；改旁白请改 narration.mjs 再重跑。
+export default {
+  "voice": "zh-CN-XiaoyiNeural",
+  "rate": "+6%",
+  "bpm": 191.84,
+  "beat": 0.3127606338615513,
+  "overlap": 0,
+  "tail": 0.3,
+  "maxStretch": 1.25,
+  "total": 17.202,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "s1",
+      "start": 0,
+      "slot": 3.128,
+      "stretch": 1.169,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "冬天的猫在算什么",
+          "file": "audio/vo/s1-1.mp3",
+          "dur": 2.306,
+          "offset": 0.234,
+          "start": 0.234,
+          "words": [
+            {
+              "w": "冬",
+              "start": 0.234,
+              "end": 0.522,
+              "approx": true
+            },
+            {
+              "w": "天",
+              "start": 0.522,
+              "end": 0.811,
+              "approx": true
+            },
+            {
+              "w": "的",
+              "start": 0.811,
+              "end": 1.099,
+              "approx": true
+            },
+            {
+              "w": "猫",
+              "start": 1.099,
+              "end": 1.387,
+              "approx": true
+            },
+            {
+              "w": "在",
+              "start": 1.387,
+              "end": 1.675,
+              "approx": true
+            },
+            {
+              "w": "算",
+              "start": 1.675,
+              "end": 1.964,
+              "approx": true
+            },
+            {
+              "w": "什",
+              "start": 1.964,
+              "end": 2.252,
+              "approx": true
+            },
+            {
+              "w": "么",
+              "start": 2.252,
+              "end": 2.54,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "start": 3.128,
+      "slot": 2.815,
+      "stretch": 1,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "冷不是问题",
+          "file": "audio/vo/s2-1.mp3",
+          "dur": 1.249,
+          "offset": 0.2,
+          "start": 3.328,
+          "words": [
+            {
+              "w": "冷",
+              "start": 3.328,
+              "end": 3.578,
+              "approx": true
+            },
+            {
+              "w": "不",
+              "start": 3.578,
+              "end": 3.828,
+              "approx": true
+            },
+            {
+              "w": "是",
+              "start": 3.828,
+              "end": 4.077,
+              "approx": true
+            },
+            {
+              "w": "问",
+              "start": 4.077,
+              "end": 4.327,
+              "approx": true
+            },
+            {
+              "w": "题",
+              "start": 4.327,
+              "end": 4.577,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "start": 5.942,
+      "slot": 2.815,
+      "stretch": 1.04,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "离开被炉才是",
+          "file": "audio/vo/s3-1.mp3",
+          "dur": 1.997,
+          "offset": 0.208,
+          "start": 6.15,
+          "words": [
+            {
+              "w": "离",
+              "start": 6.15,
+              "end": 6.483,
+              "approx": true
+            },
+            {
+              "w": "开",
+              "start": 6.483,
+              "end": 6.816,
+              "approx": true
+            },
+            {
+              "w": "被",
+              "start": 6.816,
+              "end": 7.149,
+              "approx": true
+            },
+            {
+              "w": "炉",
+              "start": 7.149,
+              "end": 7.481,
+              "approx": true
+            },
+            {
+              "w": "才",
+              "start": 7.481,
+              "end": 7.814,
+              "approx": true
+            },
+            {
+              "w": "是",
+              "start": 7.814,
+              "end": 8.147,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "start": 8.757,
+      "slot": 5.004,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "热力学第一课：先把位置占好",
+          "file": "audio/vo/s4-1.mp3",
+          "dur": 4.35,
+          "offset": 0.25,
+          "start": 9.007,
+          "words": [
+            {
+              "w": "热",
+              "start": 9.007,
+              "end": 9.356,
+              "approx": true
+            },
+            {
+              "w": "力",
+              "start": 9.356,
+              "end": 9.706,
+              "approx": true
+            },
+            {
+              "w": "学",
+              "start": 9.706,
+              "end": 10.055,
+              "approx": true
+            },
+            {
+              "w": "第",
+              "start": 10.055,
+              "end": 10.405,
+              "approx": true
+            },
+            {
+              "w": "一",
+              "start": 10.405,
+              "end": 10.754,
+              "approx": true
+            },
+            {
+              "w": "课",
+              "start": 10.754,
+              "end": 11.103,
+              "approx": true
+            },
+            {
+              "w": "：",
+              "start": 11.103,
+              "end": 11.261,
+              "approx": true
+            },
+            {
+              "w": "先",
+              "start": 11.261,
+              "end": 11.61,
+              "approx": true
+            },
+            {
+              "w": "把",
+              "start": 11.61,
+              "end": 11.959,
+              "approx": true
+            },
+            {
+              "w": "位",
+              "start": 11.959,
+              "end": 12.309,
+              "approx": true
+            },
+            {
+              "w": "置",
+              "start": 12.309,
+              "end": 12.658,
+              "approx": true
+            },
+            {
+              "w": "占",
+              "start": 12.658,
+              "end": 13.008,
+              "approx": true
+            },
+            {
+              "w": "好",
+              "start": 13.008,
+              "end": 13.357,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "start": 13.761,
+      "slot": 3.44,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "猫的一天，按温度排",
+          "file": "audio/vo/s5-1.mp3",
+          "dur": 2.769,
+          "offset": 0.25,
+          "start": 14.011,
+          "words": [
+            {
+              "w": "猫",
+              "start": 14.011,
+              "end": 14.339,
+              "approx": true
+            },
+            {
+              "w": "的",
+              "start": 14.339,
+              "end": 14.666,
+              "approx": true
+            },
+            {
+              "w": "一",
+              "start": 14.666,
+              "end": 14.994,
+              "approx": true
+            },
+            {
+              "w": "天",
+              "start": 14.994,
+              "end": 15.322,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 15.322,
+              "end": 15.469,
+              "approx": true
+            },
+            {
+              "w": "按",
+              "start": 15.469,
+              "end": 15.797,
+              "approx": true
+            },
+            {
+              "w": "温",
+              "start": 15.797,
+              "end": 16.125,
+              "approx": true
+            },
+            {
+              "w": "度",
+              "start": 16.125,
+              "end": 16.452,
+              "approx": true
+            },
+            {
+              "w": "排",
+              "start": 16.452,
+              "end": 16.78,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};

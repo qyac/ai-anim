@@ -1,0 +1,557 @@
+{
+  "source": "./audio/ja-vo.mp3",
+  "lines": [
+    {
+      "id": "s1-1",
+      "text": "私じゃない。コップが先に動いた。",
+      "start": 0.26,
+      "dur": 4.381,
+      "words": [
+        {
+          "w": "私",
+          "start": 0.26,
+          "end": 0.554,
+          "approx": true
+        },
+        {
+          "w": "じ",
+          "start": 0.554,
+          "end": 0.848,
+          "approx": true
+        },
+        {
+          "w": "ゃ",
+          "start": 0.848,
+          "end": 1.142,
+          "approx": true
+        },
+        {
+          "w": "な",
+          "start": 1.142,
+          "end": 1.436,
+          "approx": true
+        },
+        {
+          "w": "い",
+          "start": 1.436,
+          "end": 1.73,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 1.73,
+          "end": 1.862,
+          "approx": true
+        },
+        {
+          "w": "コ",
+          "start": 1.862,
+          "end": 2.156,
+          "approx": true
+        },
+        {
+          "w": "ッ",
+          "start": 2.156,
+          "end": 2.451,
+          "approx": true
+        },
+        {
+          "w": "プ",
+          "start": 2.451,
+          "end": 2.745,
+          "approx": true
+        },
+        {
+          "w": "が",
+          "start": 2.745,
+          "end": 3.039,
+          "approx": true
+        },
+        {
+          "w": "先",
+          "start": 3.039,
+          "end": 3.333,
+          "approx": true
+        },
+        {
+          "w": "に",
+          "start": 3.333,
+          "end": 3.627,
+          "approx": true
+        },
+        {
+          "w": "動",
+          "start": 3.627,
+          "end": 3.921,
+          "approx": true
+        },
+        {
+          "w": "い",
+          "start": 3.921,
+          "end": 4.215,
+          "approx": true
+        },
+        {
+          "w": "た",
+          "start": 4.215,
+          "end": 4.509,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 4.509,
+          "end": 4.641,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s2-1",
+      "text": "一コマずつ見て。四十一コマ目に尻尾。",
+      "start": 5.29,
+      "dur": 5.026,
+      "words": [
+        {
+          "w": "一",
+          "start": 5.29,
+          "end": 5.587,
+          "approx": true
+        },
+        {
+          "w": "コ",
+          "start": 5.587,
+          "end": 5.885,
+          "approx": true
+        },
+        {
+          "w": "マ",
+          "start": 5.885,
+          "end": 6.182,
+          "approx": true
+        },
+        {
+          "w": "ず",
+          "start": 6.182,
+          "end": 6.48,
+          "approx": true
+        },
+        {
+          "w": "つ",
+          "start": 6.48,
+          "end": 6.777,
+          "approx": true
+        },
+        {
+          "w": "見",
+          "start": 6.777,
+          "end": 7.074,
+          "approx": true
+        },
+        {
+          "w": "て",
+          "start": 7.074,
+          "end": 7.372,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 7.372,
+          "end": 7.506,
+          "approx": true
+        },
+        {
+          "w": "四",
+          "start": 7.506,
+          "end": 7.803,
+          "approx": true
+        },
+        {
+          "w": "十",
+          "start": 7.803,
+          "end": 8.1,
+          "approx": true
+        },
+        {
+          "w": "一",
+          "start": 8.1,
+          "end": 8.398,
+          "approx": true
+        },
+        {
+          "w": "コ",
+          "start": 8.398,
+          "end": 8.695,
+          "approx": true
+        },
+        {
+          "w": "マ",
+          "start": 8.695,
+          "end": 8.993,
+          "approx": true
+        },
+        {
+          "w": "目",
+          "start": 8.993,
+          "end": 9.29,
+          "approx": true
+        },
+        {
+          "w": "に",
+          "start": 9.29,
+          "end": 9.587,
+          "approx": true
+        },
+        {
+          "w": "尻",
+          "start": 9.587,
+          "end": 9.885,
+          "approx": true
+        },
+        {
+          "w": "尾",
+          "start": 9.885,
+          "end": 10.182,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 10.182,
+          "end": 10.316,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s3-1",
+      "text": "事故解析器、三代目。",
+      "start": 10.819,
+      "dur": 3.121,
+      "words": [
+        {
+          "w": "事",
+          "start": 10.819,
+          "end": 11.17,
+          "approx": true
+        },
+        {
+          "w": "故",
+          "start": 11.17,
+          "end": 11.52,
+          "approx": true
+        },
+        {
+          "w": "解",
+          "start": 11.52,
+          "end": 11.871,
+          "approx": true
+        },
+        {
+          "w": "析",
+          "start": 11.871,
+          "end": 12.222,
+          "approx": true
+        },
+        {
+          "w": "器",
+          "start": 12.222,
+          "end": 12.572,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 12.572,
+          "end": 12.73,
+          "approx": true
+        },
+        {
+          "w": "三",
+          "start": 12.73,
+          "end": 13.081,
+          "approx": true
+        },
+        {
+          "w": "代",
+          "start": 13.081,
+          "end": 13.432,
+          "approx": true
+        },
+        {
+          "w": "目",
+          "start": 13.432,
+          "end": 13.782,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 13.782,
+          "end": 13.94,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s4-1",
+      "text": "今日、濡れ衣を着せられた回数、八回。",
+      "start": 15.07,
+      "dur": 4.457,
+      "words": [
+        {
+          "w": "今",
+          "start": 15.07,
+          "end": 15.343,
+          "approx": true
+        },
+        {
+          "w": "日",
+          "start": 15.343,
+          "end": 15.615,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 15.615,
+          "end": 15.738,
+          "approx": true
+        },
+        {
+          "w": "濡",
+          "start": 15.738,
+          "end": 16.01,
+          "approx": true
+        },
+        {
+          "w": "れ",
+          "start": 16.01,
+          "end": 16.283,
+          "approx": true
+        },
+        {
+          "w": "衣",
+          "start": 16.283,
+          "end": 16.556,
+          "approx": true
+        },
+        {
+          "w": "を",
+          "start": 16.556,
+          "end": 16.828,
+          "approx": true
+        },
+        {
+          "w": "着",
+          "start": 16.828,
+          "end": 17.101,
+          "approx": true
+        },
+        {
+          "w": "せ",
+          "start": 17.101,
+          "end": 17.373,
+          "approx": true
+        },
+        {
+          "w": "ら",
+          "start": 17.373,
+          "end": 17.646,
+          "approx": true
+        },
+        {
+          "w": "れ",
+          "start": 17.646,
+          "end": 17.919,
+          "approx": true
+        },
+        {
+          "w": "た",
+          "start": 17.919,
+          "end": 18.191,
+          "approx": true
+        },
+        {
+          "w": "回",
+          "start": 18.191,
+          "end": 18.464,
+          "approx": true
+        },
+        {
+          "w": "数",
+          "start": 18.464,
+          "end": 18.736,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 18.736,
+          "end": 18.859,
+          "approx": true
+        },
+        {
+          "w": "八",
+          "start": 18.859,
+          "end": 19.132,
+          "approx": true
+        },
+        {
+          "w": "回",
+          "start": 19.132,
+          "end": 19.404,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 19.404,
+          "end": 19.527,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s5-1",
+      "text": "同じ机で、二つの世界。",
+      "start": 20.068,
+      "dur": 3.602,
+      "words": [
+        {
+          "w": "同",
+          "start": 20.068,
+          "end": 20.432,
+          "approx": true
+        },
+        {
+          "w": "じ",
+          "start": 20.432,
+          "end": 20.796,
+          "approx": true
+        },
+        {
+          "w": "机",
+          "start": 20.796,
+          "end": 21.16,
+          "approx": true
+        },
+        {
+          "w": "で",
+          "start": 21.16,
+          "end": 21.523,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 21.523,
+          "end": 21.687,
+          "approx": true
+        },
+        {
+          "w": "二",
+          "start": 21.687,
+          "end": 22.051,
+          "approx": true
+        },
+        {
+          "w": "つ",
+          "start": 22.051,
+          "end": 22.415,
+          "approx": true
+        },
+        {
+          "w": "の",
+          "start": 22.415,
+          "end": 22.779,
+          "approx": true
+        },
+        {
+          "w": "世",
+          "start": 22.779,
+          "end": 23.142,
+          "approx": true
+        },
+        {
+          "w": "界",
+          "start": 23.142,
+          "end": 23.506,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 23.506,
+          "end": 23.67,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s6-1",
+      "text": "データは、当猫が提供。",
+      "start": 24.532,
+      "dur": 3.486,
+      "words": [
+        {
+          "w": "デ",
+          "start": 24.532,
+          "end": 24.884,
+          "approx": true
+        },
+        {
+          "w": "ー",
+          "start": 24.884,
+          "end": 25.236,
+          "approx": true
+        },
+        {
+          "w": "タ",
+          "start": 25.236,
+          "end": 25.588,
+          "approx": true
+        },
+        {
+          "w": "は",
+          "start": 25.588,
+          "end": 25.94,
+          "approx": true
+        },
+        {
+          "w": "、",
+          "start": 25.94,
+          "end": 26.099,
+          "approx": true
+        },
+        {
+          "w": "当",
+          "start": 26.099,
+          "end": 26.451,
+          "approx": true
+        },
+        {
+          "w": "猫",
+          "start": 26.451,
+          "end": 26.803,
+          "approx": true
+        },
+        {
+          "w": "が",
+          "start": 26.803,
+          "end": 27.155,
+          "approx": true
+        },
+        {
+          "w": "提",
+          "start": 27.155,
+          "end": 27.507,
+          "approx": true
+        },
+        {
+          "w": "供",
+          "start": 27.507,
+          "end": 27.86,
+          "approx": true
+        },
+        {
+          "w": "。",
+          "start": 27.86,
+          "end": 28.018,
+          "approx": true
+        }
+      ]
+    }
+  ]
+}

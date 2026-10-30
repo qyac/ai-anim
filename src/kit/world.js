@@ -45,6 +45,9 @@ import {
   transitionPass as coreTransitionPass, makeCameraProfile, openTransitionFrame,
 } from '../core/trans.js';
 
+// 碰撞式转场的判据转发（BACKLOG 1-33 ③）：场景侧从 kit 里就能拿到，不必回头 import core
+export { planCollision, victimSpan, VICTIM_RATIO_RANGE, VICTIM_RATIO_DEFAULT } from '../core/trans.js';
+
 /**
  * 把「上一段那一帧」沿摄影机方向甩出去，并加方向拖尾。
  *
@@ -53,7 +56,12 @@ import {
  * 透明度在 k=0.55 之前就降到 0，避免两屏文字长时间叠着。
  *
  * 实现在 `src/core/trans.js`（引擎级），这里只做转发 —— 同一件事不该有第二份实现。
- * @param {{ push?: number, blur?: number, fadeAt?: number, key?: string }} [opts]
+ *
+ * `victimRatio` 是 §4.4 那条「受害者退出时长 = 入侵者入场时长 × 40–50%」的入口
+ * （判据与夹取在 `src/core/trans.js` 的 `planCollision` / `VICTIM_RATIO_RANGE`）。
+ * **不传 = `fadeAt` 还是 0.55，逐像素与从前一致。**
+ *
+ * @param {{ push?: number, blur?: number, fadeAt?: number, key?: string, victimRatio?: number }} [opts]
  */
 export function transitionPass(gl, opts = {}) {
   return coreTransitionPass(gl, opts);
@@ -69,6 +77,22 @@ export function transitionPass(gl, opts = {}) {
  * @param {any} ctx SceneCtx（只要有 gl 和 P；task.config 里传的就是这个）
  * @param {{ grid?: number, sweep?: number, warp?: number, accent?: number[], vignette?: number }} [opts]
  */
+/**
+ * 调色板指纹（短 hash）：只用来区分"这份颜色组合"，不追求抗碰撞 ——
+ * 目的是让缓存 key 在**换风格**时失效，避免复用上一套的 Pass 实例。
+ * @param {any} P 调色板（linear 值，数组）
+ * @param {any} accent 强调色（线性值）
+ */
+function paletteFingerprint(P, accent) {
+  const q = (v) => Math.round((Array.isArray(v) ? v[0] * 7 + v[1] * 13 + v[2] * 17 : (v?.r ?? 0)) * 1000);
+  let h = 2166136261;
+  for (const v of [q(P.ink), q(P.ink2), q(P.bone), q(accent)]) {
+    h ^= v & 0xffff;
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(36).slice(0, 6);
+}
+
 export function worldPass(ctx, opts = {}) {
   const P = ctx.P;
   const grid = opts.grid ?? 60;
@@ -187,7 +211,13 @@ export function worldPass(ctx, opts = {}) {
     }`, {
     cInk: P.ink, cInk2: P.ink2, cLine: P.bone, cAccent: accent,
     warp: opts.warp ?? 1, spacing: grid, sweep: 0, vig, motif,
-  }, { key: `kit_world_${motifName}_${grid}_${vig}`, blend: false });
+  }, {
+    // ⚠ key 必须带上**调色板指纹**：Pass 是按 key 缓存的，颜色虽然是 uniform，
+    //   但同一个 key 会复用上一套风格建好的那个实例 —— 换风格后背景还是上一个配色。
+    //   这正是「15 套 MG 风格包渲出来背景不变」的直接原因（实测：mg-bauhaus 的米白底渲成近黑）。
+    key: `kit_world_${motifName}_${grid}_${vig}_${paletteFingerprint(P, accent)}`,
+    blend: false,
+  });
 }
 
 /**
@@ -233,6 +263,10 @@ export const enterOffset = CAM.enterOffset;
  *   ② 交叠期把上一段那一帧沿摄影机方向甩出去（不是原地淡出 —— 两屏文字叠着会糊）。
  *
  * 返回的 `k` 是入场进度：1 = 已经站稳，按平常那样画即可。
+ *
+ * `opts` **原样交给 `transitionPass()`** —— 所以 `transitionPass` 的旋钮在这里都能用
+ * （`push` / `blur` / `fadeAt` / `victimRatio`）；`opts.background` 是这一层的背景。
+ * 一个都不给 = 从前的行为（`fadeAt` 0.55）。
  */
 export function makeWorldKit(ctx, opts = {}) {
   const pass = transitionPass(ctx.gl, opts);

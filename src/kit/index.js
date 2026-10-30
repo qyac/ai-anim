@@ -78,9 +78,20 @@ export { bands, bandsOf, assertInBand, captionNote, subLine } from './bands.js';
 
 export {
   worldPass, cameraAt, cameraDir, cameraPost, enterOffset, makeWorldKit, transitionPass,
+  // 碰撞式转场的判据（BACKLOG 1-33 ③，docs/MOTION.md §3.5）：0.40–0.50 那条区间只在 trans.js 里定义一次
+  planCollision, victimSpan, VICTIM_RATIO_RANGE, VICTIM_RATIO_DEFAULT,
 } from './world.js';
 
 export { makeShot, shot } from './shot.js';
+export { stickerShot } from './sticker.js';
+
+/**
+ * `src/kit/info.js` —— **infoShot 段落骨架**（BACKLOG 1-50）：眉标 + 标题 + 面板底
+ * （图形区）+ 侧标注 + 出处行 + 页脚 + 四段错峰一次包掉，用户只写 `draw(ctx, rect)`。
+ * 版面纪律（字幕带避让 / focus 声明 / 出处行）由骨架承担 —— 判据"新片子手写行数
+ * 占比 < 30%"靠它收敛。
+ */
+export { infoShot } from './info.js';
 
 /**
  * `makeThreeShot()` —— 一个 **Three.js 镜头**（引擎的第 3 种 3D：真网格）。
@@ -145,3 +156,6 @@ export {
   pickColor, requireColor, FACE_NORMALS, FACE_GEO, BOX_EDGES, SUN,
   FILL_ZERO, FILL_FULL, TONE_FLOOR, SOLID_K, QUEUE_KEY, PENDING, clearPending,
 } from './blocks.js';
+
+// 母题库（BACKLOG 1-49）：跨片子复用的视觉母题 —— 见 src/kit/motifs/index.js 的头注释
+export * from './motifs/index.js';

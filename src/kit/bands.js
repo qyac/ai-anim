@@ -61,9 +61,11 @@ export function bands(W = 1920, H = 1080, grid = null) {
     foot: { x0: g.pad, x1: W - g.pad, line: g.footerLineY, y: g.footerY, size: 22 },
     /** **字幕保留带**（引擎的字幕层占这里；不要往里放别的东西） */
     sub: (() => {
-      // x 范围取"字幕实际会占的那一块"（每行最多 16 个中文字 ≈ 704px、居中），
+      // x 范围取"字幕实际会占的那一块"（横屏每行最多 16 个中文字 ≈ 704px、居中），
       // 而不是整幅宽度 —— 否则左上段标签、右上读数会被误判成冲突。
-      const halfW = Math.round(W * 0.19);
+      // 竖屏（BACKLOG 1-52）每行 12 字、字号 ×1.35，一块占到短边的 84%（≈904px），
+      // 再按横屏的 0.19 算就会把"字幕其实压到的位置"判成没压 —— 假阴性。
+      const halfW = Math.round(W * (H > W ? 0.42 : 0.19));
       return {
         x0: Math.round(W / 2 - halfW), x1: Math.round(W / 2 + halfW),
         y0: g.captionBand[0], y1: g.captionBand[1],

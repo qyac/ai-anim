@@ -1,0 +1,602 @@
+// 由 `node scripts/anim.mjs say <任务>` 生成，不要手改；改旁白请改 narration.mjs 再重跑。
+export default {
+  "voice": "cotton-ja",
+  "rate": "+10%",
+  "bpm": 214.68,
+  "beat": 0.27948574622694244,
+  "overlap": 0,
+  "tail": 0.3,
+  "maxStretch": 1.3,
+  "total": 27.39,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "s1",
+      "start": 0,
+      "slot": 3.913,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "誰もいない部屋で。",
+          "file": "audio/vo/ja/s1-1.mp3",
+          "dur": 2.07,
+          "offset": 0.2,
+          "start": 0.2,
+          "words": [
+            {
+              "w": "誰",
+              "start": 0.2,
+              "end": 0.445,
+              "approx": true
+            },
+            {
+              "w": "も",
+              "start": 0.445,
+              "end": 0.69,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 0.69,
+              "end": 0.935,
+              "approx": true
+            },
+            {
+              "w": "な",
+              "start": 0.935,
+              "end": 1.18,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 1.18,
+              "end": 1.425,
+              "approx": true
+            },
+            {
+              "w": "部",
+              "start": 1.425,
+              "end": 1.67,
+              "approx": true
+            },
+            {
+              "w": "屋",
+              "start": 1.67,
+              "end": 1.915,
+              "approx": true
+            },
+            {
+              "w": "で",
+              "start": 1.915,
+              "end": 2.16,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 2.16,
+              "end": 2.27,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "start": 3.913,
+      "slot": 5.31,
+      "stretch": 1.3,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "床、窓、あなたの椅子。三つの層。",
+          "file": "audio/vo/ja/s2-1.mp3",
+          "dur": 4.729,
+          "offset": 0.26,
+          "start": 4.173,
+          "words": [
+            {
+              "w": "床",
+              "start": 4.173,
+              "end": 4.516,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 4.516,
+              "end": 4.67,
+              "approx": true
+            },
+            {
+              "w": "窓",
+              "start": 4.67,
+              "end": 5.013,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 5.013,
+              "end": 5.167,
+              "approx": true
+            },
+            {
+              "w": "あ",
+              "start": 5.167,
+              "end": 5.509,
+              "approx": true
+            },
+            {
+              "w": "な",
+              "start": 5.509,
+              "end": 5.852,
+              "approx": true
+            },
+            {
+              "w": "た",
+              "start": 5.852,
+              "end": 6.195,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 6.195,
+              "end": 6.538,
+              "approx": true
+            },
+            {
+              "w": "椅",
+              "start": 6.538,
+              "end": 6.88,
+              "approx": true
+            },
+            {
+              "w": "子",
+              "start": 6.88,
+              "end": 7.223,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 7.223,
+              "end": 7.377,
+              "approx": true
+            },
+            {
+              "w": "三",
+              "start": 7.377,
+              "end": 7.72,
+              "approx": true
+            },
+            {
+              "w": "つ",
+              "start": 7.72,
+              "end": 8.062,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 8.062,
+              "end": 8.405,
+              "approx": true
+            },
+            {
+              "w": "層",
+              "start": 8.405,
+              "end": 8.748,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 8.748,
+              "end": 8.902,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "start": 9.223,
+      "slot": 3.913,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "窓の外の音は、五つ。",
+          "file": "audio/vo/ja/s3-1.mp3",
+          "dur": 3.085,
+          "offset": 0.2,
+          "start": 9.423,
+          "words": [
+            {
+              "w": "窓",
+              "start": 9.423,
+              "end": 9.77,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 9.77,
+              "end": 10.116,
+              "approx": true
+            },
+            {
+              "w": "外",
+              "start": 10.116,
+              "end": 10.463,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 10.463,
+              "end": 10.81,
+              "approx": true
+            },
+            {
+              "w": "音",
+              "start": 10.81,
+              "end": 11.156,
+              "approx": true
+            },
+            {
+              "w": "は",
+              "start": 11.156,
+              "end": 11.503,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 11.503,
+              "end": 11.659,
+              "approx": true
+            },
+            {
+              "w": "五",
+              "start": 11.659,
+              "end": 12.005,
+              "approx": true
+            },
+            {
+              "w": "つ",
+              "start": 12.005,
+              "end": 12.352,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 12.352,
+              "end": 12.508,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "start": 13.136,
+      "slot": 5.31,
+      "stretch": 1.3,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "見られてない時の猫が、いちばん猫らしい。",
+          "file": "audio/vo/ja/s4-1.mp3",
+          "dur": 4.517,
+          "offset": 0.26,
+          "start": 13.396,
+          "words": [
+            {
+              "w": "見",
+              "start": 13.396,
+              "end": 13.635,
+              "approx": true
+            },
+            {
+              "w": "ら",
+              "start": 13.635,
+              "end": 13.874,
+              "approx": true
+            },
+            {
+              "w": "れ",
+              "start": 13.874,
+              "end": 14.113,
+              "approx": true
+            },
+            {
+              "w": "て",
+              "start": 14.113,
+              "end": 14.352,
+              "approx": true
+            },
+            {
+              "w": "な",
+              "start": 14.352,
+              "end": 14.591,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 14.591,
+              "end": 14.83,
+              "approx": true
+            },
+            {
+              "w": "時",
+              "start": 14.83,
+              "end": 15.069,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 15.069,
+              "end": 15.308,
+              "approx": true
+            },
+            {
+              "w": "猫",
+              "start": 15.308,
+              "end": 15.547,
+              "approx": true
+            },
+            {
+              "w": "が",
+              "start": 15.547,
+              "end": 15.786,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 15.786,
+              "end": 15.893,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 15.893,
+              "end": 16.132,
+              "approx": true
+            },
+            {
+              "w": "ち",
+              "start": 16.132,
+              "end": 16.371,
+              "approx": true
+            },
+            {
+              "w": "ば",
+              "start": 16.371,
+              "end": 16.61,
+              "approx": true
+            },
+            {
+              "w": "ん",
+              "start": 16.61,
+              "end": 16.849,
+              "approx": true
+            },
+            {
+              "w": "猫",
+              "start": 16.849,
+              "end": 17.088,
+              "approx": true
+            },
+            {
+              "w": "ら",
+              "start": 17.088,
+              "end": 17.327,
+              "approx": true
+            },
+            {
+              "w": "し",
+              "start": 17.327,
+              "end": 17.566,
+              "approx": true
+            },
+            {
+              "w": "い",
+              "start": 17.566,
+              "end": 17.805,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 17.805,
+              "end": 17.913,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "start": 18.446,
+      "slot": 5.031,
+      "stretch": 1.3,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "同じ数字を、三つの描き方で。",
+          "file": "audio/vo/ja/s5-1.mp3",
+          "dur": 4.267,
+          "offset": 0.26,
+          "start": 18.706,
+          "words": [
+            {
+              "w": "同",
+              "start": 18.706,
+              "end": 19.037,
+              "approx": true
+            },
+            {
+              "w": "じ",
+              "start": 19.037,
+              "end": 19.368,
+              "approx": true
+            },
+            {
+              "w": "数",
+              "start": 19.368,
+              "end": 19.698,
+              "approx": true
+            },
+            {
+              "w": "字",
+              "start": 19.698,
+              "end": 20.029,
+              "approx": true
+            },
+            {
+              "w": "を",
+              "start": 20.029,
+              "end": 20.36,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 20.36,
+              "end": 20.509,
+              "approx": true
+            },
+            {
+              "w": "三",
+              "start": 20.509,
+              "end": 20.84,
+              "approx": true
+            },
+            {
+              "w": "つ",
+              "start": 20.84,
+              "end": 21.17,
+              "approx": true
+            },
+            {
+              "w": "の",
+              "start": 21.17,
+              "end": 21.501,
+              "approx": true
+            },
+            {
+              "w": "描",
+              "start": 21.501,
+              "end": 21.832,
+              "approx": true
+            },
+            {
+              "w": "き",
+              "start": 21.832,
+              "end": 22.163,
+              "approx": true
+            },
+            {
+              "w": "方",
+              "start": 22.163,
+              "end": 22.493,
+              "approx": true
+            },
+            {
+              "w": "で",
+              "start": 22.493,
+              "end": 22.824,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 22.824,
+              "end": 22.973,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s6",
+      "start": 23.477,
+      "slot": 3.913,
+      "stretch": 1,
+      "internal": 3.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "部屋に、私ひとり。",
+          "file": "audio/vo/ja/s6-1.mp3",
+          "dur": 1.883,
+          "offset": 0.2,
+          "start": 23.677,
+          "words": [
+            {
+              "w": "部",
+              "start": 23.677,
+              "end": 23.915,
+              "approx": true
+            },
+            {
+              "w": "屋",
+              "start": 23.915,
+              "end": 24.154,
+              "approx": true
+            },
+            {
+              "w": "に",
+              "start": 24.154,
+              "end": 24.392,
+              "approx": true
+            },
+            {
+              "w": "、",
+              "start": 24.392,
+              "end": 24.499,
+              "approx": true
+            },
+            {
+              "w": "私",
+              "start": 24.499,
+              "end": 24.738,
+              "approx": true
+            },
+            {
+              "w": "ひ",
+              "start": 24.738,
+              "end": 24.976,
+              "approx": true
+            },
+            {
+              "w": "と",
+              "start": 24.976,
+              "end": 25.214,
+              "approx": true
+            },
+            {
+              "w": "り",
+              "start": 25.214,
+              "end": 25.453,
+              "approx": true
+            },
+            {
+              "w": "。",
+              "start": 25.453,
+              "end": 25.56,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};

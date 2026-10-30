@@ -84,3 +84,4 @@ Thumbs.db
 # 想改成"字体自备"就把下面两行放开，同时把 `THIRD-PARTY.md` 里对应条目改成"不随仓库分发"。
 # public/fonts/*.woff2
 # public/fonts/*.ttf
+__pycache__/

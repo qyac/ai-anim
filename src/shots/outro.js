@@ -32,7 +32,7 @@ export function outroShot(opts = {}) {
       const { W, H } = gl;
       const t = f.lt;
 
-      gl.clear(ctx.out, [P.ink[0], P.ink[1], P.ink[2]]);
+      gl.clear(ctx.out, [P.bg[0], P.bg[1], P.bg[2]]);
 
       // 一条细线从两侧收拢到中心，再展开成下划线
       const k = ease.inOutCubic(prog(t, 0.2, 1.6));

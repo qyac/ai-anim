@@ -1,0 +1,399 @@
+{
+  "source": "./audio/nuomi6-vo.mp3",
+  "lines": [
+    {
+      "id": "s1-1",
+      "text": "瞳孔里的 60 帧",
+      "start": 0.236,
+      "dur": 2.337,
+      "words": [
+        {
+          "w": "瞳",
+          "start": 0.236,
+          "end": 0.552,
+          "approx": true
+        },
+        {
+          "w": "孔",
+          "start": 0.552,
+          "end": 0.868,
+          "approx": true
+        },
+        {
+          "w": "里",
+          "start": 0.868,
+          "end": 1.183,
+          "approx": true
+        },
+        {
+          "w": "的",
+          "start": 1.183,
+          "end": 1.499,
+          "approx": true
+        },
+        {
+          "w": " ",
+          "start": 1.499,
+          "end": 1.562,
+          "approx": true
+        },
+        {
+          "w": "6",
+          "start": 1.562,
+          "end": 1.878,
+          "approx": true
+        },
+        {
+          "w": "0",
+          "start": 1.878,
+          "end": 2.194,
+          "approx": true
+        },
+        {
+          "w": " ",
+          "start": 2.194,
+          "end": 2.257,
+          "approx": true
+        },
+        {
+          "w": "帧",
+          "start": 2.257,
+          "end": 2.573,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s2-1",
+      "text": "猫眼里的每一帧",
+      "start": 3.589,
+      "dur": 1.737,
+      "words": [
+        {
+          "w": "猫",
+          "start": 3.589,
+          "end": 3.837,
+          "approx": true
+        },
+        {
+          "w": "眼",
+          "start": 3.837,
+          "end": 4.085,
+          "approx": true
+        },
+        {
+          "w": "里",
+          "start": 4.085,
+          "end": 4.333,
+          "approx": true
+        },
+        {
+          "w": "的",
+          "start": 4.333,
+          "end": 4.582,
+          "approx": true
+        },
+        {
+          "w": "每",
+          "start": 4.582,
+          "end": 4.83,
+          "approx": true
+        },
+        {
+          "w": "一",
+          "start": 4.83,
+          "end": 5.078,
+          "approx": true
+        },
+        {
+          "w": "帧",
+          "start": 5.078,
+          "end": 5.326,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s3-1",
+      "text": "屏幕在闪，而我看见的是它闪的方式",
+      "start": 6.462,
+      "dur": 4.123,
+      "words": [
+        {
+          "w": "屏",
+          "start": 6.462,
+          "end": 6.729,
+          "approx": true
+        },
+        {
+          "w": "幕",
+          "start": 6.729,
+          "end": 6.996,
+          "approx": true
+        },
+        {
+          "w": "在",
+          "start": 6.996,
+          "end": 7.263,
+          "approx": true
+        },
+        {
+          "w": "闪",
+          "start": 7.263,
+          "end": 7.529,
+          "approx": true
+        },
+        {
+          "w": "，",
+          "start": 7.529,
+          "end": 7.65,
+          "approx": true
+        },
+        {
+          "w": "而",
+          "start": 7.65,
+          "end": 7.916,
+          "approx": true
+        },
+        {
+          "w": "我",
+          "start": 7.916,
+          "end": 8.183,
+          "approx": true
+        },
+        {
+          "w": "看",
+          "start": 8.183,
+          "end": 8.45,
+          "approx": true
+        },
+        {
+          "w": "见",
+          "start": 8.45,
+          "end": 8.717,
+          "approx": true
+        },
+        {
+          "w": "的",
+          "start": 8.717,
+          "end": 8.984,
+          "approx": true
+        },
+        {
+          "w": "是",
+          "start": 8.984,
+          "end": 9.251,
+          "approx": true
+        },
+        {
+          "w": "它",
+          "start": 9.251,
+          "end": 9.518,
+          "approx": true
+        },
+        {
+          "w": "闪",
+          "start": 9.518,
+          "end": 9.784,
+          "approx": true
+        },
+        {
+          "w": "的",
+          "start": 9.784,
+          "end": 10.051,
+          "approx": true
+        },
+        {
+          "w": "方",
+          "start": 10.051,
+          "end": 10.318,
+          "approx": true
+        },
+        {
+          "w": "式",
+          "start": 10.318,
+          "end": 10.585,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s4-1",
+      "text": "一小时里闪过的画面",
+      "start": 11.263,
+      "dur": 2.679,
+      "words": [
+        {
+          "w": "一",
+          "start": 11.263,
+          "end": 11.561,
+          "approx": true
+        },
+        {
+          "w": "小",
+          "start": 11.561,
+          "end": 11.858,
+          "approx": true
+        },
+        {
+          "w": "时",
+          "start": 11.858,
+          "end": 12.156,
+          "approx": true
+        },
+        {
+          "w": "里",
+          "start": 12.156,
+          "end": 12.454,
+          "approx": true
+        },
+        {
+          "w": "闪",
+          "start": 12.454,
+          "end": 12.751,
+          "approx": true
+        },
+        {
+          "w": "过",
+          "start": 12.751,
+          "end": 13.049,
+          "approx": true
+        },
+        {
+          "w": "的",
+          "start": 13.049,
+          "end": 13.347,
+          "approx": true
+        },
+        {
+          "w": "画",
+          "start": 13.347,
+          "end": 13.644,
+          "approx": true
+        },
+        {
+          "w": "面",
+          "start": 13.644,
+          "end": 13.942,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s5-1",
+      "text": "一帧算错，整段就废了 —— 所以要算",
+      "start": 14.651,
+      "dur": 4.039,
+      "words": [
+        {
+          "w": "一",
+          "start": 14.651,
+          "end": 14.925,
+          "approx": true
+        },
+        {
+          "w": "帧",
+          "start": 14.925,
+          "end": 15.199,
+          "approx": true
+        },
+        {
+          "w": "算",
+          "start": 15.199,
+          "end": 15.472,
+          "approx": true
+        },
+        {
+          "w": "错",
+          "start": 15.472,
+          "end": 15.746,
+          "approx": true
+        },
+        {
+          "w": "，",
+          "start": 15.746,
+          "end": 15.87,
+          "approx": true
+        },
+        {
+          "w": "整",
+          "start": 15.87,
+          "end": 16.143,
+          "approx": true
+        },
+        {
+          "w": "段",
+          "start": 16.143,
+          "end": 16.417,
+          "approx": true
+        },
+        {
+          "w": "就",
+          "start": 16.417,
+          "end": 16.691,
+          "approx": true
+        },
+        {
+          "w": "废",
+          "start": 16.691,
+          "end": 16.965,
+          "approx": true
+        },
+        {
+          "w": "了",
+          "start": 16.965,
+          "end": 17.239,
+          "approx": true
+        },
+        {
+          "w": " ",
+          "start": 17.239,
+          "end": 17.293,
+          "approx": true
+        },
+        {
+          "w": "—",
+          "start": 17.293,
+          "end": 17.417,
+          "approx": true
+        },
+        {
+          "w": "—",
+          "start": 17.417,
+          "end": 17.54,
+          "approx": true
+        },
+        {
+          "w": " ",
+          "start": 17.54,
+          "end": 17.595,
+          "approx": true
+        },
+        {
+          "w": "所",
+          "start": 17.595,
+          "end": 17.869,
+          "approx": true
+        },
+        {
+          "w": "以",
+          "start": 17.869,
+          "end": 18.142,
+          "approx": true
+        },
+        {
+          "w": "要",
+          "start": 18.142,
+          "end": 18.416,
+          "approx": true
+        },
+        {
+          "w": "算",
+          "start": 18.416,
+          "end": 18.69,
+          "approx": true
+        }
+      ]
+    }
+  ]
+}

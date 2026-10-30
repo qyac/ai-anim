@@ -269,7 +269,8 @@ export async function loadNarrationScript(taskDir, scriptPath) {
  */
 export function resolveBeat({ taskDir, script, bpm, audioSpec }) {
   if (Number(bpm) > 0) return { beat: 60 / Number(bpm), from: `--bpm ${bpm}` };
-  if (script.beat > 0) return { beat: script.beat, from: 'narration.mjs 的 BPM/BEAT' };
+  // 声明值只是意图，音乐的真值才决定切点落哪（见下面 ① 的实测分支）
+  const declaredBeat = script.beat > 0 ? script.beat : null;
 
   const stripExt = (f) => String(f).replace(/\.[^./\\]+$/, '');
   const analysisOf = (rel) => (rel ? path.join(taskDir, 'audio', `${path.basename(stripExt(rel))}.analysis.json`) : null);
@@ -289,7 +290,31 @@ export function resolveBeat({ taskDir, script, bpm, audioSpec }) {
   if (spec?.music) {
     const f = analysisOf(spec.music);
     const b = readBpm(f);
-    if (b) return { beat: 60 / b, from: `${path.basename(f)} 的 bpm=${b}` };
+    if (b) {
+      // 防呆：分析结果比音频旧（重新生成过床却没重跑 analyze）⇒ 那个 bpm 已经是过去时了。
+      // 实测踩过：改床后忘记 analyze，#说 89bpm，而床其实是 84.5 —— 按 89 排会全盘错位。
+      try {
+        const audioPath = path.join(taskDir, spec.music);
+        if (existsSync(audioPath) && statSync(f).mtimeMs + 1000 < statSync(audioPath).mtimeMs) {
+          return {
+            beat: declaredBeat || FALLBACK_BEAT,
+            from: declaredBeat ? 'narration.mjs 的 BPM（analysis 比音频旧，已忽略）' : null,
+            warning: `${path.basename(f)} 比音频 ${path.basename(spec.music)} 旧 —— 先跑 node scripts/anim.mjs analyze <任务>`
+              + '，否则按旧 bpm 排出来的切点对不上现在的音乐。',
+          };
+        }
+      } catch { /* stat 失败就当它不老 */ }
+      const measured = 60 / b;
+      const out = { beat: measured, from: `${path.basename(f)} 的 bpm=${b}（实测）` };
+      // 声明值与实测差 > 0.3% 就明说：38 秒的片子累积漂 200ms，卡点会从 9/9 掉到 2/9
+      if (declaredBeat && Math.abs(measured - declaredBeat) / declaredBeat > 0.003) {
+        out.warning = 'narration.mjs 写的一拍是 ' + declaredBeat.toFixed(4) + 's（≈' + (60 / declaredBeat).toFixed(2) + 'bpm），'
+          + '音乐实测 ' + measured.toFixed(4) + 's（≈' + b.toFixed(2) + 'bpm），差 '
+          + (Math.abs(measured - declaredBeat) / declaredBeat * 100).toFixed(2)
+          + '% —— 已按实测排时长（按声明值排，切点会随片子变长逐渐漂离拍子）。';
+      }
+      return out;
+    }
     return noBeat(
       `task.audio 里声明了 music 轨（${path.basename(spec.music)}），但没有 ${path.relative(process.cwd(), f)}`
       + ` —— 先跑 node scripts/anim.mjs analyze <任务>；现在按 ${FALLBACK_BEAT}s 一拍兜底。`,
@@ -676,10 +701,16 @@ export function synthLine(driver, { file, text, voice, rate, force = false }) {
  * 纯函数：把"每句念了多久"解成每段的 `start / slot / stretch` 与每句的绝对时刻。
  * 单独拿出来是因为**这是整套东西里唯一值得单测的部分**（不需要 TTS、不需要 GPU）。
  *
- * @param {{ scenes: any[], beat: number|null, overlap: number|'beat'|null, tail: number, maxStretch: number }} a
- * @returns {{ scenes: any[], total: number, warnings: string[] }}
+ * **`pinned`（BACKLOG 1-23）：把上一版 `timing.json` 的 `scenes` 传进来**，同一 id 且新旁白仍放得下
+ * 就直接沿用它的 `stretch` / `slot` —— 时间线一个像素都不动，于是「改一句词」只重出那句音频，
+ * 成片靠 `--segments` 的块级判断只重渲真正变了的那一块（1-45）。放不下（话变长了）才重解这一段，
+ * 并在 `warnings` 里说清是哪一段、超了多少。
+ *
+ * @param {{ scenes: any[], beat: number|null, overlap: number|'beat'|null, tail: number, maxStretch: number,
+ *           pinned?: any[]|null }} a
+ * @returns {{ scenes: any[], total: number, warnings: string[], pinned: string[], resolved: string[] }}
  */
-export function solveTiming({ scenes, beat, overlap, tail, maxStretch }) {
+export function solveTiming({ scenes, beat, overlap, tail, maxStretch, pinned = null }) {
   const warnings = [];
   const bpmBeat = beat && beat > 0 ? beat : FALLBACK_BEAT;
   const ov = overlap === 'beat' || overlap == null
@@ -687,6 +718,11 @@ export function solveTiming({ scenes, beat, overlap, tail, maxStretch }) {
     : Number(overlap);
   const roundBeat = (x) => Math.ceil(x / bpmBeat - 1e-6) * bpmBeat;
   const out = [];
+  const pinnedIds = [];
+  const resolvedIds = [];
+  const pinnedById = new Map(
+    (Array.isArray(pinned) ? pinned : []).filter((p) => p && p.id).map((p) => [p.id, p]),
+  );
   let cursor = 0;
   for (const sc of scenes) {
     const lines = sc.lines.map((l, i) => ({ ...l, index: i }));
@@ -695,8 +731,35 @@ export function solveTiming({ scenes, beat, overlap, tail, maxStretch }) {
       throw new Error(`[${sc.id}] 有句子的时长量出来是 ${measured.find((l) => !(l.dur > 0))?.dur} —— TTS 没出声？`);
     }
     const need = Math.max(...measured.map((l) => l.cue + l.dur)) + tail;
+    // ── 钉住上一版（BACKLOG 1-23）──
+    // 同一 id + 新旁白仍然放得下 ⇒ 沿用上一版的 stretch/slot，**时间线不动**。
+    // 判断「放得下」用的是同一个 finish 公式；多给 1e-6 的容差，避免浮点噪声把等号判成超。
     const wantStretch = need / Number(sc.internal);
-    const stretch = Math.min(maxStretch, Math.max(1, wantStretch));
+    const pin = pinnedById.get(sc.id);
+    let stretch;
+    let pinnedNow = false;
+    if (pin && Number(pin.slot) > 0 && Number(pin.stretch) > 0) {
+      const pinStretch = Number(pin.stretch);
+      const pinSlot = Number(pin.slot);
+      const pinFinish = Math.max(
+        Number(sc.internal) * pinStretch,
+        ...measured.map((l) => l.cue * pinStretch + l.dur),
+      ) + tail;
+      if (pinFinish <= pinSlot + 1e-6) {
+        stretch = pinStretch;
+        pinnedNow = true;
+        pinnedIds.push(sc.id);
+      } else {
+        warnings.push(
+          `[${sc.id}] 新旁白比上一版长 ${(pinFinish - pinSlot).toFixed(2)}s，放不进原来的 slot `
+          + `(${pinSlot.toFixed(2)}s) —— 这一段重解（时间线会动，相关块要重渲）；其余段仍然钉住。`,
+        );
+      }
+    }
+    if (!pinnedNow) {
+      stretch = Math.min(maxStretch, Math.max(1, wantStretch));
+      if (pin) resolvedIds.push(sc.id);
+    }
     if (wantStretch > maxStretch + 1e-6) {
       warnings.push(
         `[${sc.id}] 旁白需要把画面放慢 ${wantStretch.toFixed(2)}× 才念得完，但 MAX_STRETCH=${maxStretch}`
@@ -707,8 +770,9 @@ export function solveTiming({ scenes, beat, overlap, tail, maxStretch }) {
       Number(sc.internal) * stretch,
       ...measured.map((l) => l.cue * stretch + l.dur),
     ) + tail;
-    const slot = roundBeat(finish);
-    if (slot > finish + bpmBeat) {
+    // 钉住时 slot 用上一版的值（不是 roundBeat(finish)）—— 差半拍也会让整条时间线挪位
+    const slot = pinnedNow ? Number(pin.slot) : roundBeat(finish);
+    if (!pinnedNow && slot > finish + bpmBeat) {
       warnings.push(`[${sc.id}] slot ${slot.toFixed(2)}s 比需要 ${finish.toFixed(2)}s 多出超过一整拍 —— 检查 beat 对不对。`);
     }
     for (let i = 1; i < measured.length; i++) {
@@ -742,7 +806,7 @@ export function solveTiming({ scenes, beat, overlap, tail, maxStretch }) {
     cursor += slot - ov;
   }
   const total = round3(cursor + ov);
-  return { scenes: out, total, overlap: round3(ov), beat: bpmBeat, warnings };
+  return { scenes: out, total, overlap: round3(ov), beat: bpmBeat, warnings, pinned: pinnedIds, resolved: resolvedIds };
 }
 
 /* --------------------------------------------------------------- 主流程 */
@@ -804,7 +868,10 @@ export async function runSay(task, opts) {
 
   // 1) 逐句合成（带缓存）。⚠ **失败不再让整批停下**（BACKLOG 1-6）：
   //    失败句先记进 `pending`，等整批跑完再统一补跑（补跑各轮见下）。
-  const voDir = path.join(taskDir, 'audio', 'vo');
+  // 逐句音频按表名分目录（多语言/变体）：audio/vo/zh 与 audio/vo/ja 互不覆盖。
+  // 不分的话：同一个 <段>-<句>.mp3 会被后跑的那一版替换，而 timing/<lang> 仍指向它 ⇒ 中文版配日语声。
+  const voStem = opts.table ? String(opts.table).replace(/[^\w.-]/g, '') : '';
+  const voDir = path.join(taskDir, 'audio', 'vo', ...(voStem ? [voStem] : []));
   const scenes = [];
   const pending = [];
   let synthCount = 0;
@@ -831,7 +898,7 @@ export async function runSay(task, opts) {
   for (const sc of script.scenes) {
     const lines = [];
     for (const [i, l] of sc.lines.entries()) {
-      const file = path.join(voDir, `${sc.id}-${i + 1}.mp3`);
+      const file = path.join(voDir, `${sc.id}-${i + 1}.mp3`);   // voDir 已含表名（见上）
       const bail = [];
       const got = collectLine({ sc, i, l, file, voice, rate, force: opts.force, driver, taskDir, log, bail });
       if (got.ok) {
@@ -955,14 +1022,39 @@ export async function runSay(task, opts) {
   }
 
   // 2) 解时长（纯函数）
+  //    --pin-timing（BACKLOG 1-23）：拿上一版 audio/timing.json 当"钉子"，同 id 且新旁白
+  //    仍放得下就沿用它的 stretch/slot ⇒ 时间线不动 ⇒ 改一句词只重出那句音频，
+  //    成片靠 --segments 的块级判断只重渲真正变了的那一块。
+  let pinned = null;
+  if (opts.pinTiming) {
+    const pinPath = path.join(taskDir, 'audio', opts.pinTable ? `${String(opts.pinTable).replace(/[^\w.-]/g, '')}.timing.json` : 'timing.json');
+    if (!existsSync(pinPath)) {
+      log('⚠ --pin-timing：找不到上一版 audio/timing.json，这一次按正常流程解时长（没有可钉的东西）');
+    } else {
+      try {
+        const prev = JSON.parse(readFileSync(pinPath, 'utf8'));
+        pinned = Array.isArray(prev?.scenes) ? prev.scenes : null;
+        log(`· --pin-timing：拿 ${pinned?.length ?? 0} 段的旧时长当钉子（同 id 且放得下就沿用）`);
+      } catch (err) {
+        log(`⚠ --pin-timing：上一版 timing.json 读不出来（${String(err?.message ?? err)}），按正常流程解时长`);
+      }
+    }
+  }
   const solved = solveTiming({
     scenes: scenesForTiming,
     beat,
     overlap: opts.overlap ?? script.overlap,
     tail,
     maxStretch,
+    pinned,
   });
   for (const w of solved.warnings) log(`⚠ ${w}`);
+  if (solved.pinned?.length) {
+    log(`· 钉住 ${solved.pinned.length} 段（时间线不动）：${solved.pinned.join(' / ')}`);
+  }
+  if (solved.resolved?.length) {
+    log(`· 重解 ${solved.resolved.length} 段（旁白变长了）：${solved.resolved.join(' / ')}`);
+  }
 
   // 3) 写表
   const timing = {
@@ -996,9 +1088,11 @@ export async function runSay(task, opts) {
       })),
     })),
   };
+  // 表名（多语言/多变体）要提前算：narration.source 与 VO 文件名都用它
+  const table = opts.table ? String(opts.table).replace(/[^\w.-]/g, '') : '';
   const narration = {
     // `source` 只是给人看的出处（A 档的 `ctx.narration.source`）；真正交给引擎的轨在 task.audio 里
-    source: `./audio/${task}-vo.mp3`,
+    source: `./audio/${table ? table + '-vo.mp3' : task + '-vo.mp3'}`,
     lines: solved.scenes.flatMap((s) => s.lines.map((l, i) => ({
       id: `${s.id}-${i + 1}`,
       text: l.text,
@@ -1016,13 +1110,30 @@ export async function runSay(task, opts) {
   }
 
   mkdirSync(path.join(taskDir, 'audio'), { recursive: true });
-  writeFileSync(path.join(taskDir, 'audio', 'timing.json'), JSON.stringify(timing, null, 2) + '\n');
+  /**
+   * **表写到哪儿**（BACKLOG 1-23 第三块）：默认是 `audio/timing.json` / `audio/narration.json`；
+   * 给了 `--table <名字>` 就写 `audio/<名字>.timing.json` / `audio/<名字>.narration.json`，
+   * **默认那份一个字节都不动**。
+   *
+   * 于是"另一份表"成为可能：`task.config.mjs` 的 `narration` 是个普通字符串路径，
+   * 指向哪一份就用哪一份 —— 多语言、剪短版、或者把上一轮解好的表原样回放（零 TTS 成本）。
+   */
+  const timingName = table ? `${table}.timing.json` : 'timing.json';
+  const narrationName = table ? `${table}.narration.json` : 'narration.json';
+  if (table && !timingName.startsWith(table)) {
+    throw new Error('--table 的名字只能含字母数字下划线短横线点，收到：' + opts.table);
+  }
+  writeFileSync(path.join(taskDir, 'audio', timingName), JSON.stringify(timing, null, 2) + '\n');
   writeFileSync(
-    path.join(taskDir, 'audio', 'timing.mjs'),
+    path.join(taskDir, 'audio', table ? `${table}.timing.mjs` : 'timing.mjs'),
     '// 由 `node scripts/anim.mjs say <任务>` 生成，不要手改；改旁白请改 narration.mjs 再重跑。\n'
     + `export default ${JSON.stringify(timing, null, 2)};\n`,
   );
-  writeFileSync(path.join(taskDir, 'audio', 'narration.json'), JSON.stringify(narration, null, 2) + '\n');
+  writeFileSync(path.join(taskDir, 'audio', narrationName), JSON.stringify(narration, null, 2) + '\n');
+  if (table) {
+    log(`· 表写到 audio/${timingName} 与 audio/${narrationName}（默认那份没动）`);
+    log(`  → 让任务用它：task.config.mjs 里 narration: './audio/${narrationName}'`);
+  }
   // 词锚点（BACKLOG 1-17）：只在**解出过锚点**时写 anchors.json —— 它是给 `check`（降级警告）
   // 和人看的解算记录，不是 timing 表的一部分。脚本里一个锚点都没有就不写这个文件；
   // 而且**先删旧的**：把锚点删掉之后旧记录留在盘上，`check` 会拿上一轮的降级继续报警。
@@ -1039,7 +1150,8 @@ export async function runSay(task, opts) {
   }
 
   if (!opts.noVo) {
-    const voOut = path.join(taskDir, 'audio', `${task}-vo.mp3`);
+    // 多语言/多变体：VO 名跟随 --table，否则 ja/zh 会互相覆盖（1-23③ 的同一件事）
+    const voOut = path.join(taskDir, 'audio', table ? `${table}-vo.mp3` : `${task}-vo.mp3`);
     const r = renderVo({ timing, taskDir, out: voOut });
     log(`✓ ${path.relative(process.cwd(), r.file)}  ${r.duration.toFixed(2)}s（只有旁白；和音乐混音跑 anim mix <任务>）`);
   }

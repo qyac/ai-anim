@@ -454,7 +454,10 @@ export function runMix(task, opts) {
   const log = opts.log ?? console.log;
   const taskDir = opts.taskDir;
   const sr = opts.sr ?? 44100;
-  const timingFile = path.join(taskDir, 'audio', 'timing.json');
+  // 多语言/多变体（1-23③）：给了 table 就读 <table>.timing.json，读 VO 与写出也都带前缀
+  const table = opts.table ? String(opts.table).replace(/[^\w.-]/g, '') : '';
+  const stem = table || task;
+  const timingFile = path.join(taskDir, 'audio', table ? `${table}.timing.json` : 'timing.json');
   if (!existsSync(timingFile)) {
     throw new Error(`没有 ${path.relative(process.cwd(), timingFile)} —— 先跑 anim say ${task}（它才会算出每段的起点与时长）。`);
   }
@@ -483,8 +486,8 @@ export function runMix(task, opts) {
   const { gain: norm } = normalize([L, R], 0.89);
 
   const target = resolveLoudnessTarget(opts.target, opts.lra);
-  const wav = path.join(taskDir, 'audio', `${task}-mix.wav`);
-  const mp3 = opts.out ? path.resolve(opts.out) : path.join(taskDir, 'audio', `${task}-mix.mp3`);
+  const wav = path.join(taskDir, 'audio', `${stem}-mix.wav`);
+  const mp3 = opts.out ? path.resolve(opts.out) : path.join(taskDir, 'audio', `${stem}-mix.mp3`);
   writeWav16(wav, [L, R], sr);
   encodeMp3(wav, mp3, opts.bitrate);
   let dur = probeDuration(mp3);

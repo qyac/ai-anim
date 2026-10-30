@@ -1,0 +1,414 @@
+// 由 `node scripts/anim.mjs say <任务>` 生成，不要手改；改旁白请改 narration.mjs 再重跑。
+export default {
+  "voice": "zh-CN-YunxiNeural",
+  "rate": "+6%",
+  "bpm": 84,
+  "beat": 0.7142857142857143,
+  "overlap": 0,
+  "tail": 0.55,
+  "maxStretch": 1.35,
+  "total": 34.286,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "open",
+      "start": 0,
+      "slot": 3.571,
+      "stretch": 1,
+      "internal": 3,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.3,
+          "text": "这是 NekoClicker。",
+          "file": "audio/vo/open-1.mp3",
+          "dur": 1.484,
+          "offset": 0.3,
+          "start": 0.3,
+          "words": [
+            {
+              "w": "这",
+              "start": 0.397,
+              "end": 0.551
+            },
+            {
+              "w": "是 ",
+              "start": 0.551,
+              "end": 0.786
+            },
+            {
+              "w": "NekoClicker。",
+              "start": 0.81,
+              "end": 1.73
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "what",
+      "start": 3.571,
+      "slot": 2.857,
+      "stretch": 1,
+      "internal": 2,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.25,
+          "text": "点一下就长。",
+          "file": "audio/vo/what-1.mp3",
+          "dur": 0.978,
+          "offset": 0.25,
+          "start": 3.821,
+          "words": [
+            {
+              "w": "点",
+              "start": 3.918,
+              "end": 4.083
+            },
+            {
+              "w": "一下",
+              "start": 4.083,
+              "end": 4.26
+            },
+            {
+              "w": "就",
+              "start": 4.272,
+              "end": 4.378
+            },
+            {
+              "w": "长。",
+              "start": 4.378,
+              "end": 4.732
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "loop",
+      "start": 6.429,
+      "slot": 4.286,
+      "stretch": 1.338,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.3,
+          "text": "点击、造建筑、升级。",
+          "file": "audio/vo/loop-1.mp3",
+          "dur": 2.36,
+          "offset": 0.401,
+          "start": 6.83,
+          "words": [
+            {
+              "w": "点击、",
+              "start": 6.927,
+              "end": 7.411
+            },
+            {
+              "w": "造",
+              "start": 7.706,
+              "end": 7.871
+            },
+            {
+              "w": "建筑、",
+              "start": 7.882,
+              "end": 8.26
+            },
+            {
+              "w": "升级。",
+              "start": 8.543,
+              "end": 9.085
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "st_click",
+      "start": 10.714,
+      "slot": 2.143,
+      "stretch": 1,
+      "internal": 1.5,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.1,
+          "text": "点这里。",
+          "file": "audio/vo/st_click-1.mp3",
+          "dur": 0.805,
+          "offset": 0.1,
+          "start": 10.814,
+          "words": [
+            {
+              "w": "点",
+              "start": 10.911,
+              "end": 11.135
+            },
+            {
+              "w": "这里。",
+              "start": 11.147,
+              "end": 11.56
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "packs",
+      "start": 12.857,
+      "slot": 5.714,
+      "stretch": 1,
+      "internal": 4.6,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.25,
+          "text": "内容装成十一个包。",
+          "file": "audio/vo/packs-1.mp3",
+          "dur": 1.989,
+          "offset": 0.25,
+          "start": 13.107,
+          "words": [
+            {
+              "w": "内容",
+              "start": 13.204,
+              "end": 13.723
+            },
+            {
+              "w": "装",
+              "start": 13.829,
+              "end": 14.053
+            },
+            {
+              "w": "成",
+              "start": 14.053,
+              "end": 14.254
+            },
+            {
+              "w": "十一",
+              "start": 14.277,
+              "end": 14.608
+            },
+            {
+              "w": "个",
+              "start": 14.608,
+              "end": 14.714
+            },
+            {
+              "w": "包。",
+              "start": 14.714,
+              "end": 14.973
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tests",
+      "start": 18.571,
+      "slot": 3.571,
+      "stretch": 1,
+      "internal": 3,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.3,
+          "text": "六百零二个用例。",
+          "file": "audio/vo/tests-1.mp3",
+          "dur": 1.315,
+          "offset": 0.3,
+          "start": 18.871,
+          "words": [
+            {
+              "w": "六百零二",
+              "start": 18.968,
+              "end": 19.581
+            },
+            {
+              "w": "个",
+              "start": 19.581,
+              "end": 19.64
+            },
+            {
+              "w": "用",
+              "start": 19.652,
+              "end": 19.817
+            },
+            {
+              "w": "例。",
+              "start": 19.817,
+              "end": 20.136
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "st_like",
+      "start": 22.143,
+      "slot": 2.143,
+      "stretch": 1,
+      "internal": 1.5,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.1,
+          "text": "都测了。",
+          "file": "audio/vo/st_like-1.mp3",
+          "dur": 0.843,
+          "offset": 0.1,
+          "start": 22.243,
+          "words": [
+            {
+              "w": "都",
+              "start": 22.34,
+              "end": 22.576
+            },
+            {
+              "w": "测",
+              "start": 22.576,
+              "end": 22.812
+            },
+            {
+              "w": "了。",
+              "start": 22.812,
+              "end": 23.001
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hosts",
+      "start": 24.286,
+      "slot": 4.286,
+      "stretch": 1,
+      "internal": 3.7,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.3,
+          "text": "终端与网页，同一份引擎。",
+          "file": "audio/vo/hosts-1.mp3",
+          "dur": 2.426,
+          "offset": 0.3,
+          "start": 24.586,
+          "words": [
+            {
+              "w": "终端",
+              "start": 24.683,
+              "end": 25.096
+            },
+            {
+              "w": "与",
+              "start": 25.12,
+              "end": 25.19
+            },
+            {
+              "w": "网页，",
+              "start": 25.202,
+              "end": 25.686
+            },
+            {
+              "w": "同",
+              "start": 25.933,
+              "end": 26.169
+            },
+            {
+              "w": "一",
+              "start": 26.169,
+              "end": 26.252
+            },
+            {
+              "w": "份",
+              "start": 26.252,
+              "end": 26.37
+            },
+            {
+              "w": "引擎。",
+              "start": 26.381,
+              "end": 26.877
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "api",
+      "start": 28.571,
+      "slot": 2.857,
+      "stretch": 1,
+      "internal": 2.3,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "接口只增不改。",
+          "file": "audio/vo/api-1.mp3",
+          "dur": 1.464,
+          "offset": 0.2,
+          "start": 28.771,
+          "words": [
+            {
+              "w": "接口",
+              "start": 28.868,
+              "end": 29.364
+            },
+            {
+              "w": "只",
+              "start": 29.387,
+              "end": 29.564
+            },
+            {
+              "w": "增",
+              "start": 29.564,
+              "end": 29.717
+            },
+            {
+              "w": "不",
+              "start": 29.729,
+              "end": 29.835
+            },
+            {
+              "w": "改。",
+              "start": 29.835,
+              "end": 30.118
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "end",
+      "start": 31.429,
+      "slot": 2.857,
+      "stretch": 1.167,
+      "internal": 1.9,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "一点一三点零。",
+          "file": "audio/vo/end-1.mp3",
+          "dur": 1.468,
+          "offset": 0.233,
+          "start": 31.662,
+          "words": [
+            {
+              "w": "一点",
+              "start": 31.759,
+              "end": 32.243
+            },
+            {
+              "w": "一三点零。",
+              "start": 32.255,
+              "end": 33.08
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};

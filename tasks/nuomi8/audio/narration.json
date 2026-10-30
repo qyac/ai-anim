@@ -1,0 +1,461 @@
+{
+  "source": "./audio/nuomi8-vo.mp3",
+  "lines": [
+    {
+      "id": "s1-1",
+      "text": "半夜三点，猫在跑酷",
+      "start": 0.25,
+      "dur": 3.029,
+      "words": [
+        {
+          "w": "半",
+          "start": 0.25,
+          "end": 0.608,
+          "approx": true
+        },
+        {
+          "w": "夜",
+          "start": 0.608,
+          "end": 0.967,
+          "approx": true
+        },
+        {
+          "w": "三",
+          "start": 0.967,
+          "end": 1.325,
+          "approx": true
+        },
+        {
+          "w": "点",
+          "start": 1.325,
+          "end": 1.684,
+          "approx": true
+        },
+        {
+          "w": "，",
+          "start": 1.684,
+          "end": 1.845,
+          "approx": true
+        },
+        {
+          "w": "猫",
+          "start": 1.845,
+          "end": 2.204,
+          "approx": true
+        },
+        {
+          "w": "在",
+          "start": 2.204,
+          "end": 2.562,
+          "approx": true
+        },
+        {
+          "w": "跑",
+          "start": 2.562,
+          "end": 2.921,
+          "approx": true
+        },
+        {
+          "w": "酷",
+          "start": 2.921,
+          "end": 3.279,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s2-1",
+      "text": "剩下醒着的八小时，全归你",
+      "start": 4.016,
+      "dur": 3.732,
+      "words": [
+        {
+          "w": "剩",
+          "start": 4.016,
+          "end": 4.342,
+          "approx": true
+        },
+        {
+          "w": "下",
+          "start": 4.342,
+          "end": 4.668,
+          "approx": true
+        },
+        {
+          "w": "醒",
+          "start": 4.668,
+          "end": 4.994,
+          "approx": true
+        },
+        {
+          "w": "着",
+          "start": 4.994,
+          "end": 5.32,
+          "approx": true
+        },
+        {
+          "w": "的",
+          "start": 5.32,
+          "end": 5.646,
+          "approx": true
+        },
+        {
+          "w": "八",
+          "start": 5.646,
+          "end": 5.972,
+          "approx": true
+        },
+        {
+          "w": "小",
+          "start": 5.972,
+          "end": 6.298,
+          "approx": true
+        },
+        {
+          "w": "时",
+          "start": 6.298,
+          "end": 6.624,
+          "approx": true
+        },
+        {
+          "w": "，",
+          "start": 6.624,
+          "end": 6.77,
+          "approx": true
+        },
+        {
+          "w": "全",
+          "start": 6.77,
+          "end": 7.096,
+          "approx": true
+        },
+        {
+          "w": "归",
+          "start": 7.096,
+          "end": 7.422,
+          "approx": true
+        },
+        {
+          "w": "你",
+          "start": 7.422,
+          "end": 7.748,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s3-1",
+      "text": "心率两百，表情无辜",
+      "start": 8.361,
+      "dur": 2.826,
+      "words": [
+        {
+          "w": "心",
+          "start": 8.361,
+          "end": 8.695,
+          "approx": true
+        },
+        {
+          "w": "率",
+          "start": 8.695,
+          "end": 9.03,
+          "approx": true
+        },
+        {
+          "w": "两",
+          "start": 9.03,
+          "end": 9.364,
+          "approx": true
+        },
+        {
+          "w": "百",
+          "start": 9.364,
+          "end": 9.699,
+          "approx": true
+        },
+        {
+          "w": "，",
+          "start": 9.699,
+          "end": 9.849,
+          "approx": true
+        },
+        {
+          "w": "表",
+          "start": 9.849,
+          "end": 10.184,
+          "approx": true
+        },
+        {
+          "w": "情",
+          "start": 10.184,
+          "end": 10.518,
+          "approx": true
+        },
+        {
+          "w": "无",
+          "start": 10.518,
+          "end": 10.853,
+          "approx": true
+        },
+        {
+          "w": "辜",
+          "start": 10.853,
+          "end": 11.187,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s4-1",
+      "text": "白天攒的力气，凌晨一次还清",
+      "start": 11.837,
+      "dur": 4.416,
+      "words": [
+        {
+          "w": "白",
+          "start": 11.837,
+          "end": 12.192,
+          "approx": true
+        },
+        {
+          "w": "天",
+          "start": 12.192,
+          "end": 12.546,
+          "approx": true
+        },
+        {
+          "w": "攒",
+          "start": 12.546,
+          "end": 12.901,
+          "approx": true
+        },
+        {
+          "w": "的",
+          "start": 12.901,
+          "end": 13.256,
+          "approx": true
+        },
+        {
+          "w": "力",
+          "start": 13.256,
+          "end": 13.61,
+          "approx": true
+        },
+        {
+          "w": "气",
+          "start": 13.61,
+          "end": 13.965,
+          "approx": true
+        },
+        {
+          "w": "，",
+          "start": 13.965,
+          "end": 14.125,
+          "approx": true
+        },
+        {
+          "w": "凌",
+          "start": 14.125,
+          "end": 14.48,
+          "approx": true
+        },
+        {
+          "w": "晨",
+          "start": 14.48,
+          "end": 14.834,
+          "approx": true
+        },
+        {
+          "w": "一",
+          "start": 14.834,
+          "end": 15.189,
+          "approx": true
+        },
+        {
+          "w": "次",
+          "start": 15.189,
+          "end": 15.544,
+          "approx": true
+        },
+        {
+          "w": "还",
+          "start": 15.544,
+          "end": 15.898,
+          "approx": true
+        },
+        {
+          "w": "清",
+          "start": 15.898,
+          "end": 16.253,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s5-1",
+      "text": "睡掉的十六小时不叫休息，叫充电",
+      "start": 17.052,
+      "dur": 3.669,
+      "words": [
+        {
+          "w": "睡",
+          "start": 17.052,
+          "end": 17.306,
+          "approx": true
+        },
+        {
+          "w": "掉",
+          "start": 17.306,
+          "end": 17.56,
+          "approx": true
+        },
+        {
+          "w": "的",
+          "start": 17.56,
+          "end": 17.814,
+          "approx": true
+        },
+        {
+          "w": "十",
+          "start": 17.814,
+          "end": 18.068,
+          "approx": true
+        },
+        {
+          "w": "六",
+          "start": 18.068,
+          "end": 18.322,
+          "approx": true
+        },
+        {
+          "w": "小",
+          "start": 18.322,
+          "end": 18.575,
+          "approx": true
+        },
+        {
+          "w": "时",
+          "start": 18.575,
+          "end": 18.829,
+          "approx": true
+        },
+        {
+          "w": "不",
+          "start": 18.829,
+          "end": 19.083,
+          "approx": true
+        },
+        {
+          "w": "叫",
+          "start": 19.083,
+          "end": 19.337,
+          "approx": true
+        },
+        {
+          "w": "休",
+          "start": 19.337,
+          "end": 19.591,
+          "approx": true
+        },
+        {
+          "w": "息",
+          "start": 19.591,
+          "end": 19.845,
+          "approx": true
+        },
+        {
+          "w": "，",
+          "start": 19.845,
+          "end": 19.959,
+          "approx": true
+        },
+        {
+          "w": "叫",
+          "start": 19.959,
+          "end": 20.213,
+          "approx": true
+        },
+        {
+          "w": "充",
+          "start": 20.213,
+          "end": 20.467,
+          "approx": true
+        },
+        {
+          "w": "电",
+          "start": 20.467,
+          "end": 20.721,
+          "approx": true
+        }
+      ]
+    },
+    {
+      "id": "s6-1",
+      "text": "跑酷路线，按顺序排好",
+      "start": 21.397,
+      "dur": 3.279,
+      "words": [
+        {
+          "w": "跑",
+          "start": 21.397,
+          "end": 21.744,
+          "approx": true
+        },
+        {
+          "w": "酷",
+          "start": 21.744,
+          "end": 22.091,
+          "approx": true
+        },
+        {
+          "w": "路",
+          "start": 22.091,
+          "end": 22.438,
+          "approx": true
+        },
+        {
+          "w": "线",
+          "start": 22.438,
+          "end": 22.785,
+          "approx": true
+        },
+        {
+          "w": "，",
+          "start": 22.785,
+          "end": 22.941,
+          "approx": true
+        },
+        {
+          "w": "按",
+          "start": 22.941,
+          "end": 23.288,
+          "approx": true
+        },
+        {
+          "w": "顺",
+          "start": 23.288,
+          "end": 23.635,
+          "approx": true
+        },
+        {
+          "w": "序",
+          "start": 23.635,
+          "end": 23.982,
+          "approx": true
+        },
+        {
+          "w": "排",
+          "start": 23.982,
+          "end": 24.329,
+          "approx": true
+        },
+        {
+          "w": "好",
+          "start": 24.329,
+          "end": 24.676,
+          "approx": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,455 @@
+{
+  "voice": "zh-CN-XiaoyiNeural",
+  "rate": "+6%",
+  "bpm": 211.62,
+  "beat": 0.28352707683583783,
+  "overlap": 0,
+  "tail": 0.3,
+  "maxStretch": 1.25,
+  "total": 21.548,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "s1",
+      "start": 0,
+      "slot": 2.835,
+      "stretch": 1,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "等你回家的八小时",
+          "file": "audio/vo/s1-1.mp3",
+          "dur": 1.833,
+          "offset": 0.2,
+          "start": 0.2,
+          "words": [
+            {
+              "w": "等",
+              "start": 0.2,
+              "end": 0.429,
+              "approx": true
+            },
+            {
+              "w": "你",
+              "start": 0.429,
+              "end": 0.658,
+              "approx": true
+            },
+            {
+              "w": "回",
+              "start": 0.658,
+              "end": 0.887,
+              "approx": true
+            },
+            {
+              "w": "家",
+              "start": 0.887,
+              "end": 1.117,
+              "approx": true
+            },
+            {
+              "w": "的",
+              "start": 1.117,
+              "end": 1.346,
+              "approx": true
+            },
+            {
+              "w": "八",
+              "start": 1.346,
+              "end": 1.575,
+              "approx": true
+            },
+            {
+              "w": "小",
+              "start": 1.575,
+              "end": 1.804,
+              "approx": true
+            },
+            {
+              "w": "时",
+              "start": 1.804,
+              "end": 2.033,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "start": 2.835,
+      "slot": 6.521,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "门响一声，我耳朵先动；，你脚步一近，",
+          "file": "audio/vo/s2-1.mp3",
+          "dur": 5.941,
+          "offset": 0.25,
+          "start": 3.085,
+          "words": [
+            {
+              "w": "门",
+              "start": 3.085,
+              "end": 3.461,
+              "approx": true
+            },
+            {
+              "w": "响",
+              "start": 3.461,
+              "end": 3.837,
+              "approx": true
+            },
+            {
+              "w": "一",
+              "start": 3.837,
+              "end": 4.213,
+              "approx": true
+            },
+            {
+              "w": "声",
+              "start": 4.213,
+              "end": 4.589,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 4.589,
+              "end": 4.758,
+              "approx": true
+            },
+            {
+              "w": "我",
+              "start": 4.758,
+              "end": 5.134,
+              "approx": true
+            },
+            {
+              "w": "耳",
+              "start": 5.134,
+              "end": 5.51,
+              "approx": true
+            },
+            {
+              "w": "朵",
+              "start": 5.51,
+              "end": 5.886,
+              "approx": true
+            },
+            {
+              "w": "先",
+              "start": 5.886,
+              "end": 6.262,
+              "approx": true
+            },
+            {
+              "w": "动",
+              "start": 6.262,
+              "end": 6.638,
+              "approx": true
+            },
+            {
+              "w": "；",
+              "start": 6.638,
+              "end": 6.808,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 6.808,
+              "end": 6.977,
+              "approx": true
+            },
+            {
+              "w": "你",
+              "start": 6.977,
+              "end": 7.353,
+              "approx": true
+            },
+            {
+              "w": "脚",
+              "start": 7.353,
+              "end": 7.729,
+              "approx": true
+            },
+            {
+              "w": "步",
+              "start": 7.729,
+              "end": 8.105,
+              "approx": true
+            },
+            {
+              "w": "一",
+              "start": 8.105,
+              "end": 8.481,
+              "approx": true
+            },
+            {
+              "w": "近",
+              "start": 8.481,
+              "end": 8.857,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 8.857,
+              "end": 9.026,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "start": 9.356,
+      "slot": 3.402,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "八只耳朵，都在听门",
+          "file": "audio/vo/s3-1.mp3",
+          "dur": 2.796,
+          "offset": 0.25,
+          "start": 9.606,
+          "words": [
+            {
+              "w": "八",
+              "start": 9.606,
+              "end": 9.937,
+              "approx": true
+            },
+            {
+              "w": "只",
+              "start": 9.937,
+              "end": 10.268,
+              "approx": true
+            },
+            {
+              "w": "耳",
+              "start": 10.268,
+              "end": 10.599,
+              "approx": true
+            },
+            {
+              "w": "朵",
+              "start": 10.599,
+              "end": 10.93,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 10.93,
+              "end": 11.078,
+              "approx": true
+            },
+            {
+              "w": "都",
+              "start": 11.078,
+              "end": 11.409,
+              "approx": true
+            },
+            {
+              "w": "在",
+              "start": 11.409,
+              "end": 11.74,
+              "approx": true
+            },
+            {
+              "w": "听",
+              "start": 11.74,
+              "end": 12.071,
+              "approx": true
+            },
+            {
+              "w": "门",
+              "start": 12.071,
+              "end": 12.402,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "start": 12.759,
+      "slot": 4.82,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "中心是你，辐条是八小时",
+          "file": "audio/vo/s4-1.mp3",
+          "dur": 4.013,
+          "offset": 0.25,
+          "start": 13.009,
+          "words": [
+            {
+              "w": "中",
+              "start": 13.009,
+              "end": 13.393,
+              "approx": true
+            },
+            {
+              "w": "心",
+              "start": 13.393,
+              "end": 13.777,
+              "approx": true
+            },
+            {
+              "w": "是",
+              "start": 13.777,
+              "end": 14.161,
+              "approx": true
+            },
+            {
+              "w": "你",
+              "start": 14.161,
+              "end": 14.545,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 14.545,
+              "end": 14.718,
+              "approx": true
+            },
+            {
+              "w": "辐",
+              "start": 14.718,
+              "end": 15.102,
+              "approx": true
+            },
+            {
+              "w": "条",
+              "start": 15.102,
+              "end": 15.486,
+              "approx": true
+            },
+            {
+              "w": "是",
+              "start": 15.486,
+              "end": 15.87,
+              "approx": true
+            },
+            {
+              "w": "八",
+              "start": 15.87,
+              "end": 16.254,
+              "approx": true
+            },
+            {
+              "w": "小",
+              "start": 16.254,
+              "end": 16.638,
+              "approx": true
+            },
+            {
+              "w": "时",
+              "start": 16.638,
+              "end": 17.022,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "start": 17.579,
+      "slot": 3.969,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "八格电量，从清晨到深夜",
+          "file": "audio/vo/s5-1.mp3",
+          "dur": 3.214,
+          "offset": 0.25,
+          "start": 17.829,
+          "words": [
+            {
+              "w": "八",
+              "start": 17.829,
+              "end": 18.137,
+              "approx": true
+            },
+            {
+              "w": "格",
+              "start": 18.137,
+              "end": 18.444,
+              "approx": true
+            },
+            {
+              "w": "电",
+              "start": 18.444,
+              "end": 18.752,
+              "approx": true
+            },
+            {
+              "w": "量",
+              "start": 18.752,
+              "end": 19.059,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 19.059,
+              "end": 19.198,
+              "approx": true
+            },
+            {
+              "w": "从",
+              "start": 19.198,
+              "end": 19.505,
+              "approx": true
+            },
+            {
+              "w": "清",
+              "start": 19.505,
+              "end": 19.813,
+              "approx": true
+            },
+            {
+              "w": "晨",
+              "start": 19.813,
+              "end": 20.12,
+              "approx": true
+            },
+            {
+              "w": "到",
+              "start": 20.12,
+              "end": 20.428,
+              "approx": true
+            },
+            {
+              "w": "深",
+              "start": 20.428,
+              "end": 20.735,
+              "approx": true
+            },
+            {
+              "w": "夜",
+              "start": 20.735,
+              "end": 21.043,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "_note": "共享素材索引。四个字段缺一个就加载失败 —— 规矩见 docs/ASSETS.md 层 2。",
+  "assets": [
+    {
+      "id": "nekohome-logo",
+      "path": "logos/nekohome-logo.png",
+      "kind": "logo",
+      "license": "自有素材",
+      "source": "用户在 NekoHome 群里提供的 logo 字标（2026-10）"
+    }
+  ]
+}

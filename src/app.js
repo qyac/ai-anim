@@ -138,7 +138,12 @@ async function boot() {
 
   // 先把音乐（可选）拿到：时间线里可能用拍号而不是秒来写
   setHud('读取任务…');
-  const preTask = await loadTask(taskName);
+  // 变体（BACKLOG 1-23）：--variant 名字 ⇒ 深合并覆盖。必须**两次**都带上 ——
+  // preTask 决定"有没有音乐/要不要先分析"，task 才是真正跑的那份；只带一次会出现
+  // "音乐按变体加载、时间线按原配置"的错位。
+  const variantName = q.get('variant') || null;
+  if (variantName) console.info('[variant] 使用变体 "' + variantName + '"');
+  const preTask = await loadTask(taskName, { variant: variantName });
   /**
    * 任务里的路径（audio / lyrics / analysis）都是**相对任务目录**的：
    * './audio/x.mp3' 指的是 tasks/<任务>/audio/x.mp3。
@@ -159,7 +164,7 @@ async function boot() {
     });
   }
 
-  const task = await loadTask(taskName, { music });
+  const task = await loadTask(taskName, { music, variant: variantName });
   /**
    * 旁白表可以从**文件**来（`narration: './narration.json'`）。
    * 与 `lyrics` 同一个套路：JSON 是外部脚本（TTS 量长那一步）产出的，任务目录里相对路径引用。
@@ -203,6 +208,9 @@ async function boot() {
   }
 
   const canvas = /** @type {HTMLCanvasElement} */ ($('c'));
+  // 调试出口：让 agent / 工作台能读到"这一帧到底用的哪份调色板"（风格串皮排查用）
+  window.__animPalette = makePalette({ ...(task.styleResolved?.palette ?? {}), ...(task.palette ?? {}) });
+
   engine = new Engine(canvas, {
     width, height, scale, fps,
     // 调色板 = 风格包的 palette + 任务自己的 palette（任务优先）。
@@ -263,7 +271,11 @@ async function boot() {
   const errs = [...engine.errors.map((e) => `[场景] ${e}`), ...v.problems.map((p) => `[时间线] ${p}`)];
   refreshHud(errs, v.gaps);
 
-  if (!offline) requestAnimationFrame(loop);
+  if (!offline) {
+    setupWorkbench(engine);
+    setupPanel(engine);
+    requestAnimationFrame(loop);
+  }
   return { task, engine, fps, offline };
 }
 
@@ -294,7 +306,8 @@ function loop(now) {
 
   if (playing) {
     clock += dt;
-    if (clock > engine.duration) { clock = engine.duration; setPlaying(false); }
+    if (wbLoop && clock >= wbLoop.to) { clock = wbLoop.from; if (audio) audio.currentTime = clock; }
+    else if (clock > engine.duration) { clock = engine.duration; setPlaying(false); }
     // 跟音频对齐（允许 ±60ms 漂移，超了就硬拉）
     if (audio) {
       const d = audio.currentTime - clock;
@@ -304,6 +317,7 @@ function loop(now) {
   try {
     engine.render(clock, { preview: true, toScreen: true, samples: 1 });
     const name = engine._activeId(clock);
+    if (wbSync) wbSync();
     if (name !== lastName) { lastName = name; refreshHud(engine.errors, engine.validate().gaps); }
   } catch (err) {
     fail(err);
@@ -453,6 +467,33 @@ function b64Bytes(b64) {
  *   readAt(t)                  在 t 处取像素统计（做自动检测用）
  */
 const api = {
+  /** 单帧预览（1 子帧）：agent 自检用，快 */
+  preview(t) { return this.still(t, { samples: 1 }); },
+  /** 一段时间的缩略拼图（n 帧），agent 一眼看节奏 */
+  async previewRange(t0, t1, n = 9, cols = 3) {
+    const c = document.createElement('canvas');
+    const W = 480, H = Math.round((W * (engine?.gl.h ?? 9)) / (engine?.gl.w ?? 16));
+    const rows = Math.ceil(n / cols);
+    c.width = W * cols; c.height = H * rows;
+    const g = c.getContext('2d');
+    for (let i = 0; i < n; i++) {
+      const t = t0 + ((t1 - t0) * i) / Math.max(1, n - 1);
+      // still() 返回 { png, samples, errors }，不是裸 dataURL
+      const { png } = await this.still(t, { samples: 1 });
+      const img = new Image();
+      img.src = png;
+      await img.decode();
+      g.drawImage(img, (i % cols) * W, Math.floor(i / cols) * H, W, H);
+      g.fillStyle = 'rgba(0,0,0,.55)';
+      g.fillRect((i % cols) * W, Math.floor(i / cols) * H + H - 16, 64, 16);
+      g.fillStyle = '#ff4d12';
+      g.font = '11px monospace';
+      g.fillText(t.toFixed(2) + 's', (i % cols) * W + 4, Math.floor(i / cols) * H + H - 4);
+    }
+    return c.toDataURL('image/png');
+  },
+  /** 精确帧：与导出同一条路径（多子帧），返回与 1 子帧预览的差异 */
+  precise(t) { seek(t); return preciseFrame(); },
   info() {
     return {
       task: status.task,
@@ -581,6 +622,82 @@ const api = {
     }
     ctx.putImageData(img, 0, 0);
     return cv.toDataURL('image/png');
+  },
+
+  /**
+   * **封面**：渲染 t 时刻的帧，再在它上面压字（BACKLOG 1-53）。
+   *
+   * 为什么在页面里压而不是用 ffmpeg 的 drawtext：字体已经由 TextKit 加载好了
+   * （Archivo / Noto Sans SC / IBM Plex Mono），ffmpeg 那边的 drawtext 还要自己
+   * 拼 fontfile 路径 + 转义，中文字形与引擎里的**不是同一套**。这里用的是同一份字体栈，
+   * 封面与成片里的字看起来是一家人。
+   *
+   * 压字结构（自下而上）：底部渐变蒙版（保证任何画面上都读得清）→ 主标题 → 一条信号色短线 → 副标。
+   *
+   * @param {number} t
+   * @param {{ title?: string, sub?: string, scrim?: number, scale?: number }} [opts]
+   */
+  async cover(t, opts = {}) {
+    const r = await api.frame(t, { samples: 'auto' });
+    const gl = engine.gl;
+    const buf = engine.readPixels();
+    const cv = document.createElement('canvas');
+    cv.width = gl.pw; cv.height = gl.ph;
+    const c = /** @type {CanvasRenderingContext2D} */ (cv.getContext('2d'));
+    const img = c.createImageData(gl.pw, gl.ph);
+    const row = gl.pw * 4;
+    for (let y = 0; y < gl.ph; y++) {
+      const src = (gl.ph - 1 - y) * row;
+      img.data.set(buf.subarray(src, src + row), y * row);
+    }
+    c.putImageData(img, 0, 0);
+
+    // 逻辑坐标 → 物理坐标（--scale 2 出 4K 封面时，字的视觉大小不变）
+    const k = gl.scale || 1;
+    const W = gl.w, H = gl.h;
+    const fam = (n) => engine.text?.families?.[n] ?? n;
+    const title = String(opts.title ?? '').trim();
+    const sub = String(opts.sub ?? '').trim();
+
+    // 1) 底部渐变蒙版：0 → scrim（默认 0.82），只压下半屏
+    if (title || sub) {
+      const scrim = Math.max(0, Math.min(1, opts.scrim ?? 0.82));
+      const g = c.createLinearGradient(0, cv.height * 0.42, 0, cv.height);
+      g.addColorStop(0, 'rgba(6,6,7,0)');
+      g.addColorStop(0.55, 'rgba(6,6,7,' + (scrim * 0.55).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(6,6,7,' + scrim.toFixed(3) + ')');
+      c.fillStyle = g;
+      c.fillRect(0, 0, cv.width, cv.height);
+    }
+
+    const px = 120 * k;
+    let baseline = (H - 150) * k;
+    c.textBaseline = 'alphabetic';
+
+    if (sub) {
+      // 2) 副标在上（等宽、信号色）—— 先算它，标题再往上排
+      const subSize = 26 * k;
+      c.font = '400 ' + subSize + 'px ' + fam('mono');
+      c.fillStyle = 'rgba(255,77,18,0.92)';
+      c.fillText(sub, px, baseline);
+      // ⚠ 原来只上移 46px，而标题 96px —— 副标会压在标题字身上（实测踩过）
+      baseline -= 92 * k;
+    }
+    if (title) {
+      // 3) 主标题：大字、自动缩到 78% 宽以内（长标题不被裁）
+      let size = 96 * k;
+      c.font = '800 ' + size + 'px ' + fam('sans');
+      const maxW = cv.width * 0.78;
+      const w = c.measureText(title).width;
+      if (w > maxW) size *= maxW / w;
+      c.font = '800 ' + size + 'px ' + fam('sans');
+      c.fillStyle = '#eee9df';
+      c.fillText(title, px, baseline);
+      // 4) 标题下一条信号色短线
+      c.fillStyle = '#ff4d12';
+      c.fillRect(px, baseline + 18 * k, Math.min(260 * k, cv.width * 0.2), 4 * k);
+    }
+    return { png: cv.toDataURL('image/png'), samples: r.samples };
   },
 
   /**
@@ -1241,3 +1358,191 @@ boot()
     }
   })
   .catch(fail);
+/* ------------------------------------------------------------------ 预览工作台 */
+/**
+ * 把 dev 页从「播放器」升级成 **编辑反馈回路**：
+ *   · 时间轴 scrub（任意位置立即出帧，不依赖顺序播放）
+ *   · 场景边界 + 节拍刻线（切点在哪一眼看到）
+ *   · 精确帧按钮：按**导出同一条路径**（多子帧）重渲当前帧，并报与预览的差异
+ *   · `window.__anim.preview(t)` / `previewRange(t0,t1,n)`：给 agent 自检用
+ *
+ * 为什么差值是核心读数：预览默认 1 子帧（快），成片是自适应多子帧 ——
+ * 「预览好看、导出翻车」只有把两者差异量化出来才防得住。
+ */
+let wbLoop = null;   // 循环区间 { from, to } | null
+/** 工作台的刷新函数（boot 里装上；loop 每帧调它同步 scrub 指针） */
+let wbSync = null;
+
+function wbEl(id) { return document.getElementById(id); }
+
+function setupWorkbench(engineRef) {
+  const wrap = wbEl('wb');
+  if (!wrap) return;
+  wrap.hidden = false;
+  const scrub = wbEl('wbScrub');
+  const ticks = wbEl('wbTicks');
+  const readout = wbEl('wbReadout');
+  const dur = Math.max(0.001, engineRef.duration);
+  scrub.max = String(dur);
+
+  // 场景刻线 + 节拍刻线
+  const frag = document.createDocumentFragment();
+  for (const it of engineRef.timeline) {
+    const i = document.createElement('i');
+    i.style.left = (it.start / dur * 100) + '%';
+    frag.appendChild(i);
+    if (it.end - it.start > 2.2) {
+      const b = document.createElement('b');
+      b.style.left = (it.start / dur * 100) + '%';
+      b.textContent = it.id;
+      frag.appendChild(b);
+    }
+  }
+  const bpm = engineRef.music?.bpm ?? 0;
+  if (bpm > 30) {
+    const beat = 60 / bpm;
+    for (let t = 0; t <= dur; t += beat) {
+      const i = document.createElement('i');
+      i.className = 'beat';
+      i.style.left = (t / dur * 100) + '%';
+      frag.appendChild(i);
+    }
+  }
+  const cursor = document.createElement('i');
+  cursor.className = 'cur';
+  frag.appendChild(cursor);
+  ticks.appendChild(frag);
+
+  const sync = () => {
+    scrub.value = String(clock);
+    cursor.style.left = (clock / dur * 100) + '%';
+    const id = engineRef._activeId(clock);
+    readout.textContent = `t ${clock.toFixed(2)} / ${dur.toFixed(2)}s · 段 ${id} · 预览 1 子帧`;
+  };
+  wbSync = sync;
+  sync();
+
+  // 拖动中走快路径（跳过后处理）；松手补一次完整渲染 —— 「拖得动」和「看得准」都要成立
+  let dragging = false;
+  scrub.addEventListener('pointerdown', () => { dragging = true; });
+  scrub.addEventListener('input', () => {
+    const nt = Number(scrub.value);
+    clock = Math.max(0, Math.min(engineRef.duration, nt));
+    if (audio) audio.currentTime = clock;
+    engineRef.render(clock, { preview: true, toScreen: true, samples: 1, skipPost: true });
+    sync();
+  });
+  const endDrag = () => { if (!dragging) return; dragging = false; seek(clock); sync(); };
+  scrub.addEventListener('pointerup', endDrag);
+  addEventListener('pointerup', endDrag);
+  wbEl('wbPlay').addEventListener('click', () => { setPlaying(!playing); wbEl('wbPlay').textContent = playing ? '❚❚ 暂停' : '▶ 播放'; });
+  wbEl('wbPrev').addEventListener('click', () => { stepScene(-1); sync(); });
+  wbEl('wbNext').addEventListener('click', () => { stepScene(1); sync(); });
+  wbEl('wbF1').addEventListener('click', () => { seek(clock - 1 / engineRef.fps); sync(); });
+  wbEl('wbP1').addEventListener('click', () => { seek(clock + 1 / engineRef.fps); sync(); });
+  wbEl('wbLoop').addEventListener('click', (e) => {
+    const on = wbLoop != null;
+    if (on) { wbLoop = null; e.currentTarget.classList.remove('on'); setMsg('循环关闭'); }
+    else {
+      const it = engineRef.timeline.find((i) => clock >= i.start && clock < i.end) ?? engineRef.timeline[0];
+      wbLoop = { from: it.start, to: it.end };
+      e.currentTarget.classList.add('on');
+      setMsg(`循环 ${it.id}：${it.start.toFixed(2)} → ${it.end.toFixed(2)}s`);
+    }
+  });
+  wbEl('wbPrecise').addEventListener('click', () => preciseFrame());
+}
+
+/** 预览与精确帧的像素差（8bit RGBA，自下而上，两条路径同尺寸） */
+function frameDiff(a, b) {
+  let sum = 0, n = 0;
+  for (let i = 0; i < a.length; i += 4) {
+    sum += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+    n += 3;
+  }
+  const mae = n ? sum / n : 0;
+  const psnr = mae <= 1e-6 ? 99 : 20 * Math.log10(255 / mae);
+  return { mae, psnr };
+}
+
+/** 按导出同一条路径重渲当前帧，并报与预览的差异 */
+async function preciseFrame() {
+  if (!engine) return null;
+  const t = clock;
+  await api.frame(t, { samples: 1, seeked: true });
+  const fast = api.pixels();
+  await api.frame(t, { samples: 'auto', seeked: true });
+  const slow = api.pixels();
+  const d = frameDiff(fast, slow);
+  setMsg(`精确帧 t=${t.toFixed(2)}s：多子帧重渲完成 · 与预览差 ${d.mae.toFixed(2)}/255（PSNR ${d.psnr.toFixed(1)} dB）`);
+  const ro = wbEl('wbReadout');
+  if (ro) ro.textContent = `t ${t.toFixed(2)}s · 精确帧 Δ ${d.mae.toFixed(2)} · PSNR ${d.psnr.toFixed(1)} dB`;
+  return d;
+}
+/* ------------------------------------------------------------------ 参数面板 */
+/**
+ * 参数面板（工作台第二阶段）：改一个数，立刻看到。
+ *
+ * 两类参数两条路：
+ *   · 数值项（泛光/颗粒/暗角/像素化）→ 写 engine.livePost，下一帧生效（不重载、不重渲）。
+ *   · 结构项（风格包 / 主色）→ 要重建调色板与 post shader 常量，必须重载一次页面（仍然不重渲整片）。
+ *
+ * 不做成图形编辑器：这一层只要回答「改完好不好看」，不替人做设计。
+ */
+function setupPanel(engineRef) {
+  const box = wbEl('wbPanel');
+  if (!box) return;
+  box.hidden = false;
+  const post = { ...(engineRef.lastPost ?? {}) };
+  const basePost = engineRef.style?.post ?? {};
+  const cur = (k, d) => Number(post[k] ?? basePost[k] ?? d);
+
+  const bind = (id, key, fmt, dflt) => {
+    const el = wbEl(id);
+    const lab = wbEl(id + 'V');
+    if (!el) return;
+    el.value = String(cur(key, dflt));
+    if (lab) lab.textContent = fmt(Number(el.value));
+    el.addEventListener('input', () => {
+      const v = Number(el.value);
+      engineRef.livePost = { ...(engineRef.livePost ?? {}), [key]: v };
+      if (lab) lab.textContent = fmt(v);
+      engineRef.render(clock, { preview: true, toScreen: true, samples: 1 });
+    });
+  };
+  bind('wbBloom', 'bloom', (v) => v.toFixed(2), 0.3);
+  bind('wbGrain', 'grain', (v) => v.toFixed(3), 0.02);
+  bind('wbVig', 'vignette', (v) => v.toFixed(2), 0.4);
+  bind('wbPixel', 'pixel', (v) => String(v), 0);
+
+  const sig = wbEl('wbSignal');
+  if (sig) {
+    sig.value = engineRef.P?.hex?.signal ?? '#ff4d12';
+    sig.addEventListener('change', () => reloadWith({ signal: sig.value }));
+  }
+
+  const sel = wbEl('wbStyle');
+  if (sel) {
+    const names = ['print', 'blueprint', 'paper', 'terminal', 'flat', 'noir',
+      'mg-cel', 'mg-isometric', 'mg-flat-vector', 'mg-lineart', 'mg-soft3d', 'mg-morph', 'mg-sticker',
+      'mg-hud', 'mg-collage', 'mg-aurora', 'mg-bauhaus', 'mg-vhs', 'mg-pixel', 'mg-liquid', 'mg-variety'];
+    const now = engineRef.style?.name ?? 'print';
+    sel.innerHTML = names.map((n) => '<option' + (n === now ? ' selected' : '') + '>' + n + '</option>').join('');
+    sel.addEventListener('change', () => reloadWith({ style: sel.value }));
+  }
+
+  const reset = wbEl('wbReset');
+  if (reset) reset.addEventListener('click', () => {
+    engineRef.livePost = null;
+    box.querySelectorAll('input[type=range]').forEach((el) => el.dispatchEvent(new Event('input')));
+    setMsg('已重置为任务配置里的后处理');
+  });
+}
+
+/** 带参数重载当前页（保留 task 与当前 t，其余参数从现有 query 带过去） */
+function reloadWith(patch) {
+  const q = new URLSearchParams(location.search);
+  for (const [k, v] of Object.entries(patch)) q.set(k, v);
+  q.set('t', String(clock.toFixed(3)));
+  location.search = q.toString();
+}

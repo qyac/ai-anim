@@ -1,0 +1,450 @@
+// 由 `node scripts/anim.mjs say <任务>` 生成，不要手改；改旁白请改 narration.mjs 再重跑。
+export default {
+  "voice": "zh-CN-XiaoyiNeural",
+  "rate": "+6%",
+  "bpm": 196.88,
+  "beat": 0.304754164973588,
+  "overlap": 0,
+  "tail": 0.3,
+  "maxStretch": 1.25,
+  "total": 20.419,
+  "generatedBy": "anim say",
+  "scenes": [
+    {
+      "id": "s1",
+      "start": 0,
+      "slot": 2.743,
+      "stretch": 1,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "猫娘使用说明",
+          "file": "audio/vo/s1-1.mp3",
+          "dur": 1.536,
+          "offset": 0.2,
+          "start": 0.2,
+          "words": [
+            {
+              "w": "猫",
+              "start": 0.2,
+              "end": 0.456,
+              "approx": true
+            },
+            {
+              "w": "娘",
+              "start": 0.456,
+              "end": 0.712,
+              "approx": true
+            },
+            {
+              "w": "使",
+              "start": 0.712,
+              "end": 0.968,
+              "approx": true
+            },
+            {
+              "w": "用",
+              "start": 0.968,
+              "end": 1.224,
+              "approx": true
+            },
+            {
+              "w": "说",
+              "start": 1.224,
+              "end": 1.48,
+              "approx": true
+            },
+            {
+              "w": "明",
+              "start": 1.48,
+              "end": 1.736,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "start": 2.743,
+      "slot": 3.962,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "三样东西，一样都不能少",
+          "file": "audio/vo/s2-1.mp3",
+          "dur": 3.205,
+          "offset": 0.25,
+          "start": 2.993,
+          "words": [
+            {
+              "w": "三",
+              "start": 2.993,
+              "end": 3.3,
+              "approx": true
+            },
+            {
+              "w": "样",
+              "start": 3.3,
+              "end": 3.606,
+              "approx": true
+            },
+            {
+              "w": "东",
+              "start": 3.606,
+              "end": 3.913,
+              "approx": true
+            },
+            {
+              "w": "西",
+              "start": 3.913,
+              "end": 4.22,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 4.22,
+              "end": 4.358,
+              "approx": true
+            },
+            {
+              "w": "一",
+              "start": 4.358,
+              "end": 4.665,
+              "approx": true
+            },
+            {
+              "w": "样",
+              "start": 4.665,
+              "end": 4.971,
+              "approx": true
+            },
+            {
+              "w": "都",
+              "start": 4.971,
+              "end": 5.278,
+              "approx": true
+            },
+            {
+              "w": "不",
+              "start": 5.278,
+              "end": 5.585,
+              "approx": true
+            },
+            {
+              "w": "能",
+              "start": 5.585,
+              "end": 5.891,
+              "approx": true
+            },
+            {
+              "w": "少",
+              "start": 5.891,
+              "end": 6.198,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "start": 6.705,
+      "slot": 2.743,
+      "stretch": 1,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "铃铛不是装饰",
+          "file": "audio/vo/s3-1.mp3",
+          "dur": 1.655,
+          "offset": 0.2,
+          "start": 6.905,
+          "words": [
+            {
+              "w": "铃",
+              "start": 6.905,
+              "end": 7.181,
+              "approx": true
+            },
+            {
+              "w": "铛",
+              "start": 7.181,
+              "end": 7.457,
+              "approx": true
+            },
+            {
+              "w": "不",
+              "start": 7.457,
+              "end": 7.732,
+              "approx": true
+            },
+            {
+              "w": "是",
+              "start": 7.732,
+              "end": 8.008,
+              "approx": true
+            },
+            {
+              "w": "装",
+              "start": 8.008,
+              "end": 8.284,
+              "approx": true
+            },
+            {
+              "w": "饰",
+              "start": 8.284,
+              "end": 8.56,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "start": 9.447,
+      "slot": 4.876,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "走到哪响到哪，找不到人就听声音",
+          "file": "audio/vo/s4-1.mp3",
+          "dur": 4.174,
+          "offset": 0.25,
+          "start": 9.697,
+          "words": [
+            {
+              "w": "走",
+              "start": 9.697,
+              "end": 9.986,
+              "approx": true
+            },
+            {
+              "w": "到",
+              "start": 9.986,
+              "end": 10.275,
+              "approx": true
+            },
+            {
+              "w": "哪",
+              "start": 10.275,
+              "end": 10.564,
+              "approx": true
+            },
+            {
+              "w": "响",
+              "start": 10.564,
+              "end": 10.852,
+              "approx": true
+            },
+            {
+              "w": "到",
+              "start": 10.852,
+              "end": 11.141,
+              "approx": true
+            },
+            {
+              "w": "哪",
+              "start": 11.141,
+              "end": 11.43,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 11.43,
+              "end": 11.56,
+              "approx": true
+            },
+            {
+              "w": "找",
+              "start": 11.56,
+              "end": 11.849,
+              "approx": true
+            },
+            {
+              "w": "不",
+              "start": 11.849,
+              "end": 12.138,
+              "approx": true
+            },
+            {
+              "w": "到",
+              "start": 12.138,
+              "end": 12.427,
+              "approx": true
+            },
+            {
+              "w": "人",
+              "start": 12.427,
+              "end": 12.716,
+              "approx": true
+            },
+            {
+              "w": "就",
+              "start": 12.716,
+              "end": 13.004,
+              "approx": true
+            },
+            {
+              "w": "听",
+              "start": 13.004,
+              "end": 13.293,
+              "approx": true
+            },
+            {
+              "w": "声",
+              "start": 13.293,
+              "end": 13.582,
+              "approx": true
+            },
+            {
+              "w": "音",
+              "start": 13.582,
+              "end": 13.871,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "start": 14.323,
+      "slot": 6.095,
+      "stretch": 1.25,
+      "internal": 2.4,
+      "lines": [
+        {
+          "index": 0,
+          "cue": 0.2,
+          "text": "太阳一出来，，整只猫就自动瘫在地板上",
+          "file": "audio/vo/s5-1.mp3",
+          "dur": 5.259,
+          "offset": 0.25,
+          "start": 14.573,
+          "words": [
+            {
+              "w": "太",
+              "start": 14.573,
+              "end": 14.884,
+              "approx": true
+            },
+            {
+              "w": "阳",
+              "start": 14.884,
+              "end": 15.195,
+              "approx": true
+            },
+            {
+              "w": "一",
+              "start": 15.195,
+              "end": 15.507,
+              "approx": true
+            },
+            {
+              "w": "出",
+              "start": 15.507,
+              "end": 15.818,
+              "approx": true
+            },
+            {
+              "w": "来",
+              "start": 15.818,
+              "end": 16.129,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 16.129,
+              "end": 16.269,
+              "approx": true
+            },
+            {
+              "w": "，",
+              "start": 16.269,
+              "end": 16.409,
+              "approx": true
+            },
+            {
+              "w": "整",
+              "start": 16.409,
+              "end": 16.72,
+              "approx": true
+            },
+            {
+              "w": "只",
+              "start": 16.72,
+              "end": 17.031,
+              "approx": true
+            },
+            {
+              "w": "猫",
+              "start": 17.031,
+              "end": 17.343,
+              "approx": true
+            },
+            {
+              "w": "就",
+              "start": 17.343,
+              "end": 17.654,
+              "approx": true
+            },
+            {
+              "w": "自",
+              "start": 17.654,
+              "end": 17.965,
+              "approx": true
+            },
+            {
+              "w": "动",
+              "start": 17.965,
+              "end": 18.276,
+              "approx": true
+            },
+            {
+              "w": "瘫",
+              "start": 18.276,
+              "end": 18.587,
+              "approx": true
+            },
+            {
+              "w": "在",
+              "start": 18.587,
+              "end": 18.898,
+              "approx": true
+            },
+            {
+              "w": "地",
+              "start": 18.898,
+              "end": 19.21,
+              "approx": true
+            },
+            {
+              "w": "板",
+              "start": 19.21,
+              "end": 19.521,
+              "approx": true
+            },
+            {
+              "w": "上",
+              "start": 19.521,
+              "end": 19.832,
+              "approx": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};

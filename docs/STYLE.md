@@ -134,9 +134,51 @@ node scripts/anim.mjs still _style-sampler -t 1.8,6,9.6 --style noir
 | `fonts` | 字体栈（覆盖 `src/core/text.js` 的 `FAMILIES`，键 `sans` / `mono` / `serif`） | `TextKit.font()`。例：`terminal` 把 `sans` 和 `serif` **都**设成等宽 |
 | `post` | 后处理**基线**（泛光/颗粒/暗角/色差…，字段见 `AGENTS.md` §5 与 `docs/ENGINE.md` §8） | `src/core/engine.js` 的 `post` 合并 |
 | `grid` | 版面栅格：`pad` `top` `footerLineY` `footerY` `captionLineY` `captionY` `contentBottom` `captionBand` | `src/kit/bands.js` 的 `bands()` + 字幕层（条带含义见 [`docs/CAPTIONS.md`](./CAPTIONS.md) §4） |
+| `gridPortrait` | **竖屏栅格**（1080×1920 基准）：默认 = `GRID_PORTRAIT`（`pad 88` / 字幕带 `[1180,1344]` / `footerY 1622`）。`H > W` 时由 `fitStyleToFrame()` 换上来，按短边（宽）缩放 | `src/style/index.js` 的 `fitStyleToFrame()` → `ctx.grid`、字幕带、kit 条带。见 [`docs/LAYOUT.md`](./LAYOUT.md) §6.5 |
 | `captions` | 字幕样式：`position` `size` `weight` `maxCharsPerLine` `maxLines` `bg` `padX` `padY` `lineHeight` `hold` `fade` `karaoke` `dim` `color` `sungColor` | `src/core/captions.js`。⚠ **`print` 的这一项是 `false`**（这套风格默认不开字幕）；其余四套 = `{ ...DEFAULT_CAPTION_STYLE, 各自的微调 }`（微调值见 §3 末尾） |
 | `motif` | 背景**母题名**：`grid` / `blueprint` / `paper` / `scan` / `noir` / `flat`（纯色，不画母题） | `src/kit/world.js` 的 `worldPass`（`motif: 'auto'` 时读 `ctx.style.motif`） |
-| `tokens` | **设计 token**：字号阶梯 / 线宽三档 / 动效配方 / 边距 / 质感（2026-10-25 起，来自 `src/style/tokens.js`） | `ctx.style.tokens`（场景读它：**写 `size: T.type.hero` 不写 `size: 24`**）。纯被动字段，老任务不变 |
+| `tokens` | **设计 token**：字号阶梯 / 线宽三档 / 动效配方 / 边距 / 质感（2026-10-25 起，来自 `src/style/tokens.js`） | `ctx.style.tokens`（场景读它：**写 `size: T.type.hero` 不写 `size: 24`**）；**`type.write` 的语义字号**也读它（见 §4.1）。纯被动字段，老任务不变 |
+
+### 4.1 语义字号：`size: 'hero'`（2026-10-25 落地）
+
+`type.write` / `writeLine` / `karaoke` / `wrap` / `paragraph` / `writeOnPath` 的 `size`
+除了像素数，也接受**名字**：
+
+```js
+type.write('把方波拆开', 140, 330, { size: 'hero', weight: 800, color: css(P.bone) });
+type.write('FOURIER · 4 项', 140, 176, { size: 'label', family: 'mono', color: css(P.ash) });
+```
+
+阶梯六档：`hero` / `h1` / `h2` / `body` / `label` / `mono`（`src/style/tokens.js` 的 `TYPE_SCALE`）。
+取值来自**这套风格的** `ctx.style.tokens.type`（引擎在 `applyStyleFonts()` 里下发到每个图层的
+`TextKit`），所以同一份场景换 `--style` 之后层级还在、只是整体尺码跟着介质走：
+
+| 风格 | `hero` | 为什么 |
+|---|---|---|
+| `print`（= 默认） | 136 | `tokens.js` 的基线 |
+| `blueprint` | 120 | 工程图的口吻偏"密"，标注要留得住细节 |
+| `paper` | 128 | 宋体字面小，正文 42 / 标注 26 给回来 |
+| `terminal` | 112 | 等宽字窄，整套收一档；错峰 0.05（刷屏节奏） |
+| `flat` | 136 | 纯色摄影棚，直接吃默认 |
+| `noir` | 152 | 电影感 = 更少、更大的字；hero 字重 900 |
+
+三条规矩（写错了**直接抛**，不静默回落）：
+
+1. **名字拼错就报错**：`size: 'heor'` → 报错里列出可用名字。回落成 64 才是最贵的错法。
+2. **数字仍然合法**：`size: 24` 原样通过 —— 120 个老场景一个像素都不变。
+3. **一屏只有一个 `hero`**（§1 的硬规则）：其余最多 `h2` + `label`。
+
+验证：`node tools/test-tokens.mjs`（38 项，纯 JS）；样片
+`node scripts/anim.mjs still _token-lab -t 6.5 --style <名字> --out out/_token-lab/styles/<名字>`
+（六套各一张，`out/_token-lab/styles/_sheet.png` 是 3×2 接触表）。
+
+**竖屏（1080×1920，BACKLOG 1-52）**：同一套语义字号会**自动 ×1.35**（`PORTRAIT_TYPE_SCALE`）。
+理由：横屏与竖屏的短边都是 1080，按短边算比例本该一样；但竖屏画面高 1920，一行 136px 的字
+只占高度的 7%（横屏 12.6%），**看起来就是更小**。实测 1.0 / 1.2 / 1.35 / 1.5 四档对比后取 1.35
+（1.5 时标题吃掉半屏）。线宽跟着放大，**字重 / 错峰 / 颗粒不放大**（与画幅无关）。
+场景侧一行都不用改 —— 引擎在 `load()` 里调 `fitStyleToFrame()` 换栅格与字号：
+`node tools/test-portrait.mjs`（39 项）盯着"横屏原样返回同一个对象"这条底线。
+
 
 另外两个导出：**`gridFor(style, W, H)`** —— 按逻辑分辨率缩放栅格。`grid` 里的数字都是 **1920×1080 基准**；
 `H === 1080` 时**直接返回原对象**（4K 的 `scale: 2` 也不算，因为引擎的 `W/H` 一直是逻辑像素），

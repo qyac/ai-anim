@@ -13,6 +13,13 @@
  *   ── 只写配置出片（B 档）：timeline 里直接写 { type: 'title', … }，连 scenes/ 都不需要；
  *      节点字段、11 个模板、排错表见 docs/CONFIG-ONLY.md，可跑的完整示例见 tasks/example-config-only/
  *   node scripts/anim.mjs still <task> -t 1.5,2,3 [-o dir] 出单帧 PNG（agent 用它看图）
+ *   node scripts/anim.mjs cover <task> -t 12 --title "…" [--sub "…"] [--scale 2]
+ *                                                        出封面：那一帧 + 压字（底部渐变压暗 → 主标题 →
+ *                                                        信号色短线 → 副标）。字用引擎那套字体，
+ *                                                        不是 ffmpeg drawtext 另找一份（BACKLOG 1-53）
+ *   node scripts/anim.mjs chapters <task> [--min 4] [--json]
+ *                                                        章节时间码（`mm:ss 段名`）→ out/<task>/chapters.txt
+ *                                                        首段必是 00:00；短于 --min 的段并进上一章
  *   node scripts/anim.mjs sheet <task> --from 0 --to 10 -n 12  出接触表（一张图看一段）
  *   node scripts/anim.mjs cuts <task> [--window 1.5] [--n 7]   切点两侧各 ±1.5s 出一张接触表
  *                                                        （三点采样不落在切点上，切点要单独看；
@@ -30,7 +37,7 @@
  * 【口播/旁白】（docs/NARRATION.md；这两条都不渲染画面，改旁白/换音色不用动场景代码）
  *   node scripts/anim.mjs say <task> [--voice X] [--rate X] [--script 文件] [--bpm N]
  *                                  [--tail 1.2] [--max-stretch 1.9] [--tts "<命令>"]
- *                                  [--force] [--dry-run] [--no-vo]
+ *                                  [--force] [--dry-run] [--no-vo] [--pin-timing]
  *                                                        读 tasks/<任务>/narration.mjs（找不到就看 tools/narration.mjs）
  *                                                        → 逐句 TTS → 量真实时长 → 反推每段 stretch/slot →
  *                                                        写 audio/timing.{json,mjs} + narration.json + <任务>-vo.mp3
@@ -148,7 +155,7 @@
  * 离屏渲染全程无头 Chrome + 同一条渲染代码路径，所以「预览看到什么，成片就是什么」。
  */
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync, statSync, openSync, closeSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -157,6 +164,8 @@ import { chromium } from 'playwright-core';
 // 抖动统计（纯函数，无依赖）：`anim shake` 与 `video` 收尾的守门共用同一套判据
 import { analyzeShake, shakeSummary } from './lib/shake.mjs';
 import { blankJsComments as sharedBlankJsComments } from './lib/js-source.mjs';
+// 分块增量重渲的判据（BACKLOG 1-45）：纯函数，`tools/test-block-sig.mjs` 直接测
+import { sceneFileIndex, blockSignature } from './lib/blocksig.mjs';
 import { layoutReport, layoutSummary } from '../src/layout.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -203,6 +212,21 @@ function opt(name, def) {
   return def;
 }
 function flag(name) { return rest.includes(`--${name}`); }
+
+/**
+ * 产物目录：`out/<任务>`，带 `--variant` 时是 `out/<任务>/<变体>`（BACKLOG 1-23）。
+ *
+ * **为什么必须分目录**：同一支片子的两个变体，成片、分块缓存、stills、hashes 基线全都不同；
+ * 挤在一个目录里会互相覆盖/串味（最隐蔽的是 `video --segments` 的块缓存：改了两句词却
+ * 复用了另一个变体的块，画面对不上还查不出来）。
+ */
+function taskOut(task, ...parts) {
+  const v = opt('variant', '');
+  // ⚠ 这里刻意写成 String(task)：这条 helper 是被一次全局替换生成出来的，
+  //    用 path.join('out', task, …) 的字面形状会被替换脚本连自己一起改掉（踩过一次，自递归爆栈）。
+  const root = path.join('out', String(task));
+  return v ? path.join(root, v, ...parts) : path.join(root, ...parts);
+}
 function positional(i = 0) { return rest.filter((a) => !a.startsWith('-'))[i]; }
 
 const log = (...a) => console.log(...a);
@@ -944,7 +968,17 @@ async function openSession(o) {
   }
 
   const browser = await chromium.launch({
-    channel: 'chrome',
+    /**
+     * 浏览器通道。默认 `chrome`（官方 Chrome，`channel: 'chrome'` 是 **playwright-core 的
+     * 硬要求**：它不会替你下载浏览器，见 AGENTS.md §1 前置条件）。
+     *
+     * `ANIM_CHANNEL` 是给"Chrome 装坏了/没有 Chrome"的机器留的后门：
+     * `ANIM_CHANNEL=msedge` 用系统里的 Edge（同 Chromium，渲染路径一致）。
+     * 本机实测踩过：Chrome 的 `Application\` 里只剩 `chrome.exe` 壳、没有 `chrome.dll`，
+     * 启动报「并行配置不正确」，playwright 只会说 `spawn UNKNOWN` —— 报错位置在 `launch`，
+     * 看不出是浏览器装坏了。有了这个环境变量就不必改源码。
+     */
+    channel: process.env.ANIM_CHANNEL || 'chrome',
     headless: !flag('headed'),
     args: [
       '--use-angle=default',
@@ -984,6 +1018,8 @@ async function openSession(o) {
   // `--style paper`：临时换风格出图/预览（不改任务文件）。
   // 用途就一个 —— **一眼对比**："同一段画面在几套风格下各长什么样"（docs/STYLE.md）。
   if (opt('style', '')) params.set('style', String(opt('style')));
+  // 变体（BACKLOG 1-23）：把名字交给页面，深合并在那边的 loadTask 里做（报错也带任务名）。
+  if (opt('variant', '')) params.set('variant', String(opt('variant')));
   params.set('hud', '0');
 
   await page.goto(`${url}/?${params}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -1039,6 +1075,63 @@ function ffmpegCmd() {
   const parts = raw.match(/"[^"]+"|\S+/g)?.map((s) => s.replace(/^"|"$/g, '')) ?? ['ffmpeg'];
   return parts.length ? parts : ['ffmpeg'];
 }
+/**
+ * 这台 ffmpeg 有没有某个编码器（结果**缓存**，一次出片只跑一次探测）。
+ *
+ * 为什么要探：Windows 上最常见的发行包是 **LGPL 构建**（`--disable-libx264`），
+ * 而引擎默认走 `libx264`。不探的后果不是"报错"，是**静默死**：ffmpeg 打一行
+ * `Unrecognized option 'x264-params'` 就退出，CLI 还在等帧，看起来像"卡死"
+ * （2026-10-25 实测挂 20 分钟）。这里把"有没有"变成可判定的事实。
+ *
+ * @param {string} name 编码器名（`libx264` / `h264_mf` / `libopenh264` …）
+ * @returns {boolean}
+ */
+const encoderCache = new Map();
+function ffmpegHasEncoder(name) {
+  if (encoderCache.has(name)) return encoderCache.get(name);
+  let ok = false;
+  try {
+    const cmd = ffmpegCmd();
+    const r = spawnSync(cmd[0], [...cmd.slice(1), '-hide_banner', '-encoders'], {
+      encoding: 'utf8', timeout: 20000, windowsHide: true,
+    });
+    const text = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
+    ok = new RegExp(`^\\s*[VAS][.\\w]{5}\\s+${name}\\s`, 'm').test(text);
+  } catch { ok = false; }
+  encoderCache.set(name, ok);
+  return ok;
+}
+
+/**
+ * 挑一个**这台 ffmpeg 真的有的**编码器。
+ *
+ * 默认仍是 `libx264`（质量最好、参数最全）。但这台机器上踩过：PATH 里的 ffmpeg 是
+ * **LGPL 构建**（`--disable-libx264`），于是默认参数里的 `-x264-params` 直接把它打死，
+ * 而 CLI 只表现为"卡住"。所以这里先探一次，缺了就退到能用的那个，并把原因**说出来** ——
+ * 宁可画面参数不是最优，也不要静默出一支废片。
+ *
+ * 兜底顺序：`h264_mf`（Windows 自带的硬件编码，AMD/NVIDIA/Intel 都能吃）→
+ * `libopenh264`（LGPL 构建常见）→ 报错（并告诉你去装 GPL 构建）。
+ *
+ * @param {string} requested
+ * @returns {string}
+ */
+function pickVideoEncoder(requested) {
+  if (ffmpegHasEncoder(requested)) return requested;
+  const chain = process.platform === 'win32'
+    ? ['h264_mf', 'libopenh264']
+    : ['libopenh264'];
+  const alt = chain.find((c) => c !== requested && ffmpegHasEncoder(c));
+  if (!alt) {
+    die(`这台 ffmpeg 既没有 ${requested}，也没有可用的兜底编码器（${chain.join(' / ')}）。\n`
+      + `  装一个带 libx264 的 GPL 构建（例如 winget install Gyan.FFmpeg），\n`
+      + `  或用 --vcodec 指定一个这台机器真有的编码器（看 ffmpeg -hide_banner -encoders）。`);
+  }
+  warn(`⚠ 这台 ffmpeg 没有 ${requested}（多半是 LGPL 构建），改用 ${alt}。`);
+  warn(`  要原配方（crf16 + tune grain）就装 GPL 构建，或用 --vcodec / ANIM_VCODEC 显式指定。`);
+  return alt;
+}
+
 function ffprobeCmd() {
   if (process.env.ANIM_FFPROBE) {
     const parts = process.env.ANIM_FFPROBE.match(/"[^"]+"|\S+/g)?.map((s) => s.replace(/^"|"$/g, '')) ?? [];
@@ -1053,6 +1146,20 @@ function ffprobeCmd() {
 }
 function ffmpegPath() { return ffmpegCmd()[0]; }
 function ffprobePath() { return ffprobeCmd()[0]; }
+
+/**
+ * 把 Windows 的**无符号**退出码转成有符号（`4294967274` → `-22`，即 EINVAL）。
+ *
+ * 为什么要转：编码器参数写错时 ffmpeg 退的是 `-22`，但 Node 在 Windows 上拿到的是
+ * 4294967274 —— 报错里出现这个数字，读者第一反应是"这是什么天文数字"。
+ * 转成负数之后，`-22` 至少能让人联想到"参数不对"。
+ * @param {number|null|undefined} c
+ */
+function signedExitCode(c) {
+  if (typeof c !== 'number') return c;
+  return c > 0x7fffffff ? c - 0x100000000 : c;
+}
+
 
 function checkFfmpeg() {
   // 把固定的前缀参数一起带上（ANIM_FFMPEG 可能是个包装器，例如 `node tools/slow-ffmpeg.mjs`）
@@ -1341,6 +1448,27 @@ function sceneSignature(task) {
 }
 
 /**
+ * 引擎签名 = `src/` 下所有源文件的 `相对路径:大小:mtime`（排序后拼起来）。
+ *
+ * 为什么要单独算：**分块增量重渲（BACKLOG 1-45）**需要知道"这次改动影响的是哪一块"。
+ * `tasks/` 下的改动只影响用到它的那几块；`src/` 下的改动（引擎）**任何一块都可能变** ——
+ * 所以引擎签名一变化就整批失效，这是保守但正确的方向。
+ */
+function engineSignature() {
+  const files = [];
+  walkSourceTree(path.join(ROOT, 'src'), SOURCE_EXT, files);
+  files.sort();
+  const parts = [];
+  for (const f of files) {
+    try {
+      const st = statSync(f);
+      parts.push(`${path.relative(ROOT, f)}:${st.size}:${Math.round(st.mtimeMs)}`);
+    } catch { /* 读不到就跳过 */ }
+  }
+  return parts.join('|');
+}
+
+/**
  * 读/写分块目录旁的指纹文件。返回 `{ changed: string[], fingerprint }`。
  * @returns {{ changed: string[], fp: ReturnType<typeof renderFingerprint> }}
  */
@@ -1528,19 +1656,96 @@ export default {
 
 /* ------------------------------------------------------------------ 命令：tasks */
 
+/**
+ * `anim tasks --json` 的字段契约（BACKLOG 1-58）。
+ *
+ * 为什么要它：任何"批量跑一批片子"的东西（`anim queue`、变体矩阵、外部脚本）都要先知道
+ * **有哪些片子、每片多大多长、什么风格、有没有旁白、有哪些变体**。以前只有人能读的一行文本。
+ * 出处：Remotion 的 `getCompositions()` —— 把片子清单与输入声明成机器可读的（见 docs/REFERENCE-remotion.md §2①）。
+ *
+ * schema 串沿用 `anim.shots --json` 的惯例：**只许加字段，不许改已有字段的含义**。
+ */
+export const TASKS_SCHEMA = 'anim.tasks/1';
+
+/**
+ * 从任务配置源码里抠出元信息（**纯函数**，离线可测）。
+ *
+ * ⚠ 这里是**静态解析**，不是执行配置：
+ *   · `duration` 只有存在 `audio/timing.json`（旁白解算产物）时才知道，否则是 null + `durationSource: null`；
+ *   · `variants` 只列名字（键），不展开它们的覆盖内容；
+ *   · 解析不出来的一律留 null，**不猜**（与"空 ≠ 干净"同一条纪律）。
+ *
+ * @param {{ id: string, cfgText: string, sceneCount?: number, audio?: string[],
+ *           timingTotal?: number|null }} a
+ */
+export function parseTaskMeta(a) {
+  const cfg = String(a.cfgText ?? '');
+  // ⚠ 只看 variants 之前的部分：变体里的 style / captions 是**变体的**，不是任务级的
+  //   （第一版没切，_info-lab 被读成 style: noir —— 它只有 dark 变体是 noir）
+  const baseText = cfg.split(/export\s+const\s+variants/)[0];
+  const pick = (re) => { const m = re.exec(baseText); return m ? m[1] : null; };
+  const num = (v) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
+  // style 可以是字符串、也可以是 { name: '...' } —— 两种都认，认不出就是 null（= 默认 print）
+  const style = pick(/\bstyle:\s*['"]([^'"]+)['"]/) ?? pick(/\bstyle:\s*\{[^}]*?name:\s*['"]([^'"]+)['"]/);
+  // captions: true / false（不写 = 没开）
+  const capRaw = pick(/\bcaptions:\s*(true|false)\b/);
+  const variants = [];
+  const vm = /export\s+const\s+variants\s*=\s*\{([\s\S]*?)\n\};/.exec(cfg);
+  if (vm) for (const m of vm[1].matchAll(/^\s{2}([A-Za-z_$][\w$]*)\s*:/gm)) variants.push(m[1]);
+  return {
+    id: a.id,
+    title: pick(/\btitle:\s*['"]([^'"]+)['"]/) ?? a.id,
+    width: num(pick(/\bwidth:\s*(\d+)/)),
+    height: num(pick(/\bheight:\s*(\d+)/)),
+    fps: num(pick(/\bfps:\s*(\d+)/)),
+    scale: num(pick(/\bscale:\s*(\d+)/)),
+    style,
+    captions: capRaw == null ? false : capRaw === 'true',
+    sceneCount: Number.isFinite(a.sceneCount) ? a.sceneCount : 0,
+    audio: Array.isArray(a.audio) ? a.audio : [],
+    variants,
+    duration: Number.isFinite(a.timingTotal) ? a.timingTotal : null,
+    durationSource: Number.isFinite(a.timingTotal) ? 'audio/timing.json' : null,
+  };
+}
+
 function cmdTasks() {
   const names = taskNames();
   if (!names.length) { log('(还没有任务) 跑：node scripts/anim.mjs new 我的第一个动画'); return; }
-  log('任务列表：');
-  for (const n of names) {
+
+  /** 一个任务的元信息（--json 与人类可读两条路共用同一份，避免两套口径漂移）。 */
+  const metaOf = (n) => {
     const dir = path.join(ROOT, 'tasks', n);
     const cfg = readFileSync(path.join(dir, 'task.config.mjs'), 'utf8');
-    const title = /title:\s*['"]([^'"]+)['"]/.exec(cfg)?.[1] ?? n;
-    const scenes = existsSync(path.join(dir, 'scenes')) ? readdirSync(path.join(dir, 'scenes')).filter((f) => f.endsWith('.js')).length : 0;
-    const audio = existsSync(path.join(dir, 'audio')) ? readdirSync(path.join(dir, 'audio')).filter((f) => /\.(mp3|wav|m4a|flac|ogg)$/i.test(f)) : [];
-    const frames = existsSync(path.join(dir, '..', '..', 'out', n)) ? '' : '';
-    log(`  ${n.padEnd(16)} “${title}”  ${scenes} 个场景${audio.length ? '  ♪ ' + audio.join(',') : ''}${frames}`);
+    const scenes = existsSync(path.join(dir, 'scenes'))
+      ? readdirSync(path.join(dir, 'scenes')).filter((f) => f.endsWith('.js')).length
+      : 0;
+    const audio = existsSync(path.join(dir, 'audio'))
+      ? readdirSync(path.join(dir, 'audio')).filter((f) => /\.(mp3|wav|m4a|flac|ogg)$/i.test(f))
+      : [];
+    let timingTotal = null;
+    const timing = path.join(dir, 'audio', 'timing.json');
+    if (existsSync(timing)) {
+      try { timingTotal = Number(JSON.parse(readFileSync(timing, 'utf8'))?.total) || null; } catch { timingTotal = null; }
+    }
+    return parseTaskMeta({ id: n, cfgText: cfg, sceneCount: scenes, audio, timingTotal });
+  };
+
+  if (flag('json')) {
+    const tasks = names.map(metaOf);
+    log(JSON.stringify({ schema: TASKS_SCHEMA, count: tasks.length, tasks }, null, 2));
+    return;
   }
+
+  log('任务列表：');
+  for (const m of names.map(metaOf)) {
+    const size = m.width && m.height ? ` ${m.width}×${m.height}` : '';
+    const dur = m.duration != null ? ` ${m.duration.toFixed(1)}s` : '';
+    const varTag = m.variants.length ? `  变体 ${m.variants.join('/')}` : '';
+    log(`  ${m.id.padEnd(16)} “${m.title}”${size}${m.fps ? ' @' + m.fps : ''}${dur}  ${m.sceneCount} 个场景`
+      + `${m.audio.length ? '  ♪ ' + m.audio.join(',') : ''}${m.style ? '  风格 ' + m.style : ''}${varTag}`);
+  }
+  log('\n（机器可读：node scripts/anim.mjs tasks --json   · schema ' + TASKS_SCHEMA + '）');
 }
 
 /* ------------------------------------------------------------------ 命令：gpu */
@@ -1987,6 +2192,157 @@ async function cmdCheck() {
       // 受限沙箱里 spawn 可能被拒（EPERM）：这不是 check 的失败，但也**不是通过**
       warn(`（旁白复述检查跳过：${firstLine(err)}）`);
       pushSkipped(skipped, '旁白复述检查（lint-narration-dup）', `起不了这个子进程：${firstLine(err)}`);
+    }
+  }
+
+  // 1.54) **卡点**：切点有没有落在拍上（tools/lint-beat-align.mjs）。
+  //
+  // 为什么放在 check 里：切点差 60ms 观众说不出哪里怪，只会觉得"没跟着音乐走"。
+  // 判据用**从音频自己重建的网格**（不信 analysis.json 的 bpm 估计 —— 实测它对合成床偏 4%）。
+  {
+    const tool = path.join(ROOT, 'tools', 'lint-beat-align.mjs');
+    try {
+      const { spawnSync } = await import('node:child_process');
+      // 多语言任务（nekohome-intro-ja）的段长来自 ../nekohome-intro/audio/ja.timing.json ——
+      // 这里把"可用的 timing 文件"交给工具，别因为它不在本任务目录就跳过卡点
+      const timingCandidates = [
+        path.join(ROOT, 'tasks', task, 'audio', 'timing.json'),
+        path.join(ROOT, 'tasks', task, 'audio', 'ja.timing.json'),
+      ];
+      const timingForBeat = timingCandidates.find((p) => existsSync(p)) ?? null;
+      if (existsSync(tool) && timingForBeat) {
+        const r = spawnSync(process.execPath, [tool, task, '--json', '--timing', timingForBeat], { encoding: 'utf8', timeout: 60000 });
+        let j = null;
+        try { j = JSON.parse(`${r.stdout ?? ''}${r.stderr ?? ''}`); } catch { j = null; }
+        if (j && j.rows) {
+          const bad = j.rows.filter((x) => !x.ok);
+          // 硬门（--strict）：交付前要求 ≥90% 的切点落在拍上（4-6 段的短片允许一个例外）
+          const need = Math.max(1, Math.ceil(j.rows.length * 0.9));
+          if (bad.length) {
+            const worst = bad.slice().sort((a, b) => Math.abs(b.offMs) - Math.abs(a.offMs))[0];
+            warn(`⚠ 卡点：${bad.length}/${j.rows.length} 个切点没落在拍上（判据 ±${j.tolMs}ms，实测 ${j.bpm.toFixed(2)} BPM）`);
+            for (const b of bad.slice(0, 4)) warn(`  · ${b.id}  ${b.offMs >= 0 ? '+' : ''}${b.offMs.toFixed(0)}ms 离最近拍`);
+            warn(`  → 段长改用 { beat: n } / { bar: n }，或把 narration.mjs 的 BPM 设成实测的 ${j.bpm.toFixed(2)}`);
+            if (strict && j.rows.length - bad.length < need) {
+              staticErrs.push(`[卡点] 只有 ${j.rows.length - bad.length}/${j.rows.length} 个切点对得上拍子（要求 ≥${need}，最差 ${Math.abs(worst.offMs).toFixed(0)}ms）`);
+            }
+          } else {
+            log(`  ✓ 卡点：${j.rows.length}/${j.rows.length} 个切点都在 ±${j.tolMs}ms 内（实测 ${j.bpm.toFixed(2)} BPM）`);
+          }
+        } else if (r.status === 2) {
+          pushSkipped(skipped, '卡点（beat-align）', `这条片子没有可检测的音轨或起音太少：${firstLine(`${r.stdout ?? ''}${r.stderr ?? ''}`)}`);
+        }
+        // 分析器给出的拍网格置信度（软失败：bpm 有值但网格不可信）
+        if (j && j.track) {
+          const ap = path.join(ROOT, j.track.replace(/\.[^.]+$/, '.analysis.json'));
+          if (existsSync(ap)) {
+            try {
+              const tq = JSON.parse(readFileSync(ap, 'utf8')).tempo;
+              if (tq && typeof tq.score === 'number' && tq.score < 0.75) {
+                warn(`⚠ 拍网格置信度偏低（${(tq.score * 100).toFixed(0)}%，精确率 ${(tq.precision * 100).toFixed(0)}% / 召回 ${(tq.recall * 100).toFixed(0)}%）`
+                  + ` —— bpm 有值不等于可信，别让画面重度依赖 f.beat`);
+                if (strict) staticErrs.push(`[拍网格] 置信度 ${(tq.score * 100).toFixed(0)}% < 75%`);
+              }
+            } catch { /* 读不出来就算了 */ }
+          }
+        }
+      } else if (!existsSync(path.join(ROOT, 'tasks', task, 'audio', 'timing.json'))) {
+        pushSkipped(skipped, '卡点（beat-align）', '没有 audio/timing.json —— 这条片子的段长不是由旁白/节拍解出来的，没得对');
+      } else {
+        pushSkipped(skipped, '卡点（beat-align）', '工具不存在：tools/lint-beat-align.mjs');
+      }
+    } catch (err) {
+      pushSkipped(skipped, '卡点（beat-align）', `起不了这个子进程：${firstLine(err)}`);
+    }
+  }
+
+  // 1.545) **事件密度**：观众每一秒有没有新东西看（tools/lint-event-density.mjs）。
+  //
+  // 为什么在 check 里：片子可以零报错、qa 全绿，但观众第 8 秒就走人。
+  // 实测 nekohome-intro-ja：8–15s 连续 7 秒帧间差 < 0.3，全片 44% 的 2 秒窗口低于均值一半。
+  // ⚠ 它量的是**成片**（mp4 的帧间差）—— 还没出片时只报 skipped，不当失败。
+  {
+    const tool = path.join(ROOT, 'tools', 'lint-event-density.mjs');
+    const outDir = path.join(ROOT, 'out', task);
+    const mp4 = existsSync(outDir)
+      ? readdirSync(outDir).filter((f) => f.endsWith('.mp4') && !/^part_|_stitched/.test(f))[0]
+      : null;
+    if (!existsSync(tool)) {
+      pushSkipped(skipped, '事件密度（event-density）', '工具不存在：tools/lint-event-density.mjs');
+    } else if (!mp4) {
+      pushSkipped(skipped, '事件密度（event-density）',
+        '还没有成片可量 —— 先跑 anim video，再回头体检（它看的是 mp4 的帧间差）');
+    } else {
+      try {
+        const { spawnSync } = await import('node:child_process');
+        const r = spawnSync(process.execPath, [tool, task, '--json'], { encoding: 'utf8', timeout: 120000 });
+        let j = null;
+        try { j = JSON.parse(r.stdout ?? ''); } catch { j = null; }
+        if (j && j.windows) {
+          if (j.problems?.length) {
+            warn(`⚠ 事件密度：${j.problems.join('；')}`);
+            warn(`  → 最静的窗口：${j.worst.map((w) => w.t + 's(' + w.v + ')').join('  ')}`);
+            warn('  → 补法：给这几段加持续运动（推近/逐条落位/扫描线），或把段缩短、并进相邻段');
+            if (strict) staticErrs.push(`[事件密度] ${j.problems.join('；')}`);
+          } else {
+            log(`  ✓ 事件密度：最长静止 ${j.staticSpan.toFixed(1)}s · 稀薄窗口 ${(j.thinShare * 100).toFixed(0)}%（平均帧间差 ${j.mean}）`);
+          }
+        }
+      } catch (err) {
+        pushSkipped(skipped, '事件密度（event-density）', `起不了子进程：${firstLine(err)}`);
+      }
+    }
+  }
+
+  // 1.55) 静态：**运动上限**（BACKLOG 1-33；判据与 src/kit/motion.js 的 waterfallOver 逐字一致）。
+  //
+  // 为什么放在 check 里：错峰跨度「items × stagger ≤ 0.5s」是"一组元素像一个节拍到达"的判据，
+  // 写超了画面不会报任何错 —— 只会"看着有点拖"。waterfallStagger() 能在运行时压回去，
+  // 但作者得先想起来调用它；这一层从**源码字面量**里算跨度，把"想不起来"变成一条读数。
+  //
+  // ⚠ 默认只 warn：0.5 是外部经验值（docs/MOTION.md §0），不是实测结论；
+  //   --strict 下进 errs（交付自检跑 --strict，回归清单跑默认）。
+  //   "没有可判的对象"进 skipped —— 空不等于干净。
+  {
+    const lint = path.join(ROOT, 'tools', 'lint-motion-caps.mjs');
+    try {
+      const { spawnSync } = await import('node:child_process');
+      if (existsSync(lint)) {
+        const r = spawnSync(process.execPath, [lint, task, '--json'], { encoding: 'utf8', timeout: 30000 });
+        const txt = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim();
+        let j = null;
+        try { j = JSON.parse(txt); } catch { j = null; }
+        if (r.status === 0 && j) {
+          if (j.over && j.over.length) {
+            const stag = j.over.filter((o) => o.kind !== 'halo');
+            const halo = j.over.filter((o) => o.kind === 'halo');
+            warn(`⚠ 运动上限：${j.over.length} 处越线（错峰 ${stag.length} · 辉光峰值 ${halo.length}）：`);
+            for (const o of stag.slice(0, 6)) {
+              warn(`  · ${o.file}:${o.line}  stagger ${o.stagger} × ${o.items} 项 = ${o.span.toFixed(3)}s > ${j.cap}s`);
+            }
+            for (const o of halo.slice(0, 6)) {
+              warn(`  · ${o.file}:${o.line}  halo.peak ${o.peak} > 0.45（辉光峰值上限）`);
+            }
+            if (stag.length) warn('  → 错峰：用 waterfallStagger(items, stagger).stagger 喂 type.write（按 0.5s/items 压回）');
+            if (halo.length) warn('  → 辉光：峰值降到 0.45 以下（超限的辉光会把主体糊掉）；见 docs/MOTION.md §4');
+            if (strict) staticErrs.push('[运动上限] ' + j.over.length + ' 处越线（错峰跨度 / 辉光峰值）');
+          }
+          if (!j.over.length && !j.checked.length) {
+            pushSkipped(skipped, '运动上限（stagger 跨度）',
+              `这个任务里没有可判的 stagger 字面量（可判 0 处、读不出 ${j.unchecked.length} 处）—— 没验`);
+          } else if (j.unchecked.length && !j.over.length) {
+            warn(`（运动上限：可判 ${j.checked.length} 处都在上限内；另有 ${j.unchecked.length} 处读不出元素个数 —— 那些**没验**）`);
+          }
+        } else if (r.status === 2) {
+          pushSkipped(skipped, '运动上限（stagger 跨度）', `工具自己退出码 2（不是"没命中"）：${firstLine(txt)}`);
+        } else if (r.status !== 0) {
+          pushSkipped(skipped, '运动上限（stagger 跨度）', `退出码 ${r.status}，输出不是可解析的 JSON —— 没验`);
+        }
+      } else {
+        pushSkipped(skipped, '运动上限（stagger 跨度）', `工具不存在：${path.relative(ROOT, lint)}`);
+      }
+    } catch (err) {
+      pushSkipped(skipped, '运动上限（stagger 跨度）', `起不了这个子进程：${firstLine(err)}`);
     }
   }
 
@@ -2667,7 +3023,7 @@ async function cmdCheck() {
       //   另一个坑：`--sheet --quick` 时 opt 会把下一个 flag 当成值 ⇒ 用 startsWith('-') 挡掉。
       const sheetArg = opt('sheet', '');
       const sheetPath = path.resolve(ROOT, sheetArg && !String(sheetArg).startsWith('-') ? sheetArg
-        : path.join('out', task, 'check', 'contact.png'));
+        : taskOut(task, 'check', 'contact.png'));
       await writeContactSheet(all, sheetPath);
       log(`✓ 接触表 ${path.relative(ROOT, sheetPath)}（${all.length} 格，每段 15%/50%/85%）`);
     }
@@ -2792,7 +3148,7 @@ async function cmdStill() {
   const task = pickTask();
   const times = (opt('t', '1') ?? '1').split(',').map(Number).filter((x) => Number.isFinite(x));
   if (!times.length) die('-t 需要给时间，例如 -t 0,1.5,3');
-  const outDir = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, 'stills'))));
+  const outDir = path.resolve(ROOT, opt('out', opt('o', taskOut(task, 'stills'))));
   mkdirSync(outDir, { recursive: true });
   const samples = opt('samples', '1');
   const scale = Number(opt('scale', '0')) || undefined;
@@ -2829,6 +3185,123 @@ async function cmdStill() {
   } finally { await closeSession(); }
 }
 
+/**
+ * `anim cover <任务> -t <秒>` —— 出一张**封面**（BACKLOG 1-53）。
+ *
+ * 与 `still` 的区别只有一层：still 出来的是"片子里的那一帧"，cover 在它上面再压
+ * 底部渐变压暗 + 主标题 + 一条信号色短线 + 副标。字体用的是引擎那套（Noto Sans SC /
+ * 拱形 Archivo / Plex Mono），所以封面与成片的字是同一家人 —— 不是 ffmpeg drawtext
+ * 另找一份字体。
+ *
+ * 判据：出来的 PNG 尺寸 = 任务分辨率 × --scale；字的墨迹落在下半屏（上半屏留给画面）。
+ *
+ *   node scripts/anim.mjs cover <任务> -t 12 --title "把信号拆开" --sub "SPECTRUM · 72s"
+ *   node scripts/anim.mjs cover <任务> -t 12 --title "…" --scale 2     # 4K 封面
+ */
+async function cmdCover() {
+  const task = pickTask();
+  const t = Number(opt('t', '6'));
+  if (!Number.isFinite(t)) die('-t 需要给一个秒数，例如 -t 12');
+  const title = opt('title', undefined);
+  const sub = opt('sub', undefined);
+  if (!title && !sub) die('封面至少要 --title 或 --sub（否则就是一张 still，用 still 更直接）');
+  const scale = Number(opt('scale', '0')) || undefined;
+  const scrim = opt('scrim', undefined);
+  // 4K 封面不要覆盖 1080p 那张：文件名带上 @2x（--out 显式给了就照给的写）
+  const tag = scale && scale > 1 ? `@${scale}x` : '';
+  const outFile = path.resolve(ROOT, opt('out', opt('o', taskOut(task, `cover_${t.toFixed(2)}${tag}.png`))));
+  mkdirSync(path.dirname(outFile), { recursive: true });
+
+  await openSession({ task, scale });
+  try {
+    const info = session.info;
+    const t0 = Date.now();
+    const r = await session.page.evaluate(
+      ([tt, o]) => /** @type {any} */ (window).__anim.cover(tt, o),
+      [t, { title, sub, scrim: scrim === undefined ? undefined : Number(scrim) }],
+    );
+    writeFileSync(outFile, Buffer.from(String(r.png).split(',')[1], 'base64'));
+    log(`封面 → ${path.relative(ROOT, outFile)}  (${info.width}×${info.height}${info.scale > 1 ? ' ×' + info.scale : ''}, t=${t}s, 子帧 ${r.samples}, ${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+    reportErrors(session.info);
+    const rerr = await collectRenderErrors({ take: false });
+    if (rerr.count) {
+      warn(`\n⚠ 封面那一帧有场景异常（${rerr.count} 帧）—— 封面是**错帧卡片**，不是画面`);
+      for (const line of rerr.text.slice(0, 4)) warn('  · ' + line);
+      process.exitCode = 1;
+    }
+  } finally { await closeSession(); }
+}
+
+/**
+ * 章节规划（**纯函数**，离线单测见 `tools/test-cover-chapters.mjs`）。
+ *
+ * 规则（三条，都有理由）：
+ *   ① **第一段无论多短都是 00:00 的入口** —— YouTube 的章节第一个时间戳必须是 00:00，
+ *      否则整组章节不生效；
+ *   ② 短于 `minDur` 的段**不单独成章**，它的时长并进上一章（一个 3 秒的过场不该占一行）；
+ *   ③ 起点取**段自己的 start**（不是累加），所以与时间线重叠（转场）时章节时刻仍然对。
+ *
+ * @param {{ id: string, start: number, end: number }[]} segs
+ * @param {number} [minDur]
+ * @returns {{ start: number, name: string, dur: number }[]}
+ */
+function planChapters(segs, minDur = 4) {
+  const out = [];
+  for (const s of Array.isArray(segs) ? segs : []) {
+    const dur = Math.max(0, s.end - s.start);
+    if (out.length === 0) {
+      out.push({ start: 0, name: s.id, dur });
+      continue;
+    }
+    if (dur < minDur) {
+      out[out.length - 1].dur += dur;
+      continue;
+    }
+    out.push({ start: s.start, name: s.id, dur });
+  }
+  return out;
+}
+
+/** `秒 → mm:ss`（章节时间码；向下取整到整秒是平台惯例）。 */
+function formatChapterTime(sec) {
+  const s = Math.max(0, Math.floor(Number(sec) || 0));
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+}
+
+/**
+ * `anim chapters <任务>` —— 从时间线生成**章节时间码**（BACKLOG 1-53）。
+ *
+ * B 站 / YouTube 的章节格式都是 `mm:ss 名字`（YouTube 首行必须是 00:00）。这里按段名与起点生成，
+ * 名字取段的 id（作者写的那个），所以"章节名"就是你在时间线里写的段名 —— 想起好名字就去改时间线。
+ *
+ * 只在段边界是**自然的章节**时才有意义：一个 3 秒的过场不该单独成章。所以默认跳过短于
+ * `--min`（默认 4 秒）的段，并把它的时长并进上一章。
+ *
+ *   node scripts/anim.mjs chapters <任务>                 # 打印 + 写 out/<任务>/chapters.txt
+ *   node scripts/anim.mjs chapters <任务> --min 6 --json  # 机器可读
+ */
+async function cmdChapters() {
+  const task = pickTask();
+  const minDur = Number(opt('min', '4'));
+  const outFile = path.resolve(ROOT, opt('out', opt('o', taskOut(task, 'chapters.txt'))));
+  await openSession({ task });
+  try {
+    const segs = (await session.page.evaluate(() => /** @type {any} */ (window).__anim.info())).timeline;
+    const rows = planChapters(segs, minDur);
+    const mmss = formatChapterTime;
+    const lines = rows.map((r) => mmss(r.start) + ' ' + r.name);
+    if (flag('json')) {
+      log(JSON.stringify({ task, chapters: rows.map((r) => ({ time: mmss(r.start), start: +r.start.toFixed(2), name: r.name, dur: +r.dur.toFixed(2) })) }, null, 2));
+    } else {
+      for (const l of lines) log(l);
+    }
+    mkdirSync(path.dirname(outFile), { recursive: true });
+    writeFileSync(outFile, lines.join('\n') + '\n', 'utf8');
+    log(`\n${rows.length} 章 → ${path.relative(ROOT, outFile)}`);
+    if (rows.length && rows[0].start !== 0) warn('⚠ 第一章不在 00:00 —— YouTube 会拒绝章节');
+  } finally { await closeSession(); }
+}
+
 async function cmdSheet() {
   const task = pickTask();
   const from = Number(opt('from', '0'));
@@ -2836,7 +3309,7 @@ async function cmdSheet() {
   const n = Math.max(2, Number(opt('n', '12')));
   const cols = Math.max(1, Number(opt('cols', '4')));
   const cell = Number(opt('cell', '480'));
-  const out = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, `sheet_${from}-${to}.png`))));
+  const out = path.resolve(ROOT, opt('out', opt('o', taskOut(task, `sheet_${from}-${to}.png`))));
 
   await openSession({ task, only: opt('only', undefined) });
   try {
@@ -2874,7 +3347,7 @@ async function cmdCuts() {
   const n = Math.max(3, Number(opt('n', '7')));
   const samples = opt('samples', '1');
   const shutter = Number(opt('shutter', '0.5'));
-  const outDir = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, 'cuts'))));
+  const outDir = path.resolve(ROOT, opt('out', opt('o', taskOut(task, 'cuts'))));
   const atArg = opt('at', '');
 
   await openSession({ task, scale: Number(opt('scale', '0')) || undefined });
@@ -2985,7 +3458,7 @@ async function cmdHashes() {
   const timesArg = opt('times', opt('t', ''));
   const scale = Number(opt('scale', '0')) || undefined;
   const only = opt('only', '');
-  const baseFile = path.resolve(ROOT, opt('file', path.join('out', task, `hashes${only ? '_' + only.replace(/,/g, '-') : ''}.json`)));
+  const baseFile = path.resolve(ROOT, opt('file', taskOut(task, `hashes${only ? '_' + only.replace(/,/g, '-') : ''}.json`)));
   const accept = flag('accept');
   const force = flag('force');
   const note = String(opt('note', '') || '').trim();
@@ -3431,7 +3904,7 @@ async function cmdDumpFrame() {
   const times = (opt('t', opt('times', '0')) ?? '0').split(',').map(Number).filter(Number.isFinite);
   const samples = opt('samples', '1');
   const runUp = flag('run-up');
-  const outDir = path.resolve(ROOT, opt('out', path.join('out', task, '_dumpframe')));
+  const outDir = path.resolve(ROOT, opt('out', taskOut(task, '_dumpframe')));
   mkdirSync(outDir, { recursive: true });
   await openSession({ task, only: opt('only', undefined), scale: Number(opt('scale', '0')) || undefined });
   try {
@@ -3498,7 +3971,7 @@ async function cmdDumpFrames() {
   const to = Number(opt('to', '1'));
   const fps = Number(opt('fps', '60'));
   const samples = opt('samples', '1');
-  const outDir = path.resolve(ROOT, opt('out', path.join('out', task, '_frames')));
+  const outDir = path.resolve(ROOT, opt('out', taskOut(task, '_frames')));
   mkdirSync(outDir, { recursive: true });
   const n = Math.max(1, Math.round((to - from) * fps));
   await openSession({ task, only: opt('only', undefined), scale: Number(opt('scale', '0')) || undefined });
@@ -3829,7 +4302,7 @@ async function cmdProbeAlpha() {
  */
 async function cmdVerify() {
   const task = pickTask();
-  const file = path.resolve(ROOT, opt('file', opt('o', path.join('out', task, `${task}.mp4`))));
+  const file = path.resolve(ROOT, opt('file', opt('o', taskOut(task, `${task}.mp4`))));
   if (!existsSync(file)) die(`没有找到成片 ${path.relative(ROOT, file)}。先跑 video，或用 --file 指定。`);
 
   const p = await probeVideo(file, { count: false });
@@ -3974,7 +4447,7 @@ async function cmdVerify() {
  */
 async function cmdQa() {
   const task = pickTask();
-  const file = path.resolve(ROOT, opt('file', opt('o', path.join('out', task, `${task}.mp4`))));
+  const file = path.resolve(ROOT, opt('file', opt('o', taskOut(task, `${task}.mp4`))));
   if (!existsSync(file)) die(`没有找到成片 ${path.relative(ROOT, file)}。先跑 video，或用 --file 指定。`);
   const strict = flag('strict');
   const withDecode = !flag('no-decode');
@@ -4113,7 +4586,7 @@ function pixelDiff(a, b) {
 async function cmdDumpPx() {
   const task = pickTask();
   const times = (opt('times', opt('t', '1')) ?? '1').split(',').map(Number).filter(Number.isFinite);
-  const out = path.resolve(ROOT, opt('out', path.join('out', task, '_browser.raw')));
+  const out = path.resolve(ROOT, opt('out', taskOut(task, '_browser.raw')));
   await openSession({ task, scale: Number(opt('scale', '0')) || undefined, only: opt('only', undefined) });
   try {
     for (const t of times) {
@@ -4267,16 +4740,47 @@ async function renderSegments({ task, info, out, from, to, fps, samples, shutter
    */
   const man = segmentManifest(segDir, task, { fps, samples, shutter });
   const paramChanged = man.changed.filter((c) => !c.startsWith('tasks/') && !c.startsWith('首次'));
-  let reuse = !flag('force') && man.changed.length === 0;
-  if (flag('force')) {
+  /**
+   * **块级增量重渲**（BACKLOG 1-45，2026-10-26）。
+   *
+   * 以前只有两档：要么整批复用，要么整批重渲。于是"改一个镜头"和"改一个参数"代价一样 ——
+   * 三分钟的片子 ~70 分钟。现在多一档：**按块判断**。
+   *
+   *   · 渲染参数（fps / samples / shutter / scale / vcodec / crf …）变了 ⇒ 整批重渲
+   *     （混合出来的片子自己都不自洽，这是 P1-1 的结论，不改）；
+   *   · 只有 `tasks/` 下的场景改了 ⇒ 逐块比签名，只重渲**签名变了**的那几块；
+   *   · `src/` 下的引擎改了 ⇒ 引擎签名进每一块的签名 ⇒ 整批失效（保守且正确）。
+   */
+  const force = flag('force');
+  const engineSig = engineSignature();
+  const sceneIndex = sceneFileIndex(path.join(ROOT, 'tasks', task), ROOT);
+  /**
+   * 字幕表（task.narration）的绝对路径 —— 进块签名用。
+   * 为什么现算：改字幕不会动任何场景文件，块签名不变就会整批复用，
+   * 结果是「5.8 秒渲完」但画面还是旧字幕（实测：把日文字幕换成中文时踩到）。
+   */
+  const narrationFile = (() => {
+    try {
+      const cfgText = readFileSync(path.join(ROOT, 'tasks', task, 'task.config.mjs'), 'utf8');
+      const m = /narration:\s*['"]\.\/([^'"]+)['"]/.exec(cfgText);
+      return m ? path.join(ROOT, 'tasks', task, m[1]) : null;
+    } catch { return null; }
+  })();
+  const prevBlocks = man.prev?.blocks ?? null;
+  /** 这一批块的签名（收尾写进 params.json，下一次拿来比） */
+  /** @type {Record<string, string>} */
+  const blockSigs = {};
+  const globalReuse = !force && paramChanged.length === 0;
+
+  if (force) {
     log('  --force：忽略已存在的分块，全部重渲');
-  } else if (!reuse) {
+  } else if (paramChanged.length) {
     warn(`\n⚠ 分块参数与上一次不同，**全部重渲**（不复用旧块）：`);
     for (const c of man.changed) warn(`  · ${c}`);
-    if (paramChanged.length) {
-      warn(`  → 提示：上一次是 ${man.prev?.text ?? '(未知)'}；本次是 ${man.fp.text}`);
-    }
+    warn(`  → 提示：上一次是 ${man.prev?.text ?? '(未知)'}；本次是 ${man.fp.text}`);
     warn(`  （这正是 P1-1 那个坑：以前这里会静默复用旧分块，秒完成并报 ✓ 出片成功）\n`);
+  } else if (man.changed.length && prevBlocks) {
+    log('  参数没变，按块比对签名：只重渲改到的那几块（BACKLOG 1-45）');
   }
 
   const files = [];
@@ -4296,13 +4800,23 @@ async function renderSegments({ task, info, out, from, to, fps, samples, shutter
     const c = chunks[i];
     const file = path.join(segDir, `part_${String(i).padStart(3, '0')}_${c.from.toFixed(2)}-${c.to.toFixed(2)}.mp4`);
     const expect = Math.max(1, Math.round((c.to - c.from) * fps));
+    // 块的 key 用**时间边界**：时间线一改（段变长/挪位），对得上号的块才会复用
+    const key = `${c.from.toFixed(2)}-${c.to.toFixed(2)}`;
+    const sig = blockSignature({
+      root: ROOT, engineSig, paramsText: man.fp.text, timeline: info.timeline,
+      index: sceneIndex, from: c.from, to: c.to,
+      // 字幕改了就重渲：字幕层是引擎画的（task.narration → 每帧文字），不是 ffmpeg 烧的
+      narrationFile,
+    });
+    blockSigs[key] = sig;
     // 已经渲好的块直接复用（改一个镜头就只重渲它所在的那块）
-    if (reuse && existsSync(file)) {
-      log(`  [${i + 1}/${chunks.length}] ${c.from.toFixed(2)}–${c.to.toFixed(2)}s  已存在，跳过（${man.fp.text}）`);
+    if (globalReuse && existsSync(file) && prevBlocks?.[key] === sig) {
+      log(`  [${i + 1}/${chunks.length}] ${c.from.toFixed(2)}–${c.to.toFixed(2)}s  已存在且签名一致，跳过（${man.fp.text}）`);
       files.push({ file, expect });
       continue;
     }
-    if (!reuse && existsSync(file)) {
+    if (existsSync(file)) {
+      log(`  [${i + 1}/${chunks.length}] ${c.from.toFixed(2)}–${c.to.toFixed(2)}s  签名变了 → 重渲这一块`);
       try { rmSync(file, { force: true }); } catch { /* ignore */ }
     }
     log(`  [${i + 1}/${chunks.length}] ${c.from.toFixed(2)}–${c.to.toFixed(2)}s  ${expect} 帧 …`);
@@ -4384,6 +4898,8 @@ async function renderSegments({ task, info, out, from, to, fps, samples, shutter
   mkdirSync(segDir, { recursive: true });
   writeFileSync(man.file, JSON.stringify({
     ...man.fp, at: new Date().toISOString(), chunks: chunks.length, frames: files.reduce((s, f) => s + f.expect, 0),
+    // 每块的签名（BACKLOG 1-45）：下一次逐块比对，只重渲改到的那几块
+    blocks: blockSigs,
   }, null, 2));
   const listFile = path.join(segDir, 'concat.txt');
   writeFileSync(listFile, files.map((f) => `file '${f.file.replace(/\\/g, '/').replace(/'/g, "'\\''")}'`).join('\n'));
@@ -4597,7 +5113,7 @@ async function cmdVideo(short = false) {
     const fps = Number(opt('fps', String(info.fps)));
     const samples = opt('samples', draft ? '1' : (short ? '8' : 'auto'));
     const shutter = Number(opt('shutter', '0.5'));
-    const out = path.resolve(ROOT, opt('out', opt('o', path.join('out', task, short ? `shot_${from}-${to}.mp4` : `${task}.mp4`))));
+    const out = path.resolve(ROOT, opt('out', opt('o', taskOut(task, short ? `shot_${from}-${to}.mp4` : `${task}.mp4`))));
     mkdirSync(path.dirname(out), { recursive: true });
 
     const audioFile = tracks.packaging;
@@ -4680,20 +5196,32 @@ async function cmdVideo(short = false) {
       // ⚠ 措辞按「已知 / 未知」分开（`docs/BACKLOG.md` 1-3）：直播这一条路**没有可复用的块**
       //   —— 重跑就是整片重渲，而"渲染期间改了文件"/"页面崩了"这类根因是**确定性**的，
       //   不修就重跑＝白等一整片。所以这里只给"先做什么"。
+      //
+      // ⚠ 2026-10-26：**ffmpeg 自己提前退出**（退出码非 0）不再归到"断流"，那是两回事 ——
+      //   前者多半是编码器/参数问题（Windows 上最常见的 LGPL 构建没有 libx264），
+      //   把它说成"重跑会停在同一个地方、去查 HMR"会把人指偏。
+      const ffDied = code !== null && code !== undefined && code !== 0;
       die(
         `只渲染了 ${frames}/${total} 帧，成片不完整，${removed}。\n` +
-        `  ffmpeg 退出码 ${code}。最近一次进展：${r.progressWhy}\n` +
-        `  ${knownCauseHeadline('interrupted')}\n` +
-        `  下一步：① 先看"最近一次进展"停在哪一帧 —— 那附近就是断点；\n` +
-        `          ② 如果渲染期间动过 tasks/ 或 src/ 下任何文件，那就是根因：私有 Vite 会 HMR 重载页面 → WebSocket 断开\n` +
-        `             （连 docs/*.md 也不行：编辑器的原子写会留下 .tmp，watch 挡不住，撞 EBUSY 直接让 Vite 崩）；\n` +
-        `          ③ 否则看是不是页面渲染报错/崩溃（加 --headed 能看到控制台）；\n` +
-        `          ④ 改完之后：长片子用 --segments 分块，已渲好的块会保留，重跑只补没渲完的块。`,
+        `  ffmpeg 退出码 ${signedExitCode(code)}。最近一次进展：${r.progressWhy}\n` +
+        (ffDied
+          ? `  **这一条是 ffmpeg 提前退出**（不是页面断流）⇒ 先查编码器，别急着重跑：\n`
+            + `  ① 这台 ffmpeg 到底有没有你指定的 --vcodec：\n`
+            + `     node -e "const{spawnSync}=require('child_process');console.log(spawnSync('ffmpeg',['-hide_banner','-encoders'],{encoding:'utf8'}).stdout)"\n`
+            + `  ② Windows 上最常见的 LGPL 构建**没有 libx264**（引擎会自己退到 h264_mf/libopenh264；\n`
+            + `     如果你手写了 --vcodec libx264，把那个参数去掉）；\n`
+            + `  ③ 要原配方（crf16 + tune grain）就装 GPL 构建（winget install Gyan.FFmpeg）后重跑。`
+          : `  ${knownCauseHeadline('interrupted')}\n`
+            + `  下一步：① 先看"最近一次进展"停在哪一帧 —— 那附近就是断点；\n`
+            + `          ② 如果渲染期间动过 tasks/ 或 src/ 下任何文件，那就是根因：私有 Vite 会 HMR 重载页面 → WebSocket 断开\n`
+            + `             （连 docs/*.md 也不行：编辑器的原子写会留下 .tmp，watch 挡不住，撞 EBUSY 直接让 Vite 崩）；\n`
+            + `          ③ 否则看是不是页面渲染报错/崩溃（加 --headed 能看到控制台）；\n`
+            + `          ④ 改完之后：长片子用 --segments 分块，已渲好的块会保留，重跑只补没渲完的块。`),
       );
     }
     if (code !== 0) {
       die(
-        `ffmpeg 退出码 ${code}${r.exitSignal ? `（信号 ${r.exitSignal}）` : ''}\n` +
+        `ffmpeg 退出码 ${signedExitCode(code)}${r.exitSignal ? `（信号 ${r.exitSignal}）` : ''}\n` +
         `  这一类**不在"确定性失败"里** —— 可能是瞬时的（被外部中断 / 磁盘满 / 编码器掉线），也可能是参数问题。\n` +
         `  下一步：① 确认磁盘还有空间、out/ 没被别的进程碰过；② 再重跑一次；\n` +
         `          ③ 同样的错再来一次就按确定性处理：先 node scripts/anim.mjs check <任务>，再考虑换 --vcodec / --preset。`,
@@ -4802,7 +5330,12 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
   //   h264_nvenc p5/cq19   1.8s（166 fps）· p1/cq21 1.6s
   // 硬件编码不只是快：它把 16 个 CPU 线程全让给浏览器那一侧（渲染才是大头），所以
   // `--vcodec h264_nvenc` 常常比「省下的编码时间」还要多省一点。
-  const vcodec = opt('vcodec', 'libx264');
+  //
+  // ⚠ `pickVideoEncoder()` 会先探一次「这台 ffmpeg 到底有没有它」：LGPL 构建（Windows 上
+  //   最常见的发行包）**没有 libx264**，硬写默认值的结果是 ffmpeg 打一行
+  //   `Unrecognized option 'x264-params'` 就退出，而 CLI 在那儿等帧（2026-10-25 实测挂 20 分钟）。
+  //   `ANIM_VCODEC` 给"这台机器固定用某个编码器"留了个口子，优先级低于 `--vcodec`。
+  const vcodec = pickVideoEncoder(opt('vcodec', process.env.ANIM_VCODEC || 'libx264'));
   const isNvenc = vcodec.endsWith('_nvenc');
   args.push('-c:v', vcodec, '-pix_fmt', 'yuv420p');
   if (vcodec.startsWith('libx264')) {
@@ -4812,6 +5345,27 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
       '-tune', 'grain',
       '-x264-params', opt('x264', 'aq-mode=3'),
     );
+    /**
+     * **码率封顶**（2026-10-26 实测后才加的）：`-tune grain` + crf16 在带颗粒的画面上会飙到
+     * **230 Mbit/s**（4 秒 1080p60 = 112 MB，75 秒的片子就是 2 GB）—— crf 调到 20 也几乎不变，
+     * 因为颗粒保护把细节全留下了。上传平台还要再压一遍，等于白折腾。
+     *
+     * 给 `--bitrate 12M` 就切到「封顶 VBR」：`-b:v` 目标 + `-maxrate` 峰值 + `-bufsize` 缓冲。
+     * 不给则完全沿用原配方（**默认行为一个字节不动**）。
+     */
+    const cap = opt('bitrate', '');
+    if (cap) {
+      const m = /^([0-9.]+)\s*([KMG]?)$/i.exec(String(cap).trim());
+      if (!m) die(`--bitrate 看不懂：${cap}（写成 12M / 8000K 这种）`);
+      const mult = { K: 1e3, M: 1e6, G: 1e9 }[String(m[2] || '').toUpperCase()] ?? 1;
+      const bps = Math.round(Number(m[1]) * mult);
+      args.push(
+        '-b:v', String(bps),
+        '-maxrate', String(Math.round(bps * 1.4)),
+        '-bufsize', String(Math.round(bps * 2)),
+      );
+      warn(`（码率封顶：目标 ${cap} / 峰值 ${(bps * 1.4 / 1e6).toFixed(1)} Mbps —— 上传用，画质与体积折中）`);
+    }
   } else if (isNvenc) {
     args.push(
       '-preset', opt('preset', 'p5'),          // p1 最快 … p7 最慢最好
@@ -4819,7 +5373,37 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
       '-spatial-aq', '1', '-aq-strength', '8',
     );
   } else {
-    args.push('-preset', opt('preset', 'medium'), '-crf', opt('crf', withAudio ? '16' : '20'));
+    /**
+     * 兜底编码器（`h264_mf` / `libopenh264`）：**它们不认识 `-crf`**。
+     *
+     * 2026-10-26 实测（这台机器的 ffmpeg 是 LGPL 构建，没有 libx264）：原来这一支直接把
+     * `-crf 16` 递过去，ffmpeg 不报错、按自己的默认码率出片 —— 4 秒 1080p60 出来 **112 MB / 235 Mbit/s**。
+     * 一支 75 秒的片子会变成 2 GB 级，平台还得再压一遍，画质反而更差（re-encode 二次损失）。
+     * 所以这里改成**显式码率**：1080p60 带颗粒给 12–14 Mbps（B 站/YouTube 的推荐区间），
+     * 码率数字可用 `--bitrate` 覆盖。
+     */
+    const br = opt('bitrate', withAudio ? '14M' : '12M');
+    const bps = (() => {
+      const m = /^([0-9.]+)\s*([KMG]?)$/i.exec(String(br).trim());
+      if (!m) return null;
+      const mult = { K: 1e3, M: 1e6, G: 1e9 }[String(m[2] || '').toUpperCase()] ?? 1;
+      return Math.round(Number(m[1]) * mult);
+    })();
+    if (!bps) die(`--bitrate 看不懂：${br}（写成 12M / 8000K 这种）`);
+    args.push(
+      '-b:v', String(bps),
+      '-maxrate', String(Math.round(bps * 1.5)),
+      '-bufsize', String(Math.round(bps * 2)),
+    );
+    if (vcodec === 'h264_mf') {
+      // MediaFoundation：`-rate_control` 只吃**数值枚举**（写 'vbr' 会 "Error setting option"）。
+      // 1 = pc_vbr（峰值受限 VBR）—— 正好对得上我们给的 -b:v / -maxrate 三元组。
+      args.push('-rate_control', '1', '-quality', opt('quality', '82'));
+    } else {
+      // libopenh264：只有码率模式与 profile
+      args.push('-rc_mode', 'bitrate', '-profile:v', 'high');
+    }
+    warn(`（兜底编码器 ${vcodec}：按 ${br} 显式码率出片 —— 它不支持 -crf；想要 crf16 + tune grain 请装 GPL 构建）`);
   }
   // ⚠ `-shortest` 必须与 `-af apad` 成对（`docs/history/IMPROVEMENTS-4-5.md` §1）：AAC 封装有
   //   priming/padding，音频流的记账时长会比视频**短几十毫秒**，单独用 `-shortest` 会把
@@ -4906,6 +5490,17 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
   let lastFileSize = 0;
   let maxBlockedMs = 0;
   const bump = (why) => { lastProgressAt = Date.now(); progressWhy = why; };
+
+  /**
+   * ffmpeg 的 stdin 出错（EPIPE）要**吞掉**，不能让进程崩在栈上。
+   *
+   * 场景：编码器提前退出（参数不认 / 编码器不存在），我们这边还在写帧 —— 写管道必然 EPIPE。
+   * 以前这个错误没人接，于是 CLI 打出一段 Node 栈就退出，看不出"是 ffmpeg 死了"。
+   * 现在：写失败由 `ff.on('close')` 那条路**说人话**，这里只负责别崩。
+   */
+  ff.stdin.on('error', (e) => {
+    ffExitSignal = ffExitSignal ?? `stdin ${e?.code ?? 'error'}`;
+  });
 
   /**
    * 背压状态。ffmpeg 比渲染慢时 `stdin.write()` 返回 false，此时**必须停发 ack**：
@@ -5064,6 +5659,22 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
     // ffmpeg 已经退出：stdin 上再也不会触发 drain，别让 pendingAck 把页面吊在那里
     ffBlocked = false;
     flushAcks();
+    /**
+     * **提前退出就是失败，立刻收工**（2026-10-26）。
+     *
+     * 以前这里只记账，于是编码器一死（参数不认 / 编码器不存在 / 磁盘满 / 输出被占用），
+     * 页面还在欢快地推帧，CLI 一直等到看门狗（`--idle` 默认 300s）—— 实测有人挂了 20 分钟
+     * 才发现 `out/*.mp4` 根本没在长。退出码非 0 且流还没收尾 ⇒ 明确报错 + 结束这次渲染，
+     * 让上面的帧数/产物复核把"废片"判出来，而不是等人肉盯屏。
+     *
+     * 退出码 0 不走这条路：`-shortest` 与音频等场景下它可能合法地提前结束，
+     * 那种情况由帧数守门负责判定（"只渲染了 N/M 帧"）。
+     */
+    if (!finished && !stdinClosed && code !== null && code !== 0) {
+      warn(`\n⚠ ffmpeg 提前退出（退出码 ${signedExitCode(code)}${signal ? ` / ${signal}` : ''}）—— 编码器没吃下这些参数，或磁盘写不进去。`);
+      warn(`  产物作废。改 --vcodec / -crf 重跑，或换一个带 libx264 的 ffmpeg 构建。`);
+      finish();
+    }
   });
 
   /**
@@ -5160,7 +5771,11 @@ async function renderToFile({ info, out, from, to, fps, samples, shutter, withAu
    * 超时就杀掉，并让随后的 ffprobe 守门把废品判出来。
    */
   const finalizeLimit = Number(opt('finalize', '180')) * 1000;
-  await new Promise((r) => ff.stdin.end(r));
+  // ⚠ stdin 可能**已经死了**（ffmpeg 提前退出 ⇒ EPIPE）：这时再 end() 会抛一个没人接的错误。
+  //   直接跳过，让下面的 `code` 走"已退出"分支（退出码非 0 ⇒ 上层会把这次渲染判成失败）。
+  if (!ff.stdin.destroyed) {
+    await new Promise((r) => { try { ff.stdin.end(r); } catch { r(); } });
+  }
   stdinClosed = true;
   const code = ffExitCode !== null ? ffExitCode : await new Promise((r) => {
     const timer = setTimeout(() => {
@@ -5677,6 +6292,7 @@ async function analyzeTaskAudio(task) {
   const envKeys = ['rms', 'low', 'bass', 'mid', 'high', 'vocal', 'flux', 'centroid'];
   const out = {
     duration: a.duration, fps: a.fps, bpm: Math.round(a.bpm * 1000) / 1000,
+    tempo: a.tempo,
     beats: a.beats, downbeats: a.downbeats, kicks: a.kicks, snares: a.snares, hats: a.hats, sections: a.sections,
   };
   for (const k of envKeys) out[k] = Array.from(a[k], (x) => Math.round(x * 1000) / 1000);
@@ -6419,6 +7035,11 @@ async function cmdSay() {
     force: flag('force'),
     dryRun: flag('dry-run'),
     noVo: flag('no-vo'),
+    // BACKLOG 1-23：拿上一版 audio/timing.json 当钉子 —— 时间线不动，改一句词不重排全片
+    pinTiming: flag('pin-timing'),
+    // 表写到另一份（不动默认那份）：多语言 / 剪短版 / 手写表回放
+    table: opt('table'),
+    pinTable: opt('pin-table'),
   });
   return r;
 }
@@ -6457,6 +7078,8 @@ async function cmdMix() {
       bitrate: opt('bitrate'),
       target: rawTarget,
       lra,
+      // 多语言/多变体：不给它，--table ja 会去读 zh 的 timing 并**覆盖 zh 的混音**（实测踩过）
+      table: opt('table'),
     });
   } catch (e) {
     if (e && /^(不认识的 --target|靶子的 |给了 LRA)/.test(String(e.message))) die(String(e.message));
@@ -6753,7 +7376,7 @@ async function cmdSubs() {
     );
   }
 
-  const outDir = path.resolve(ROOT, opt('out', opt('o', path.join('out', task))));
+  const outDir = path.resolve(ROOT, opt('out', opt('o', taskOut(task))));
   mkdirSync(outDir, { recursive: true });
   const base = path.join(outDir, `${opt('name', task)}`);
   const per = Math.max(8, Number(opt('per', '16')) || 16);
@@ -6898,6 +7521,184 @@ async function cmdQueue() {
 
 /* ------------------------------------------------------------------ 分发 */
 
+
+/**
+ * `anim report <任务>` —— **一屏自检**：把四条机器判据汇总成一张表。
+ *
+ *   node scripts/anim.mjs report <任务> [--json] [--strict]
+ *
+ * 为什么要它：判据各自是独立工具（卡点 / 事件密度 / 底色 / 成片一致性），
+ * Agent 改完一次要跑四次、还得自己拼结论。这里一次跑完、一次给结论 ——
+ * 「确定性可复现」要能被一句话验收，否则它只是文档里的承诺。
+ *
+ * 每条判据都只**读**已有产物（成片 mp4 / analysis.json / timing.json），不重新渲染；
+ * 没有产物的项标 skipped，并在结尾说明为什么跳过。
+ */
+async function cmdReport() {
+  const task = pickTask();
+  const asJson = flag('json');
+  const strict = flag('strict');
+  const { spawnSync } = await import('node:child_process');
+  const outDir = path.join(ROOT, 'out', task);
+  const taskDir = path.join(ROOT, 'tasks', task);
+  /** @type {{id:string, ok:boolean|null, summary:string, detail?:string}[]} */
+  const rows = [];
+  const skipped = [];
+
+  const runTool = (tool, args) => {
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'tools', tool), ...args], { encoding: 'utf8', timeout: 180000 });
+    return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+  };
+
+  // ① 成片
+  // 优先 <task>.mp4（成片本体）；-web / -draft 之类的变体只在没有本体时才用
+  const mp4s = existsSync(outDir)
+    ? readdirSync(outDir).filter((f) => f.endsWith('.mp4') && !/^part_|_stitched/.test(f))
+    : [];
+  const mp4 = mp4s.includes(task + '.mp4') ? task + '.mp4' : (mp4s[0] ?? null);
+  if (!mp4) skipped.push('成片：out/' + task + '/ 里还没有 mp4（先跑 anim video）');
+  else {
+    const st = statSync(path.join(outDir, mp4));
+    rows.push({ id: '成片', ok: true, summary: mp4 + ' · ' + (st.size / 1048576).toFixed(1) + ' MB' });
+  }
+
+  // ② 卡点（只在**有音乐**时才判：没有音乐的片子，拍网格是从人声里估的，199 BPM 是念稿节奏）
+  const hasMusic = /audio:\s*\{[^}]*music:|music:\s*'\.\//.test(existsSync(path.join(taskDir, 'task.config.mjs')) ? readFileSync(path.join(taskDir, 'task.config.mjs'), 'utf8') : '');
+  if (!hasMusic) {
+    skipped.push('卡点：这支没有音乐轨（拍网格只能从人声估，判据不成立）');
+  } else if (!existsSync(path.join(taskDir, 'audio', 'timing.json')) && !existsSync(path.join(taskDir, 'audio', 'ja.timing.json'))) {
+    skipped.push('卡点：没有 timing 表（段长不是由旁白/节拍解出来的）');
+  } else {
+    // 多语言任务（ja.timing.json）要把表显式传过去，否则工具会去找默认的 timing.json
+    const jaTiming = path.join(taskDir, 'audio', 'ja.timing.json');
+    const timingArg = existsSync(jaTiming) ? ['--timing', jaTiming] : [];
+    const r = runTool('lint-beat-align.mjs', [task, '--json', ...timingArg]);
+    try {
+      const j = JSON.parse(r.stdout);
+      const bad = (j.rows ?? []).filter((x) => !x.ok).length;
+      rows.push({
+        id: '卡点', ok: bad === 0,
+        summary: (j.rows.length - bad) + '/' + j.rows.length + ' 切点在 ±' + j.tolMs + 'ms 内 · 实测 ' + j.bpm.toFixed(2) + ' BPM',
+      });
+    } catch { skipped.push('卡点：lint-beat-align 没有给出 JSON（' + firstLine(r.stderr) + '）'); }
+  }
+
+  // ③ 事件密度
+  if (!mp4) skipped.push('事件密度：要先有成片（它量的是 mp4 的帧间差）');
+  else {
+    const r = runTool('lint-event-density.mjs', [task, '--json']);
+    try {
+      const j = JSON.parse(r.stdout);
+      rows.push({
+        id: '事件密度', ok: !(j.problems ?? []).length,
+        summary: '最长静止 ' + j.staticSpan.toFixed(1) + 's · 稀薄窗口 ' + (j.thinShare * 100).toFixed(0) + '%',
+        detail: (j.problems ?? []).join('；'),
+      });
+    } catch { skipped.push('事件密度：工具没有给出 JSON'); }
+  }
+
+  // ④ 风格 / 底色
+  try {
+    const { resolveStyle } = await import('../src/style/index.js');
+    const st = resolveStyle({ style: readStyleName(taskDir) });
+    const bg = st?.palette?.bg ?? st?.palette?.ink ?? '(默认)';
+    rows.push({ id: '风格', ok: true, summary: (st?.name ?? 'print') + ' · 底色 ' + bg + ' · 母题 ' + (st?.motif ?? 'grid') });
+  } catch (err) {
+    skipped.push('风格：读不出来（' + firstLine(err) + '）');
+  }
+
+  // ⑤ 成片一致性（qa 只读文件，不起浏览器）
+  if (!mp4) skipped.push('一致性：要先有成片');
+  else {
+    const qa = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'anim.mjs'), 'qa', task], { encoding: 'utf8', timeout: 300000 });
+    const txt = (qa.stdout ?? '') + (qa.stderr ?? '');
+    const m = /结论：(.+)/.exec(txt);
+    const line = m ? m[1].trim() : firstLine(txt);
+    const ok = /0 错/.test(line) && !/⚠/.test(line);
+    rows.push({ id: '一致性(qa)', ok, summary: line });
+  }
+
+  const bad = rows.filter((r) => r.ok === false);
+  if (asJson) {
+    console.log(JSON.stringify({ task, rows, skipped, ok: bad.length === 0 }, null, 2));
+  } else {
+    log('');
+    log('自检报告 —— ' + task);
+    for (const r of rows) {
+      const mark = r.ok === false ? '✗' : '✓';
+      log('  ' + mark + ' ' + r.id.padEnd(10) + r.summary);
+      if (r.detail) log('    ' + r.detail);
+    }
+    for (const s of skipped) log('  – ' + s);
+    log('');
+    log(bad.length ? '✗ ' + bad.length + ' 项未通过：' + bad.map((b) => b.id).join('、') : '✓ 全部通过（' + rows.length + ' 项）');
+  }
+  if (strict && bad.length) process.exitCode = 1;
+}
+
+/** 读任务的 style 名（配置档里一行 `style: 'xxx'`；没有就 return 空 → 默认 print） */
+function readStyleName(taskDir) {
+  try {
+    const src = readFileSync(path.join(taskDir, 'task.config.mjs'), 'utf8');
+    const m = /style:\s*'([^']+)'/.exec(src);
+    return m ? m[1] : undefined;
+  } catch { return undefined; }
+}
+
+
+/** `anim icons` —— 列出内置矢量图标（层 1 素材库） */
+async function cmdIcons() {
+  const { ICON_NAMES } = await import('../src/kit/icons.js');
+  if (flag('json')) { console.log(JSON.stringify({ icons: ICON_NAMES }, null, 2)); return; }
+  log('内置矢量图标（' + ICON_NAMES.length + ' 个，24×24 折线定义，src/kit/icons.js）');
+  log('');
+  for (let i = 0; i < ICON_NAMES.length; i += 6) log('  ' + ICON_NAMES.slice(i, i + 6).map((n) => n.padEnd(14)).join(''));
+  log('');
+  log('看长什么样：node scripts/anim.mjs still _icon-sheet -t 1');
+  log('用法：import { drawIcon } from \'../kit/icons.js\' → drawIcon(lines, \'cat\', x, y, 48, color)');
+}
+
+
+/** `anim assets [--json]` —— 校验共享素材库（层 2）。只读文件，不起浏览器。 */
+async function cmdAssets() {
+  const man = path.join(ROOT, 'assets', 'manifest.json');
+  if (!existsSync(man)) { console.error('没有 assets/manifest.json —— 见 docs/ASSETS.md 层 2'); process.exitCode = 2; return; }
+  const j = JSON.parse(readFileSync(man, 'utf8'));
+  const REQUIRED = ['id', 'path', 'kind', 'license', 'source'];
+  const rows = [];
+  const seen = new Set();
+  let bad = 0;
+  for (const a of j.assets ?? []) {
+    const errs = [];
+    for (const f of REQUIRED) if (!a[f]) errs.push('缺字段 ' + f);
+    if (a.id && seen.has(a.id)) errs.push('id 重复');
+    if (a.id) seen.add(a.id);
+    const p = a.path ? path.join(ROOT, 'assets', a.path) : null;
+    if (p && !existsSync(p)) errs.push('文件不存在：' + a.path);
+    rows.push({ id: a.id ?? '(无)', kind: a.kind ?? '-', license: a.license ?? '-',
+      size: p && existsSync(p) ? (statSync(p).size / 1024).toFixed(0) + ' KB' : '-', errs });
+    if (errs.length) bad++;
+  }
+  if (flag('json')) { console.log(JSON.stringify({ count: rows.length, bad, rows }, null, 2)); if (bad) process.exitCode = 1; return; }
+  log('共享素材库 assets/（' + rows.length + ' 条）');
+  log('');
+  for (const r of rows) {
+    log('  ' + (r.errs.length ? '✗' : '✓') + ' ' + r.id.padEnd(22) + r.kind.padEnd(10) + r.license.padEnd(12) + r.size);
+    for (const e of r.errs) log('      ' + e);
+  }
+  log('');
+  log(bad ? '✗ ' + bad + ' 条不合法（四个字段 + 文件都要在，见 docs/ASSETS.md）' : '✓ 全部合法');
+  log('用法：import { loadAsset, drawAsset } from \'../kit/assets.js\'（只能在 setup 里 load）');
+  if (bad) process.exitCode = 1;
+}
+
+/** `anim shot-cards`：重新生成 docs/shots/ 的镜头卡；`--check` 只校验分类是否齐全 */
+async function cmdShotCards() {
+  // 同进程调用（沙箱里 spawn 子进程会 EPERM）
+  const { generateShotCards, checkShotCards } = await import('../tools/gen-shot-cards.mjs');
+  if (flag('check')) checkShotCards();
+  else generateShotCards();
+}
 const commands = {
   new: cmdNew,
   tasks: cmdTasks,
@@ -6906,6 +7707,8 @@ const commands = {
   subs: cmdSubs,
   check: cmdCheck,
   still: cmdStill,
+  cover: cmdCover,
+  chapters: cmdChapters,
   sheet: cmdSheet,
   cuts: cmdCuts,
   carry: cmdCarry,
@@ -6926,6 +7729,10 @@ const commands = {
   queue: cmdQueue,
   perf: cmdPerf,
   shake: cmdShake,
+  report: cmdReport,
+  icons: cmdIcons,
+  'shot-cards': cmdShotCards,
+  assets: cmdAssets,
   gpu: cmdGpu,
   clean: cmdClean,
   note: cmdNote,
@@ -6965,6 +7772,9 @@ export {
   // `anim shots --json` 的载荷（BACKLOG 1-29 前半 / 1-21 的输入契约，纯函数）
   SHOTS_SCHEMA,
   shotsCatalog,
+  // 封面与章节（BACKLOG 1-53）：章节规划是纯函数，可离线断言
+  planChapters,
+  formatChapterTime,
   // 镜头模板的依赖前置校验（BACKLOG 1-21）：纯函数，可离线断言（不起浏览器、不渲染）
   blankJsComments,
   scanShotUsage,

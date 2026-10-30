@@ -1,0 +1,40 @@
+{
+  "sounds": [
+    {
+      "id": "73722",
+      "title": "Sound16",
+      "group": "Quick whoosh",
+      "file": "whoosh-transition__73722__Sound16.mp3",
+      "bytes": 18851,
+      "sha1": "33a6ded503ba",
+      "durationSec": 0.29,
+      "source": "https://sounddino.com/en/effects/whoosh-transition/",
+      "license": "SoundDino 免费授权（可商用 / 无需署名；以站点条款为准）",
+      "fetchedAt": "2026-10-30"
+    },
+    {
+      "id": "3515",
+      "title": "The sound of the wind for the transition",
+      "group": "Quick whoosh",
+      "file": "whoosh-transition__3515__The-sound-of-the-wind-for-the-transition.mp3",
+      "bytes": 52650,
+      "sha1": "271387d788c3",
+      "durationSec": 3.19,
+      "source": "https://sounddino.com/en/effects/whoosh-transition/",
+      "license": "SoundDino 免费授权（可商用 / 无需署名；以站点条款为准）",
+      "fetchedAt": "2026-10-30"
+    },
+    {
+      "id": "3525",
+      "title": "Wind sound for music or video transition",
+      "group": "Quick whoosh",
+      "file": "whoosh-transition__3525__Wind-sound-for-music-or-video-transition.mp3",
+      "bytes": 31366,
+      "sha1": "2669970f9742",
+      "durationSec": 1.41,
+      "source": "https://sounddino.com/en/effects/whoosh-transition/",
+      "license": "SoundDino 免费授权（可商用 / 无需署名；以站点条款为准）",
+      "fetchedAt": "2026-10-30"
+    }
+  ]
+}
