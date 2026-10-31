@@ -58,8 +58,11 @@ npm run dev                                     # 浏览器里实时预览（空
 > `ANIM_FFMPEG` / `ANIM_FFPROBE`）。CLI 自己起私有 Vite 并 spawn 无头 Chrome，用管道读回帧 ——
 > **受限沙箱（只允许写工作区那档）会 `spawn EPERM`**，报错点在 `openSession`，看不出是权限问题。
 > PowerShell 里**别用管道接原生程序输出**（`| Select-Object` 会以"命名管道"为由被拒）—— 直接跑。
-> 沙箱里推仓库：用 Windows 自带 OpenSSH，`git -c core.sshCommand='C:/Windows/System32/OpenSSH/ssh.exe' push qyac HEAD`；
+> 沙箱里推仓库：用 Windows 自带 OpenSSH，`git -c core.sshCommand='C:/Windows/System32/OpenSSH/ssh.exe' push origin HEAD`；
 > 预提交钩子（sh 脚本）起不来时用 `--no-verify`，但**手动跑一遍钩子里的三项自检**。
+> ⚠ **仓库搬过一次家**（`NekoHome-Studio/ai-anim` → `suan-11/ai-anim`）：GitHub 会重定向所以老远端照样能推，
+> 但每次打一行 `Please use the new location`。`git remote set-url origin git@github.com:suan-11/ai-anim.git` 一次就干净了。
+> **合别人的分支前读 `docs/RULES.md` 的 P4**（`git merge-tree` 预演、并集 vs 二选一、编号撞车怎么让）。
 
 ---
 
