@@ -1,4 +1,4 @@
-# 镜头卡索引（24 张）
+# 镜头卡索引（25 张）
 
 > 生成物：`node tools/gen-shot-cards.mjs`。按**叙事功能**分组，不是按长相。
 
@@ -61,7 +61,7 @@
 | [grid](world/grid.md) | 展示多路信号/频段的整体形态 —— 看整块，不读单值 | 中高 |
 | [radial](world/radial.md) | 讲"几个部分围绕一个中心"：构成 / 多路输入 / 环节闭环 | 中低 |
 
-## 风格件（style）· 4 张
+## 风格件（style）· 5 张
 
 手绘、流体、等距 —— 一眼换介质
 
@@ -71,6 +71,7 @@
 | [cel](style/cel.md) | 手作感 / 角色 / 讲这是画出来的 | 中低 |
 | [liquid](style/liquid.md) | 一滴/一次触碰引发的扩散；抽象的品牌收尾 | 中 |
 | [pixel](style/pixel.md) | 讲"这台机器算出来的"：游戏 / 复古 / 低分辨率 / 8-bit | 中低 |
+| [handwrite](style/handwrite.md) | 白板讲解 / 纸感手写笔记 / 「这件事是一笔一笔写出来的」 | 中低 |
 
 ## 转场（transition）· 1 张
 

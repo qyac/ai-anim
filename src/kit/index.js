@@ -168,6 +168,35 @@ export {
 } from './views.js';
 
 /**
+ * `src/kit/stroke.js` —— **手绘笔迹**：中心线 + 压力 -> 轮廓多边形（BACKLOG 1-69；
+ * 素材包缺口表第 6 行，覆盖 17 条：K3 K8 K9 K10 K11 L17 L22 M1 M2 X1 X3 X7 X18 X23 X29 Z12 Z14）。
+ *
+ * 这一层解决的是「一笔一笔真的写出来」，不是「给折线加个抖动」：
+ * **全部信息量在宽度沿弧长的分布**（落笔细 -> 行笔粗 -> 收笔细）。`lines.polyline` 是等宽描边、
+ * `boil.js` 是手不稳，两者都拿不出笔压。
+ *
+ * ```js
+ * import { strokePath, strokeArc, inkOn } from '../../../src/kit/index.js';
+ *
+ * lines.begin();
+ * strokePath(lines, [[x0, y], [x1, y - 4], [x2, y + 2]], {
+ *   width: 7, color: inkOn(P.bone, 0.9, paper),   // ⚠ 笔迹不许半透明（会出横纹）
+ *   reveal: k,                                    // 按弧长生长（0..1）
+ *   boil: { t: f.t, seed: 7, amp: 1.4 },           // 可选：12fps 的重描抖动
+ * });
+ * lines.flush(ctx.out);
+ * ```
+ *
+ * ⚠ 三条写错不报错：宽度变化率超过 `MAX_WIDTH_SLOPE` 会让轮廓**自交**、被偶奇规则填成洞
+ * （笔画中间长出蝴蝶结空白）；笔迹用半透明色会在笔画内部长出横向细纹；两端圆头必须用
+ * 这一端自己的半宽（用平均值会在收笔处鼓起一个「墨滴」）。见 `docs/COOKBOOK.md` §20。
+ */
+export {
+  MAX_WIDTH_SLOPE, catmullRom, resampleByLength, pressureEnvelope, clampWidthSlope,
+  pressureProfile, strokeRing, revealSamples, boilSamples, inkOn, drawStroke, strokePath, strokeArc,
+} from './stroke.js';
+
+/**
  * 填充面：直接转发 `src/core/fill.js` 的扫描线（场景里也可以直接 `lines.fillPoly(...)`）。
  * 三个函数给**要算形状**而不是要画的人用（例如先算出一块面的包围盒、或把它转成路径）。
  * 角度约定：0 = 右，π/2 = **下**（y 向下为正）。见 `docs/COOKBOOK.md` §17。

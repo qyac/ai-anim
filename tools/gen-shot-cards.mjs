@@ -46,7 +46,7 @@ export const SHOT_CATEGORY = {
   timeline: 'flow', lineart: 'flow', layers: 'flow',
   device: 'ui', scan: 'ui',
   grid: 'world', wave: 'world', pulse: 'world', radial: 'world',
-  cel: 'style', liquid: 'style', isometric: 'style', pixel: 'style',
+  cel: 'style', liquid: 'style', isometric: 'style', pixel: 'style', handwrite: 'style',
   whip: 'transition',
   outro: 'close', lockup: 'close',
 };

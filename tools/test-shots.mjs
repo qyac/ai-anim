@@ -63,6 +63,8 @@ const TEMPLATES = [
   'isometric', 'cel', 'liquid',
   // BACKLOG 1-67：像素风；夹具 tasks/_pixel-lab
   'pixel',
+  // BACKLOG 1-69：手写笔迹（白板 / 纸感手写讲解）；夹具 tasks/_handwrite-lab
+  'handwrite',
 ];
 
 /** 任务侧的 8 个场景模块 → 它们必须保持的段名。 */
