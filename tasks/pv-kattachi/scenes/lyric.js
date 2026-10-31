@@ -50,6 +50,16 @@ export default {
     const pump = Math.pow(f.a?.kick ?? 0, 1.6);
     this.bg.render(gl, ctx.out, f.t, f.dt);
 
+    // 节拍可视化：每拍一道横扫线（用 kick 事件强度驱动），与歌词换行独立
+    {
+      const k = pump;
+      if (k > 0.02) {
+        lines.begin();
+        const y = H * (0.5 + 0.42 * (1 - k) * (f.beatPhase > 0.5 ? 1 : -1));
+        lines.seg(0, y, W, y, 1.5 + 3 * k, [sig[0], sig[1], sig[2], 0.35 * k]);
+        lines.flush(ctx.out);
+      }
+    }
     const c = text.ctx;
     text.clear();
     const weight = o.weight ?? 900;
@@ -61,6 +71,9 @@ export default {
     const total = Math.max(0.4, f.end - f.start);
     c.textBaseline = 'middle';
     c.textAlign = 'left';
+    // 全局随拍微胀（0.6%）：只给"节拍感"，不影响可读性
+    const zoom = 1 + 0.006 * pump;
+    if (zoom !== 1) { c.save(); c.translate(W / 2, H / 2); c.scale(zoom, zoom); c.translate(-W / 2, -H / 2); }
     const setFont = (px) => { type.font({ size: px, weight, family: fam }); };
     const widthOf = (s, px) => { setFont(px); let w = 0; for (const ch of [...s]) w += c.measureText(ch).width; return w; };
 
@@ -213,6 +226,7 @@ export default {
       else c.fillText(sub, cx - sw / 2, H - 138);
     }
 
+    if (zoom !== 1) c.restore();
     text.upload();
     comp.draw(gl, text, ctx.out, { premult: false });
     void css;
