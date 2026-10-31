@@ -84,10 +84,13 @@ import { lockupShot } from './lockup.js';
 // 1-48 收尾批（18 → 20）：横向事件轴 / 径向分布
 import { timelineShot } from './timeline.js';
 import { radialShot } from './radial.js';
+// BACKLOG 1-67（20 → 23 之后的第一个）：像素风 —— 调色板 / 块 / 抖动 / 12fps 台阶
+import { pixelShot } from './pixel.js';
 
 export { titleShot, chartShot, kineticShot, whipShot, outroShot, waveShot, pulseShot, gridShot,
   quoteShot, counterShot, compareShot, bigtypeShot, scanShot, deviceShot, lineartShot,
-  morphShot, layersShot, isometricShot, celShot, liquidShot, lockupShot, timelineShot, radialShot };
+  morphShot, layersShot, isometricShot, celShot, liquidShot, lockupShot, timelineShot, radialShot,
+  pixelShot };
 
 /**
  * `spec.requires` 认得的**依赖令牌**（词表 = 契约的一部分）。
@@ -150,6 +153,7 @@ export const SHOTS = {
   lockup: lockupShot,
   timeline: timelineShot,
   radial: radialShot,
+  pixel: pixelShot,
 };
 
 /**

@@ -43,10 +43,13 @@
 import { Pass } from '../core/gl.js';
 import {
   transitionPass as coreTransitionPass, makeCameraProfile, openTransitionFrame,
+  TRANSITION_MODES, resolveTransitionMode, transitionFadeAt, isPassTransition,
 } from '../core/trans.js';
 
 // 碰撞式转场的判据转发（BACKLOG 1-33 ③）：场景侧从 kit 里就能拿到，不必回头 import core
 export { planCollision, victimSpan, VICTIM_RATIO_RANGE, VICTIM_RATIO_DEFAULT } from '../core/trans.js';
+// 转场模式表（BACKLOG 1-13）：同上，场景里想自己判断时不用 import core
+export { TRANSITION_MODES, resolveTransitionMode, transitionFadeAt, isPassTransition } from '../core/trans.js';
 
 /**
  * 把「上一段那一帧」沿摄影机方向甩出去，并加方向拖尾。
@@ -61,7 +64,12 @@ export { planCollision, victimSpan, VICTIM_RATIO_RANGE, VICTIM_RATIO_DEFAULT } f
  * （判据与夹取在 `src/core/trans.js` 的 `planCollision` / `VICTIM_RATIO_RANGE`）。
  * **不传 = `fadeAt` 还是 0.55，逐像素与从前一致。**
  *
- * @param {{ push?: number, blur?: number, fadeAt?: number, key?: string, victimRatio?: number }} [opts]
+ * `mode` 是**转场模式**（BACKLOG 1-13）：`'push'`（默认，甩镜）/ `'wipe'` 擦除 /
+ * `'iris'` 光圈 / `'glitch'` 故障 / `'pixel'` 像素块 / `'dissolve'` 阈值溶解。
+ * 写错**当场抛**并列出可用值（`TRANSITION_MODES`）。不写 = `'push'` = 逐像素与从前一致。
+ *
+ * @param {{ push?: number, blur?: number, fadeAt?: number, key?: string, victimRatio?: number,
+ *           mode?: string, where?: string }} [opts]
  */
 export function transitionPass(gl, opts = {}) {
   return coreTransitionPass(gl, opts);

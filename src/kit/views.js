@@ -185,6 +185,12 @@ export const VIEWS = {
     note: '用排线的疏密表现明暗（不是网点）。木刻 / 铜版画 / 老科普书插图。',
     cost: 1, needs: 'luma',
   },
+  woodcut: {
+    label: '多方向排线',
+    note: '按明暗**加方向**：亮部一道线、中间调交叉两道、暗部再加第三道，每层更细；'
+      + '线沿长度方向会断（木纹崩口），断口由坐标哈希决定。木刻 / 铜版 / 线刻插图的正解。',
+    cost: 2, needs: 'luma',
+  },
 };
 
 /** 视图名（`mode` 的合法取值，顺序与着色器里的整数一致）。 */
@@ -394,6 +400,81 @@ const VIEW_FRAG = /* glsl */ `
       float aa = max(fwidth(u), 1e-4);
       float ink = 1.0 - smoothstep(hw - aa, hw + aa, 0.5 - f);
       outc = mix(cPaper, cInk, ink);
+
+    } else if (m == 8) {                      /* ---- 多方向排线（木刻 / 铜版） ---- */
+      /* 与 engrave 的差别：engrave 只有**一个方向**，全靠线宽表达明暗 —— 于是暗部
+       * 只能一路加粗到粘成一片实黑，读起来是"阴影"而不是"刻痕"。
+       * 真实的木刻 / 铜版用的是**加方向**：亮部一道线（单排线），中间调交叉两道，
+       * 暗部再叠第三道（cross-hatching）。五条纪律，每一条都是出图之后才补上的：
+       *
+       *   ① **每加一层，那层的线更细**（真实刻刀：第二道压在第一道的空隙里）。
+       *      不这么做，三层叠起来立刻饱和成实黑，画面丢一大半。
+       *   ② **层与层的边界要抖**（Bayer），不能按亮度硬切 —— 硬切会在中间调上出现
+       *      一块一块的"补丁"（有的地方突然多了一道斜纹）。
+       *   ③ **线要断**：木刻的刀口顺着木纹崩，铜版的针会跳，所以线沿长度方向有断口；
+       *      断口由坐标哈希决定（确定性，不吃时间）。⚠ 段要**长**（~9 格）：
+       *      第一版 3 格一段，出图是一排点划线，像传真不像刻痕。
+       *   ④ **明暗要取局部平均，不能取单像素**：拿单像素亮度挑层，底图自己的
+       *      周期性（面板是一行行铺的、扫描线、网点）会跟排线**拍频**，
+       *      出图是一圈圈水波纹般的摩尔纹，把底图整个吃掉。这里用整格 4x4 = 16 点低通。
+       *   ⑤ **线距不能逼近像素栅格**（最后一条，也最隐蔽）。这是**次谐波**：
+       *      45° 线的周期投影到 x/y 约是"间距 / √2"，线距给 7px / 12px 时它落到 5px / 8.5px
+       *      —— 与像素栅格、与图像行距都能凑成近整数比，整屏长出很宽的横向明暗带
+       *      （实测看着像"油墨没推开"）。间距 22px 时投影 15.6px，与常见底纹都不成
+       *      整数比，出图干净。**线宽按像素给**（不是按格的比例），格大小换了线也不飘。
+       */
+      // ④ 低通：**黄金角螺旋**取 24 个点，半径跨**整格**。
+      //   ⚠ 两条都是出图之后才定下来的：
+      //     · 网格采样（4x4、5 点十字）在这一层是**下策**：采样点自己也有周期，
+      //       一旦与排线的周期（≈ cell）成整数比，整屏长出大尺度拍频波纹，
+      //       看着像"油墨没推开"。黄金角螺旋没有轴向对齐，点与排线不锁相。
+      //     · **半径必须 ≥ 底图最小特征尺度**：lines.fillRect 是一行行铺的，行距
+      //       可能就是 2-8px。半径小时采样点全落在**同一行**里 —— 于是一块纯平的
+      //       灰面上，采样值随"这一行多亮"抖动，出图是一片明暗发丝（实测：三块
+      //       纯灰的三档排线，同一块内部明暗不均，像脏了）。半径跨满一格就够盖住
+      //       任何一种 fillRect 步进。
+      float pc = max(cell, 1.0) * 0.5;
+      float l = 0.0;
+      for (int i = 0; i < 24; i++) {
+        float fi = float(i) + 0.5;
+        float r = sqrt(fi / 24.0) * pc;
+        float a = fi * 2.39996;                       // 黄金角（弧度）
+        l += shadeL(px + vec2(cos(a), sin(a)) * r);
+      }
+      l *= (1.0 / 24.0);
+      float dark = sat(1.0 - l);
+      float ink = 0.0;
+      for (int layer = 0; layer < 3; layer++) {
+        float fi = float(layer);
+        // 进入门槛：第 0 层从 0.16 起、第 1 层 0.46、第 2 层 0.72
+        float gate = fi < 0.5 ? 0.16 : (fi < 1.5 ? 0.46 : 0.72);
+        // ② 抖动过渡：阈值加一点 Bayer，边界才不是硬补丁
+        float bayer = (bayer4(px) - 0.5) * 0.09;
+        float on = step(gate + bayer, dark);
+        if (on > 0.0) {
+          float ang = angle + (fi - 1.0) * 0.5236;             // -30° / 0° / +30°
+          float freq = max(cell, 1.0) * (1.0 + 0.30 * fi);     // 后加的层更密
+          float u = dot(px, vec2(cos(ang), sin(ang))) / freq;
+          // ①⑤ 线宽按**像素**给：0.9 / 0.75 / 0.6 px（半宽）—— 与格大小解耦
+          float halfPx = 0.9 - 0.15 * fi;
+          // ⚠ 新加的层在**刚过门槛时必须是"细而可见"的**，不能从 0 开始长：
+          //   纯 pow 的话，第二层在它刚出现的区间里宽度只有零点零几像素 ——
+          //   中间调上等于没有，出图看起来还是"一道线"（探针图里中间的灰块
+          //   与左边一模一样，只有最暗那块才看得出交叉）。
+          //   真实的版画里第二道一出现就是一条细线，然后随明暗变宽。
+          float t = sat((dark - gate) / max(1.0 - gate, 0.15));
+          float hw = (halfPx / freq) * (0.22 + 0.78 * pow(t, 0.85));
+          // ③ 断线（段长 ~9 格，见上）
+          float along = dot(px, vec2(-sin(ang), cos(ang)));
+          float seg = floor(along / (freq * 9.0));
+          float brk = hash12(vec2(seg, fi * 37.0 + 11.0));
+          hw *= step(0.10, brk) * (0.62 + 0.38 * brk);
+          float f = abs(fract(u) - 0.5);                       // 0 = 线心
+          float aa = 0.5 / freq;                               // 固定半格抗锯齿
+          ink = max(ink, 1.0 - smoothstep(hw - aa, hw + aa, 0.5 - f));
+        }
+      }
+      outc = mix(cPaper, cInk, sat(ink));
     }
 
     // amount = 显影强度（0 时逐像素等于输入）
@@ -415,7 +496,42 @@ function modeIndex(mode) {
 }
 
 /** 每种视图的默认格子尺寸（逻辑像素）。字符画要能读出字，网点要密。 */
-const DEFAULT_CELL = { ascii: 20, pixel: 6, dither: 3, halftone: 7, engrave: 8, crt: 3 };
+const DEFAULT_CELL = { ascii: 20, pixel: 6, dither: 3, halftone: 7, engrave: 8, crt: 3, woodcut: 22 };
+
+/**
+ * **woodcut 的格子下限**（逻辑像素）。
+ *
+ * 低于它会出**次谐波**：45° 线的周期投影到 x/y 约是「间距 / √2」，间距 12px 时投影
+ * 8.5px —— 与像素栅格、与 `lines.fillRect` 的行距都能凑成近整数比，整屏长出很宽的
+ * 横向明暗带（出图看着像「油墨没推开」，而不是线条）。22px 时投影 15.6px，谁都不成整数比。
+ *
+ * ⚠ 这里**夹住**而不是抛错：这是观感下限，不是契约。但夹住了要留痕（见 `viewCellOf`）。
+ */
+export const WOODCUT_MIN_CELL = 22;
+
+/**
+ * 解析一格的大小（对 woodcut 施加下限保护）。
+ *
+ * ⚠ 越界时**不改调用方的意图、只夹住并留痕**：把夹到的值写进 `ctx.warnings`，
+ *   `check` 会打出来 —— 「我明明写了 cell: 8，出来却是 22」这件事必须说出来，
+ *   否则就是又一条「写错了但画面照样出」。
+ *
+ * @param {{ mode: string, cell?: number }} opts
+ * @param {any} [ctx] 有就记 warning（`applyView` / `instrumented` 会传）
+ */
+function viewCellOf(opts, ctx) {
+  const want = opts.cell ?? DEFAULT_CELL[opts.mode] ?? 7;
+  if (opts.mode !== 'woodcut') return want;
+  const n = Number(want);
+  if (!(n >= WOODCUT_MIN_CELL)) {
+    if (ctx && Array.isArray(ctx.warnings)) {
+      ctx.warnings.push('woodcut 的 cell ' + want + ' 低于下限 ' + WOODCUT_MIN_CELL
+        + ' —— 已夹到 ' + WOODCUT_MIN_CELL + '（再小会出次谐波横带，见 src/kit/views.js）');
+    }
+    return WOODCUT_MIN_CELL;
+  }
+  return n;
+}
 
 /**
  * 哪些视图默认「深底浅字」（像屏幕），哪些默认「浅底深字」（像纸）。
@@ -501,8 +617,10 @@ export function applyView(ctx, src, opts = {}) {
   p.u.src.value = src;
   p.set({
     mode,
-    cell: opts.cell ?? DEFAULT_CELL[opts.mode] ?? 7,
-    angle: opts.angle ?? (opts.mode === 'engrave' ? Math.PI / 4 : 0.4712),
+    cell: viewCellOf(opts, ctx),
+    // 排线类（engrave / woodcut）默认 45°：这是铜版与木刻的惯例角度 —— 用 27° 时
+    // 第一层的线几乎是竖直的，画面读起来像"扫描线"而不是"刻痕"（出图才发现）。
+    angle: opts.angle ?? (opts.mode === 'engrave' || opts.mode === 'woodcut' ? Math.PI / 4 : 0.4712),
     levels: opts.levels ?? 4,
     amount: opts.amount ?? 1,
     accentMix: opts.accentMix ?? 0,

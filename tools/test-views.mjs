@@ -27,20 +27,20 @@ function section(msg) { console.log('\n── ' + msg + ' ──'); }
 
 /* ════════════════════════════════════════════════ 清单 */
 
-section('视图清单：八种，字段齐全');
+section('视图清单：九种，字段齐全');
 {
   const list = listViews();
-  ok(list.length === 8, '共 8 种（实际 ' + list.length + '）');
+  ok(list.length === 9, '共 9 种（实际 ' + list.length + '）');
   ok(VIEW_NAMES.length === Object.keys(VIEWS).length, 'VIEW_NAMES 与 VIEWS 同源');
-  for (const name of ['halftone', 'ascii', 'dither', 'posterize', 'thermal', 'pixel', 'crt', 'engrave']) {
+  for (const name of ['halftone', 'ascii', 'dither', 'posterize', 'thermal', 'pixel', 'crt', 'engrave', 'woodcut']) {
     ok(VIEW_NAMES.includes(name), '包含 ' + name);
   }
   ok(list.every((v) => typeof v.label === 'string' && v.label.length > 0), '每种都有中文 label');
   ok(list.every((v) => typeof v.note === 'string' && v.note.length > 8), '每种都有说明 note');
   ok(list.every((v) => Number.isFinite(v.defaultCell) && v.defaultCell >= 1), '每种都有 >=1 的默认格子');
   // 文档里的表是按 VIEW_NAMES 的顺序写的，顺序变了要同步改文档（这里只提醒不判错）
-  ok(VIEW_NAMES.join(',') === 'halftone,ascii,dither,posterize,thermal,pixel,crt,engrave',
-    '顺序与文档 / 着色器整数一致');
+  ok(VIEW_NAMES.join(',') === 'halftone,ascii,dither,posterize,thermal,pixel,crt,engrave,woodcut',
+    '顺序与文档 / 着色器整数一致（woodcut 必须是**最后**一个：着色器按 m == 8 取它）');
 }
 
 /* ════════════════════════════════════════════════ 字模 */

@@ -513,6 +513,24 @@ render(ctx) {
 | 新内容从**反方向**落位 | `enterOffset(f.t, k, 220)` → `[dx, dy]` 直接加到坐标上 |
 | 摄影机此刻的运动方向 | `cameraDir(t, dt)` |
 
+**八种转场模式（BACKLOG 1-13）**：段上写 `transition: '<名字>'`（配置档节点 / `cut` 的 opts 都行）。
+
+| 名字 | 走哪条路 | shader |
+|---|---|---|
+| `'push'`（默认） | `transitionPass` → `_pushTransition` | `TRANSITION_FRAG.push`（**与 2026-10-30 之前逐字符相同**） |
+| `'mix'` | `compositor.mixTo`（交叉溶解） | `compositor_mix` |
+| `'none'` | 什么都不做（硬切） | — |
+| `'wipe' / 'iris' / 'glitch' / 'pixel' / 'dissolve'` | `transitionPass({ mode })` | `src/core/transition-frag.js` |
+
+- 模式名在 `TRANSITION_MODES`（`src/core/trans.js`）里定义**一次**，写错当场抛并列出可用值。
+- 六支 shader 共用六个 uniform：`under` / `k` / `dir` / `push` / `blur` / `fadeAt`；
+  **`fragColor` 的 alpha = "旧帧还剩多少"**。
+- 引擎按模式缓存 Pass（`this._transPasses`）—— 别在场景里每帧新建 `Pass`，编译一次几十毫秒。
+- `transitionFadeAt(mode)` 给每种模式一个"旧帧最晚什么时候退干净"的默认值（`push` 仍是 **0.55**）。
+  ⚠ 掩码型转场（wipe/iris/pixel/dissolve）**不要**再叠全局淡出：两个 fade 相乘会让中段发灰。
+- 与 `victimRatio` **正交**：两个都给就都生效（模式决定"长什么样"，比例决定"旧的走多快"）。
+- `docs/MOTION.md` §3.6 有每种的画面描述与选型建议；夹具 `tasks/_trans-lab`。
+
 ---
 
 ## 3.8 第 3 种 3D：真网格（Three.js，`src/core/three-bridge.js`）

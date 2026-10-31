@@ -80,7 +80,73 @@ export {
   worldPass, cameraAt, cameraDir, cameraPost, enterOffset, makeWorldKit, transitionPass,
   // 碰撞式转场的判据（BACKLOG 1-33 ③，docs/MOTION.md §3.5）：0.40–0.50 那条区间只在 trans.js 里定义一次
   planCollision, victimSpan, VICTIM_RATIO_RANGE, VICTIM_RATIO_DEFAULT,
+  // 转场模式（BACKLOG 1-13）：'push' / 'wipe' / 'iris' / 'glitch' / 'pixel' / 'dissolve'（+ 'mix' / 'none'）
+  TRANSITION_MODES, resolveTransitionMode,
 } from './world.js';
+
+/**
+ * `src/kit/paper.js` —— **剪纸 / 纸艺层叠**（BACKLOG 1-49 能力缺口表第 5 行，覆盖素材包 20 条）。
+ *
+ * 一张纸要像纸只有三件事：**硬投影**（不是模糊阴影）、**分形撕边 + 白芯**（不是锯齿线）、
+ * **纸色有纤维**（不是纯色填充）。这里给四块可以组合的件，形状永远由调用方给：
+ *
+ * ```js
+ * import { paperShape, paperStack, paperGrain, shadowColor, tornEdge } from '../../../src/kit/index.js';
+ *
+ * setup(ctx) {
+ *   // ⚠ 撕边在 setup 里算一次：纸不会每帧重新撕一遍（也省 800 次噪声）
+ *   this.layers = [0, 1, 2].map((i) => ({
+ *     shape: paperShape({ x: 200 + i * 120, y: 300 - i * 60, w: 900, h: 420, seed: i }),
+ *     color: paperGrain([0.86, 0.83, 0.76], i * 100, i * 40),
+ *     depth: i / 2,
+ *   }));
+ * }
+ * draw(ctx, { dx, dy }) {
+ *   // pan 必须是 t 的函数（引擎铁律）；视差由 paperStack 按 depth 铺开
+ *   paperStack(ctx.lines, this.layers, { pan: [ctx.f.t * 6 + dx, dy], parallax: 40 });
+ * }
+ * ```
+ *
+ * ⚠ **投影色用 `shadowColor()` 算**（不透明、由纸色乘暗），不要用半透明黑：
+ *   `lines` 的柔边在相邻扫描行之间会叠加，半透明填充会出现横向条纹。
+ */
+export {
+  tornEdge, paperShape, paperFace, paperStack, paperGrain,
+  shadowColor, coreColorOf, translateShape,
+} from './paper.js';
+
+/**
+ * `src/kit/pixel.js` —— **像素精灵 / 调色板量化 / 5x7 像素字**（BACKLOG 1-67；
+ * 素材包缺口表第 9 行，覆盖 7 条：K28 L49 L51 O77 R5 V13 X13）。
+ *
+ * 真像素艺术是四条硬约束，缺一条就只是「糊了」：
+ * **调色板**（4/8/16 色）/ **块**（一切落在同一栅格上）/ **有序抖动**（Bayer，不是渐变）
+ * / **帧率**（8–12fps 的台阶，不是 60fps 平滑）。
+ *
+ * ```js
+ * import { paletteOf, pixelText, drawSprite, spriteOf, snapTime, pixelGradient } from '../../../src/kit/index.js';
+ *
+ * setup(ctx) { this.pal = paletteOf('gameboy'); }
+ * render(ctx) {
+ *   const step = snapTime(ctx.f.t, 12);          // ⚠ 用整片时间，不是 f.lt（切段会把台阶重置）
+ *   pixelGradient(lines, { x: 0, y: 0, w: 1920, h: 700 }, this.pal, { cell: 8, dither: 4 });
+ *   pixelText(lines, 'INSERT COIN', 960, 720, { scale: 12, align: 'center', color: this.pal.linear[3] });
+ *   drawSprite(lines, spriteOf('bot'), 200 + Math.round(step * 120), 640, { scale: 8, color: this.pal.linear[2] });
+ * }
+ * ```
+ *
+ * ⚠ 三条写错不报错：抖动阈值要按**块**坐标取（按像素取 = 块被撕成噪点）；
+ *   精灵/像素字要落在整块上（差半块 = 抗锯齿把边缘抹成灰）；中文**不要**用 5x7 像素字
+ *   （一个汉字要 12x12 以上，表里没有 —— 用 `type.write` + `post.pixel`）。
+ */
+export {
+  PIXEL_PALETTES, DEFAULT_PALETTE, paletteOf, lumaOf,
+  DITHER_MODES, bayerAt, nearestIndex, quantize, ditherQuantize,
+  snapTo, snapTime, snapIndex,
+  SPRITES, spriteOf, spriteRect, rowRuns, drawSprite,
+  FONT5x7, glyphOf, GLYPH_W, GLYPH_H, GLYPH_TRACKING, pixelTextWidth, pixelText,
+  pixelGradient,
+} from './pixel.js';
 
 /**
  * src/kit/views.js —— 仪器视图：把一帧已经画好的画面换一种成像方式

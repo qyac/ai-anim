@@ -206,8 +206,133 @@ this.wk = makeWorldKit(ctx, { victimRatio: 0.45 });
   想自查一条切缝的节奏，用 `c.victimDur / c.enterDur` 与 `VICTIM_RATIO_RANGE` 比 —— 越界就是这次
   按 40%/50% 夹过（`clamped`），观众看到的"旧内容走得太急/黏太久"就在这里。
 
+
+### 3.6 转场模式：八种切法，一个字段（BACKLOG 1-13）
+
+```js
+// task.config.mjs 的配置档节点上（或 cut() 的 opts 上）
+{ type: 'chart', title: '…', dur: 4, overlap: 1.2, transition: 'wipe' }
+```
+
+| 名字 | 画面 | 什么时候用 | 代价 |
+|---|---|---|---|
+| `'push'`（默认） | 旧帧沿摄影机方向加速甩走 + 方向拖尾 | 通用；**文字量大**的画面 | 0 |
+| `'wipe'` | 一条软边沿摄影机方向横扫，前沿一道暖光 | 段落推进、"翻页" | 0 |
+| `'iris'` | 正圆从中心张开（按 `RES_LOGICAL` 长宽比校正，不是椭圆） | 聚焦一件事、开场/收尾 | 0 |
+| `'glitch'` | 横向切片错位 + RGB 分离 + 极短闪白 | 冲击、故障、数据感 | 每像素 3 次采样 |
+| `'pixel'` | 格子由密到疏、逐格消失 | 数字化、降采样、"回忆" | 0 |
+| `'dissolve'` | 多尺度 fbm 阈值溶解，消融边缘微微发亮 | 梦境、时间流逝 | 1 次 fbm |
+| `'mix'` | 交叉溶解（2026-10-24 之前的默认） | 两屏**都是图形**、没有成段文字 | 0 |
+| `'none'` | 硬切 | 要"断"的时候 | 0 |
+
+**四条纪律**：
+
+1. **不写 `transition` = `'push'` = 逐像素与从前一致。** 已交付片子的画面一个像素都不许动
+   （`tools/test-transition-modes.mjs` 与 `test-transition-collision.mjs` 各钉一遍）。
+2. **写错当场抛**并列出可用值（`resolveTransitionMode`）。静默回落成甩镜 = 画面照样出、`check` 照样绿，
+   只把"我要的擦除怎么没出现"留给人 —— 与"参数名拼错要抛"是同一条纪律。
+3. **掩码型转场（wipe / iris / pixel / dissolve）的 alpha 就是时间轴**，不要再叠一层全局淡出：
+   两个 fade 乘起来会让画面在中段发灰（第一版就是这样，出图当场看出来）。
+   它们的 `fadeAt` 只是"旧帧最晚什么时候退干净"的上限（`transitionFadeAt(mode)`）。
+4. **方向约定**：`fragColor` 的 alpha = **"旧帧还剩多少"**。`wipe` / `iris` 的掩码必须随
+   "旧帧所在的位置"取 1 —— 写反了不会报错，只会让光圈越开旧帧越多（也在出图时抓到的）。
+
+**实现**：`src/core/transition-frag.js`（六支 shader，共用 `under`/`k`/`dir`/`push`/`blur`/`fadeAt`
+六个 uniform）+ `src/core/trans.js` 的模式表。引擎在 `composite()` 里读 `item.transition`，
+按模式缓存 Pass（每帧新建 Pass 会把编译时间乘进渲染时间）。
+⚠ 别在 shader 里重复声明 `GLSL_COMMON` 已有的东西（`vnoise` / `fbm` / `hash12` / `sat` / `luma`…）——
+GLSL 会报 `function already has a body`，而这个错在第一版 `dissolve` 上就踩过一次。
+
+**夹具**：`tasks/_trans-lab`（8 个模式各一段 A→B，`overlap: 1.2`，含 `push` / `mix` / `none` 三个对照组）。
+
 ---
 
+### 3.7 剪纸 / 纸艺层叠：`src/kit/paper.js`（BACKLOG 1-49 缺口表第 5 行）
+
+```js
+import { paperShape, paperStack, paperGrain, shadowColor } from '../../../src/kit/index.js';
+
+setup(ctx) {
+  // ⚠ 撕边在 setup 里算一次：纸不会每帧重新撕一遍（也省掉每帧 800 次噪声）
+  this.layers = [0, 1, 2].map((i) => ({
+    shape: paperShape({ x: 200 + i * 120, y: 300 - i * 60, w: 900, h: 420, seed: i }),
+    color: paperGrain([0.78, 0.71, 0.60], i * 100, i * 40),
+    depth: i / 2,
+  }));
+},
+draw(ctx, { dx, dy }) {
+  // pan 必须是 t 的函数（引擎铁律）；视差由 paperStack 按 depth 铺开
+  paperStack(ctx.lines, this.layers, { pan: [ctx.f.t * 6 + dx, dy], parallax: 40 });
+},
+```
+
+**一张纸要像纸，只有三件事，缺一件就退化成「彩色多边形」**：
+
+| 件 | 做什么 | 不这么做的后果 |
+|---|---|---|
+| 硬投影 | 纸**贴**在下一层上，影子边缘是硬的（不透明色，由 `shadowColor()` 从纸色乘暗） | 软阴影 ⇒ 观众读成「UI 卡片」；半透明黑 ⇒ `lines` 的柔边在相邻扫描行叠加，出**横向条纹** |
+| 分形撕边 + 白芯 | 边缘是 `fbm1` 重采样的分形，撕口内侧再画一圈更浅的「纸芯」 | 直线/规则波浪 ⇒ 像矢量图标；只有外轮廓 ⇒ 像锯齿线，没有厚度 |
+| 纸色纤维 | `paperGrain()` 给纸色乘 ±2.5% 的确定性噪声 | 纯色填充 ⇒ 一眼就是代码画的 |
+
+**三个出图才看得见的比例**（都踩错过，现在都进了单测）：
+
+| 数 | 正确值 | 第一版错在哪 |
+|---|---|---|
+| 撕边幅度 | **边长 × 1.5–3%**（2040px ⇒ 40px） | 12px ⇒ 2000px 的纸上缩略图里就是一条直线 |
+| 撕边采样密度 | **约 8px 一个点**（`paperShape` 现在按边长自动定） | 默认 40 点 ⇒ 2040px 的边每 51px 才一个点，小尺度毛刺被 `fillPoly` 的折线**抹平** |
+| 白芯提亮 | **7%**（`coreColorOf` 的默认值） | 35% ⇒ 一条雪白高光带，读起来像贴纸白边 |
+
+**结构上的三条**（也都有单测）：
+
+- 撕边**只吃 `seed` 不吃 `t`** —— 纸不会每帧重新撕一遍。这既是物理事实，也是「每帧是 t 的纯函数」的硬要求
+  （撕边逐帧变 = 抖动 = 子帧累加后糊成一团）。
+- 层栈**由远到近画**（`paperStack` 内部按 `depth` 排序）—— 线段批没有 z-test。
+- `translateShape()` **返回新对象**，不改原形状 —— 否则每帧的 `pan` 会在原形状上累加。
+
+**层与层的明度要拉开 15% 以上**：纸和纸的色差本来就不大，但画面要读得出层次就得夸张一点
+（这一条是「照片 vs 插画」的差别，不是物理）。夹具 `tasks/_paper-lab` 的三层是 0.52 / 0.78 / 0.97。
+
+**投影方向全片一致**：`light` 默认 `[-1, -1]`（光从左上，影子落右下）。三层各朝不同方向投影 = 光源在打架。
+
+### 3.8 像素风：四件事，缺一件就只是「糊了」（`src/kit/pixel.js`，BACKLOG 1-67）
+
+```js
+import { paletteOf, snapTime, drawSprite, spriteOf } from '../../../src/kit/index.js';
+
+setup(ctx) { this.pal = paletteOf('gameboy'); this.bot = spriteOf('bot'); }
+render(ctx) {
+  const step = snapTime(ctx.f.t, 12);   // ⚠ 整片时间，不是 f.lt
+  drawSprite(lines, this.bot, 200 + Math.round(step * 120), 640, { scale: 8, color: this.pal.linear[2] });
+}
+```
+
+| 件 | 做什么 | 不这么做的后果 |
+|---|---|---|
+| **调色板** | 只有 4–8 色 | 颜色一多，块就不读了 —— 变成「低分辨率的照片」 |
+| **块** | 一切落在同一栅格上（`snapTo` / `drawSprite` 的 `snap`） | 半块的边缘被抗锯齿抹成灰，全屏看就是「脏」 |
+| **有序抖动** | `ditherQuantize` 在最近两色之间按 Bayer 二选一 | 用渐变 ⇒ 现代滤镜，不是当年的机器 |
+| **台阶** | `snapTime(t, 12)`：动作在 1/12 秒的格子上跳 | 60fps 平滑 = 现代；跳台阶才是「算力不够」的唯一可见证据 |
+
+**四条出图才看得见的比例/相位**（都踩错过，`shot('pixel')` 里都钉着）：
+
+| 数 | 正确做法 | 第一版错在哪 |
+|---|---|---|
+| 抖动阈值的坐标 | 用**块**坐标（`ditherQuantize(…, bx, by)`） | 用像素坐标 ⇒ 同一块里不同像素取到不同阈值，块被撕成噪点 |
+| 压栅格的重采样 | 降到 `cols × 4` 再在 JS 里做 **4×4 方框平均** | 直接降到一格一像素是**点采样**：块随机跳变，中文标题碎成一地 |
+| 读回的 y 方向 | `readPixels` 自下而上，用到 `lines` 前要**翻 y** | 不翻 ⇒ 整块画面**上下颠倒**（机器人跑到天花板上） |
+| 天空的色阶跨度 | **只跨两档**，中间全靠抖 | 跨 3/4 张色表 ⇒ 天空变成一道彩虹 |
+
+**节奏上的两条**：
+
+- **台阶由整片时间 `f.t` 算**，不是 `f.lt` —— 用段内时间的话每次切段动作会卡一下（台阶被重置到 0）。
+- **像素字的揭晓是逐字台阶**（`reveal` 按字数取整），不是连续 alpha —— 连续淡入是「现代 UI」，
+  像素画的入场历来是「一格一格跳出来」。
+
+**中文字不要用 5x7 像素字**：一个汉字要 12x12 以上，表里没有（`glyphOf` 对未知字符返回全空，
+不抛错 —— 一段里混一个中文就把整行吃掉是最坏的结果）。中文走 `type.write`，最后由 `post.pixel`
+把字体与像素图对齐到同一栅格（取**半格**：整格会把 CJK 笔画 ≈ 字号/10 整根吃掉）。
+
+---
 ## 4. 还没落地的（诚实清单）
 
 | 规则 | 现在的状态 | 缺什么 |

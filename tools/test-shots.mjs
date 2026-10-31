@@ -61,6 +61,8 @@ const TEMPLATES = [
   'timeline', 'radial',
   // MG15 那批（20 → 23）：等距体块 / 逐帧手绘 / 液体；夹具 tasks/_iso-lab, _cel-lab, _liquid-lab
   'isometric', 'cel', 'liquid',
+  // BACKLOG 1-67：像素风；夹具 tasks/_pixel-lab
+  'pixel',
 ];
 
 /** 任务侧的 8 个场景模块 → 它们必须保持的段名。 */
@@ -482,6 +484,12 @@ async function main() {
 
   /** `spec.params` 声明的类型与 `defaults` 里的实际值是否自洽（"spec 与 defaults 不矛盾"）。 */
   const typeOk = (type, v) => {
+    // 联合类型（'string | string[]'）：任一支成立即可。
+    // 为什么允许：有些参数**两种写法都合法**（pixel 的 `palette` 可以是调色板名，也可以
+    // 直接给色表）。声明成其中一支会让另一支变成"文档里没写、但代码在用"的暗门。
+    if (typeof type === 'string' && type.includes('|')) {
+      return type.split('|').map((s) => s.trim()).filter(Boolean).some((t) => typeOk(t, v));
+    }
     switch (type) {
       case 'string': return typeof v === 'string';
       case 'number': return typeof v === 'number' && Number.isFinite(v);
