@@ -828,6 +828,9 @@ node scripts/anim.mjs check <任务>
 11.5 **切点对得上拍子**（有音乐时）：`check` 的「卡点」那行要是 `✓ N/N 个切点都在 ±30ms 内`；
     `--strict` 下要求 **≥90%** 对齐。对不上就改段长（`dur: { beat: n }`）或把 `narration.mjs` 的 `BPM` 设成实测值；
     单独体检：`node tools/lint-beat-align.mjs <任务>`（它从音频**自己重建**网格，不信 `analysis.json` 的 bpm 估计）。
+11.5b **纯音乐片子（没有旁白表）的切点要单独量**：`check` 的「卡点」行只在有 `audio/timing.json` 时跑，
+    音乐片子没有那张表 ⇒ 段长随手写也不会有人报（实测被用户当场指出「没有卡点啊喂」）。
+    自查：`node tools/lint-cut-beats.mjs <任务> [--bar] [--json]` —— 段表 `build()` 出来后逐个切点量到实测拍的距离。
 11.6 **每一秒都有东西看**（有音乐时也要）：`check` 的「事件密度」那行读的是**成片**的帧间差 ——
     `最长静止 ≤ 3.5s`、`稀薄窗口 ≤ 25%`（低于均值一半的 2 秒窗口）。超了就给它补持续运动（推近/扫线/逐条落位），
     别指望 2px 游标或 0.09 alpha 的水印——检测器和人眼都看不见。单独体检：`node tools/lint-event-density.mjs <任务>`。
