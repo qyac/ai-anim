@@ -93,6 +93,37 @@ export const within = (v, lo, hi) => v == null || (v >= lo && v <= hi);
 /** 有真截图就别用（device）：`hasScreenshot: true` 时否决，缺省放行。 */
 export const noScreenshot = (q) => q?.hasScreenshot !== true;
 
+/* ------------------------------------------------------------------ 角色槽（集中一处） */
+
+/**
+ * 一个模板属于哪个角色槽 —— **从 tags 派生，不另立一张表**。
+ * 两张表（名字表 vs 模板里的 tags）迟早漂移，而 tags 已经是模板的自述元数据。
+ */
+export function slotOf(s) {
+  const tags = Array.isArray(s?.tags) ? s.tags : [];
+  if (tags.includes('ending')) return 'ending';
+  if (tags.includes('transition')) return 'transition';
+  return 'content';
+}
+
+/**
+ * 角色槽放行判定。**选型与诊断共用这一个函数** —— 这段语义原先藏在各模板的 `fits()` 里，
+ * 结果是「slot 卡住了」被报成「fits 筛空了」，用户按报错去放宽 fits 找不到着力点。
+ *
+ * · 不指明 `slot` → 只有正文位模板可抽（收尾片不会自己浮上来）；
+ * · `slot: 'ending'` → 只有 outro / lockup；`'transition'` → 只有 whip。
+ */
+export function slotOk(s, q) {
+  const role = slotOf(s);
+  const want = q?.slot;
+  // 不指明角色 → 只有正文位模板（收尾/转场片不会自己浮上来）
+  if (want == null) return role === 'content';
+  if (role === 'ending') return want === 'ending';
+  if (role === 'transition') return want === 'transition';
+  // 正文位模板在 content 与 opening 都可抽（片头位不是"另一种角色"，只是位置更靠前）
+  return want === 'content' || want === 'opening';
+}
+
 /* ------------------------------------------------------------------ 校验与筛选 */
 
 /** 抛"拼错点名"错误。 */
@@ -132,6 +163,7 @@ function eligible(s, q) {
   if (Array.isArray(q.tags) && q.tags.length
     && !q.tags.some((t) => Array.isArray(s.tags) && s.tags.includes(t))) return false;
   if (Array.isArray(q.exclude) && q.exclude.includes(s.name)) return false;
+  if (!slotOk(s, q)) return false;                                   // 角色槽：先于 fits（诊断要能分开报）
   if (typeof s.fits === 'function' && !s.fits(q)) return false;
   return true;
 }
@@ -156,11 +188,12 @@ function diagnoseEmpty(list, q) {
   /** @type {any[]} */
   let pool = (list ?? []).slice();
   const total = pool.length;
-  const step = (label, keep) => {
+  const step = (label, keep, hint) => {
     const next = pool.filter(keep);
     if (!next.length && pool.length) {
       const left = pool.map((s) => s.name).join(' / ');
-      return `${label} 筛空了（之前剩 ${pool.length}/${total}：${left.slice(0, 120)}${left.length > 120 ? '…' : ''}）`;
+      return `${label} 筛空了（之前剩 ${pool.length}/${total}：${left.slice(0, 120)}${left.length > 120 ? '…' : ''}）`
+        + (hint ? `【${hint}】` : '');
     }
     pool = next;
     return null;
@@ -169,6 +202,16 @@ function diagnoseEmpty(list, q) {
   if (q.energy) parts.push(step(`energy="${q.energy}"`, (s) => s.energy === q.energy));
   if (Array.isArray(q.tags) && q.tags.length) parts.push(step(`tags=[${q.tags.join(',')}]`, (s) => q.tags.some((t) => s.tags?.includes(t))));
   if (Array.isArray(q.exclude) && q.exclude.length) parts.push(step(`exclude=[${q.exclude.join(',')}]`, (s) => !q.exclude.includes(s.name)));
+  // 角色槽**单独一步**：它的语义是"这一段在片子里的角色"，不是"模板的适用条件"，
+  // 混在 fits 里报出来会把人指错方向（实测：slot=ending 被报成 fits 筛空）。
+  parts.push(step(
+    q.slot == null ? 'slot（未指明 → 只许正文位）' : `slot="${q.slot}"`,
+    (s) => slotOk(s, q),
+    q.slot == null ? '收尾/转场位的模板要在 brief 里写 slot'
+      : q.slot === 'ending' ? '角色锁：只有 outro / lockup 进 ending'
+        : q.slot === 'transition' ? '角色锁：只有 whip 进 transition'
+          : null,
+  ));
   parts.push(step('fits', (s) => (typeof s.fits === 'function' ? s.fits(q) : true)));
   const killer = parts.find(Boolean);
   return `选型落空：${total} 个模板里没有满足查询的候选 —— ${killer ?? '全部条件叠加后为 0'}。`

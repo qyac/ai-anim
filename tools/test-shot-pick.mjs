@@ -129,6 +129,16 @@ check('真库抽 8 连：无重复且确定性', new Set(longSeq.map((r) => r.na
   && JSON.stringify(longSeq.map((r) => r.name)) === JSON.stringify(pickSequence(list, { slot: 'content' }, 8).map((r) => r.name)),
   longSeq.map((r) => r.name).join(' → '));
 
+
+// §6 角色槽归属（2026-10-31 修复）：slot 卡住时必须点名 slot，不能报成 fits
+const errOf = (q) => { try { pickShot(list, q); return null; } catch (e) { return e.message; } };
+const errEnding = errOf({ slot: 'ending', tags: ['data'] }) ?? '';
+check('落空诊断点名 slot（不是 fits）',
+  /slot=("ending"|ending)/.test(errEnding) && !/fits 筛空了/.test(errEnding), errEnding.slice(0, 80));
+check('ending 位落空带角色锁提示', /只有 outro \/ lockup 进 ending/.test(errEnding), errEnding.slice(0, 110));
+const opened = draw({ slot: 'opening' }, 60);
+check('slot=opening 放行正文位模板', opened.length > 0 && !['outro', 'lockup', 'whip'].includes(opened[0]),
+  opened.slice(0, 6).join(','));
 if (fail) {
   console.log(`\n✗ 有 ${fail} 项失败`);
   for (const n of failed) console.log(`  · ${n}`);

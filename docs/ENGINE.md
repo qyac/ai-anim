@@ -1822,6 +1822,10 @@ node scripts/anim.mjs shots chart --json    # 只给一个模板（同样是这�
 | `shots[].w` | number | **1-62 新增**（可选键）：抽取权重，0.4（冷门）– 1.5（主力）。§14.10 |
 | `shots[].fitsNote` | string | **1-62 新增**（可选键）：适用条件的人话版。**真条件是工厂上的 `fits(q)` 函数，不进 JSON**（序列化会丢函数），`--json` 的读者看 `fitsNote`。§14.10 |
 
+**角色槽只有一个实现**：`slotOf(s)` 从 `tags` 派生（含 `ending` → 收尾位、含 `transition` → 转场位、其余 → 正文位），
+`slotOk(s, q)` 决定放行；选型与「筛空诊断」共用它。诊断按 `energy → tags → exclude → slot → fits` 逐步重放，
+**哪一步归零就点名哪一步**（2026-10-31 修：此前 slot 语义藏在各模板的 `fits()` 里，`slot=ending` 的落空被误报成「fits 筛空了」）。
+
 三条**读法**（与字段名一样是契约的一部分）：
 
 1. **`required: true` ⟺ 缺默认值**，不代表"画面离不开它"。当前 23 个模板的每一个参数都有默认值 ⇒
