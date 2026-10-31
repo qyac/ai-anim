@@ -111,7 +111,11 @@ for (let i = 0; i < n; i++) {
 const wav = `${media}.stub.wav`;
 mkdirSync(path.dirname(media), { recursive: true });
 writeFileSync(wav, wavBytes([mono, mono], sr));
-const ff = spawnSync('ffmpeg', ['-y', '-v', 'error', '-i', wav, '-b:a', '128k', media], { encoding: 'utf8' });
+// ⚠ 走 `ANIM_FFMPEG`（与 `fake-tts.mjs` / `scripts/lib/media.mjs` 一致）：
+//   这台机器上 PATH 里可能有**多个** ffmpeg 构建，而本项目的约定是「用 ANIM_FFMPEG 指哪个就用哪个」。
+//   硬写 'ffmpeg' 会让 stub 与引擎用**两个不同的编码器**，于是 mp3 封装时长对不上 ——
+//   2026-10-30 CI 上那条「量出来的时长」断言差 0.051，就是这一类不一致的形状。
+const ff = spawnSync(process.env.ANIM_FFMPEG || 'ffmpeg', ['-y', '-v', 'error', '-i', wav, '-b:a', '128k', media], { encoding: 'utf8' });
 if (ff.status !== 0) {
   console.error(`stub-tts: ffmpeg 失败\n${ff.stderr}`);
   process.exit(4);

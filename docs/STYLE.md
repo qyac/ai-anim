@@ -84,7 +84,7 @@ node scripts/anim.mjs still _style-sampler -t 1.8,6,9.6 --style noir
 
 ---
 
-## 3. 六套风格，各自适合讲什么
+## 3. 基础六套，各自适合讲什么
 
 > 下表 `label` / `note` **原样抄自** `src/style/index.js` 的 `STYLES`，一个字没改。
 
@@ -122,9 +122,60 @@ node scripts/anim.mjs still _style-sampler -t 1.8,6,9.6 --style noir
 `maxLines` 2 / `position: 'top'`），由 `tools/test-style.mjs` 的断言钉住 ——
 同一默认值再写在两个地方会当场红。
 
+## 3.1 版式风格（2026-10-30 新增 11 套：`src/style/panels.js`）
+
+> 来源：用户提供的**风格素材包**的 H 系列（12 套「配色 + 字体」整套搭配）。
+> 素材包只给了一句话配方，这里把它换成引擎字段。出处与许可：`docs/REFERENCE-style-pack.md`。
+
+**为什么加这一批**：原有 21 套里**浅底纸面只有 `paper` 一套**（米白 + 宋体）。散文 / 杂志 /
+说明类内容连着做两支就必然撞脸 —— 这一批补的正是这一格：暖羊皮纸、奶油糖果色、钴蓝网格、
+工业报纸。九套的共同点是「浅底 + 一两个强调色 + 一套衬线或无衬线」，一套约 20 行。
+
+| 名字 | label | 底色 / 正文 / 强调 | 母题 | 字体介质 |
+|---|---|---|---|---|
+| `h-biennale` | 版式 · 双年展黄 | `#f2e7cf` / `#20263f` / `#e8a33d` | `paper` | 中文宋体 |
+| `h-blockframe` | 版式 · 粗黑框 | `#f7f4ec` / `#111111` / `#ff5a36` | `flat` | 中文黑体（Bahnschrift） |
+| `h-blue` | 版式 · 钴蓝 | `#f4f1e8` / `#152238` / `#1f4fd8` | `blueprint` | 中文黑体 + 宋体副 |
+| `h-coral` | 版式 · 珊瑚 | `#fdf6ec` / `#2a2118` / `#ff6b5a` | `flat` | 中文黑体 |
+| `h-forest` | 版式 · 森林编辑 | `#f3f1e6` / `#1b2b21` / `#c94f6d` | `paper` | 中文宋体 |
+| `h-broadside` | 版式 · 工业报纸 | `#efe8d8` / `#181613` / `#e2571f` | `paper` | 中文黑体 + 宋体副 |
+| `h-cartesian` | 版式 · 极简留白 | `#fbf9f3` / `#14130f` / `#8a6a3a` | `flat` | 中文黑体（留白版） |
+| `h-capsule` | 版式 · 胶囊糖果 | `#fffaf1` / `#231b14` / `#ff4f8b` | `flat` | 中文宋体标题 |
+| `h-poster` | 版式 · 大字海报 | `#fdf3e6` / `#1c1610` / `#e01f28` | `paper` | Georgia 衬线（中文回退宋体） |
+| `h-riso` | 版式 · 双版套印 | `#f4ecda` / `#1b2a4a` / `#d0472a` | `paper` | 中文黑体（**`view: halftone` 双版套印**） |
+| `h-vhs` | 版式 · 录像带 | `#0d1418` / `#e8f2f4` / `#ffb454` | `scan` | 中文黑体（**`view: crt` + 磨损三件套**） |
+
+**后两套是 2026-10-30 晚新增的「介质」示范**（`style.view` 与 `post.weave/flicker/scratch`）：
+它们不只换配色与字体，还让**整片**换一种成像方式 —— `h-riso` 整片印成双版套印（版面照旧），
+`h-vhs` 整片过 CRT 荫罩 + 胶片磨损。**其余 30 套都没写 `view`，所以一个像素都不变**（见 §4.2）。
+
+**怎么挑**：
+
+- 要给合作方看的方案 / 结论 → `h-blue`（最「可信」的一套）；
+- 文化 / 展览 / 年度回顾这类要体面的 → `h-biennale`；
+- 有引文、有出处、有旁白的长段 → `h-forest`（杂志感）；
+- 通告 / 声明 / 数字很强 → `h-broadside`；
+- 一屏只想放一件事（封面帧、金句）→ `h-poster`；
+- 内容本身要占满注意力 → `h-cartesian`。
+
+⚠ **它们和 `paper` 一样是浅底**，所以 §8 那条「浅底不是安全的」照旧适用：场景里任何高 `bloom`、
+`mul(col, 1.6)` 的发光写法都会在浅底上糊掉。九套的 `post.bloom` 已经压到 0.05–0.12。
+
+⚠ **`chart` 这类模板在浅底风格下会反相**（模板刻意用 `P.bone` 当纸、`P.ink` 画柱，
+见 `src/shots/chart.js` 的注释 —— 那是设计意图，不是 bug）。浅底风格配图表要手写场景，
+或者接受「纸面上的深色图表」这个观感。**标题 / 大字 / 片尾这几类模板不受影响。**
+
+出对比图（不改任何文件）：
+
+```sh
+node scripts/anim.mjs still _style-sampler -t 2.4 --style h-biennale
+node scripts/anim.mjs still _style-sampler -t 2.4 --style h-poster
+```
+
+---
 ---
 
-## 4. 风格包里有什么：七个字段
+## 4. 风格包里有什么：八个字段
 
 > 这张表**对照 `src/style/index.js` 顶部那张表**写成；"谁读它"一列就是接线点。
 
@@ -138,6 +189,28 @@ node scripts/anim.mjs still _style-sampler -t 1.8,6,9.6 --style noir
 | `captions` | 字幕样式：`position` `size` `weight` `maxCharsPerLine` `maxLines` `bg` `padX` `padY` `lineHeight` `hold` `fade` `karaoke` `dim` `color` `sungColor` | `src/core/captions.js`。⚠ **`print` 的这一项是 `false`**（这套风格默认不开字幕）；其余四套 = `{ ...DEFAULT_CAPTION_STYLE, 各自的微调 }`（微调值见 §3 末尾） |
 | `motif` | 背景**母题名**：`grid` / `blueprint` / `paper` / `scan` / `noir` / `flat`（纯色，不画母题） | `src/kit/world.js` 的 `worldPass`（`motif: 'auto'` 时读 `ctx.style.motif`） |
 | `tokens` | **设计 token**：字号阶梯 / 线宽三档 / 动效配方 / 边距 / 质感（2026-10-25 起，来自 `src/style/tokens.js`） | `ctx.style.tokens`（场景读它：**写 `size: T.type.hero` 不写 `size: 24`**）；**`type.write` 的语义字号**也读它（见 §4.1）。纯被动字段，老任务不变 |
+| `view` | **整片介质**（2026-10-30，默认 `null` = off）：把 `src/kit/views.js` 的八种成像之一提成这套风格的默认观感 —— `'halftone'` 字符串，或 `{ mode, cell, passes, misreg, paper, ink, accent, … }`。`halftone` 加 `passes: 2..4` = **N 版套印**（riso），`crt` = 录像带 | `src/style/index.js` 的 `resolveView()`（模式名写错**当场抛**）→ `src/core/engine.js` 在「全部段合成完 → post 之前」把整帧换成像。**字幕画在后处理之后，所以字幕永远清晰** |
+
+### 4.2 整片介质 `view`：什么时候用、什么时候别用（2026-10-30）
+
+风格包写一行 `view`，**整支片子**（含模板段、图表、刻度、页脚）都会被换成那种介质：
+
+```js
+// 在风格包里：
+view: { mode: 'halftone', cell: 6, passes: 2, misreg: 2.2 },
+// 或者任务里临时给某套风格加（不动风格包本身）：
+style: { name: 'paper', view: 'halftone' },
+```
+
+三条纪律：
+
+1. **它是「片子是什么做的」，不是「这个镜头长什么样」** —— 介质级决定才写在这里；
+   某一个镜头想换介质，继续用场景里的 `instrumented()`（`docs/COOKBOOK.md` §16）。
+2. **字多的片子慎用半调 / CRT**：网点与扫描线会吃掉小字。测试方法只有一条 ——
+   出单帧看（`node scripts/anim.mjs still <任务> -t 12`），别只看缩略图。
+3. **浅底风格要显式写 `paper` / `ink`**：`halftone` 默认取调色板的 `bone` 当纸、`ink` 当墨，
+   而浅底风格里这两个角色是**反的**（`ink` 才是纸色）—— 不点名就会整屏反相（黑纸白点）。
+   `h-riso` 就是这么写的，照抄即可。
 
 ### 4.1 语义字号：`size: 'hero'`（2026-10-25 落地）
 

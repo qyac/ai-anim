@@ -22,7 +22,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,7 +42,26 @@ const only = (() => {
  * @property {string} [note]
  * @property {boolean} [expectFail] 已知会失败（红 ≠ 回归），但仍然要打印
  * @property {number} [timeout] 毫秒
+ * @property {boolean} [ciExclude] 这一项**不能**在 CI 上跑（要 GPU / Chrome / 本机私有任务目录 / 联网）
+ * @property {string} [ciWhy] 为什么不能跑 —— 必填，写给人看；`tools/test-ci-coverage.mjs` 会验它不是空话
  */
+
+/**
+ * **哪些项算「CI 能跑」**（2026-10-30）。
+ *
+ * 起因是一个真事故：`.github/workflows/verify.yml` 只硬写了 4 条纯 JS 测试，
+ * 而这份清单里已经有 43 条 `unit:`。于是 `anim say` 的节拍回落被改坏时
+ * （`resolveBeat` 漏了「没有 analysis 就回落 narration.mjs 的 BPM」那一支），
+ * 本地 `regress-all --only unit` 红 3 项，**CI 却是绿的** —— 因为它压根没跑那一条。
+ *
+ * 从此 CI 不再手抄清单，而是 `node tools/regress-all.mjs --ci`：
+ * **按前缀收**，新加的 `unit:` / `meta:` / `harness:` 自动进 CI，不需要有人记得改 yml。
+ * 唯一的出口是显式 `ciExclude: true` + `ciWhy`（会被 `tools/test-ci-coverage.mjs` 检查）。
+ */
+const CI_GROUPS = ['unit:', 'meta:', 'harness:', 'say:'];
+
+/** @param {{name:string, ciExclude?:boolean}} it */
+const isCiEligible = (it) => !it.ciExclude && CI_GROUPS.some((g) => it.name.startsWith(g));
 
 /** @type {Item[]} */
 const ITEMS = [
@@ -51,6 +70,10 @@ const ITEMS = [
   { name: 'unit:doc-facts-selftest', cmd: ['tools/lint-doc-facts.mjs', '--selftest'], note: '上面那个守门的判据自测（7 项，含"不误吃那 3 个面"的反例）' },
   { name: 'unit:agents-refs', cmd: ['tools/lint-agents-refs.mjs'], note: 'AGENTS.md 的章节号是外部锚点：全部 § 引用可解析（docs/history/ 的归档断链不计）' },
   { name: 'unit:agents-size', cmd: ['tools/lint-agents-size.mjs'], note: 'AGENTS.md 体积预算：超过 65536 B 会被注入器从尾部静默截断（当前余 ~10 KB）' },
+  // CI 自己的守门（2026-10-30）：verify.yml 必须还在按清单跑（不是手抄），且清单没被悄悄排空。
+  // 它守的不是某个功能，而是**「CI 有没有在跑东西」这件事本身** —— 上一版手抄了 4 条、
+  // 清单里 43 条，漂移方向只有少跑，而少跑没有任何输出会提醒你。
+  { name: 'unit:ci-coverage', cmd: ['tools/test-ci-coverage.mjs'], note: 'CI 覆盖守门：verify.yml 必须调 regress-all --ci（不许手抄）/ 组内每项要么被收要么写 ciWhy / 收的项数不低于下限（7 项）' },
   { name: 'unit:timeline-guard', cmd: ['tools/test-timeline-guard.mjs'], note: 'P0-2 伪时间线必须抛错 + 配置档展开（40 项）' },
   { name: 'unit:easing-warn', cmd: ['tools/test-easing-warn.mjs'], note: 'P2-3 缓动名写错要警告（7 项）' },
   { name: 'unit:narration', cmd: ['tools/test-narration.mjs'], note: 'P1-5 旁白表 + C 档词级时间戳（44 项）' },
@@ -60,12 +83,15 @@ const ITEMS = [
   { name: 'unit:segment-cuts', cmd: ['tools/test-segment-cuts.mjs'], note: 'P2-4 分块切点只落在安全处' },
   { name: 'unit:shots', cmd: ['tools/test-shots.mjs'], note: 'A 档镜头库：模板登记/参数名/任务段名（写错就响）+ 选型元数据齐全（1-62 §2.6）' },
   { name: 'unit:shot-pick', cmd: ['tools/test-shot-pick.mjs'], note: '选型器（1-62，学 JIZURA 部件表）：筛的语义（energy/tags/角色锁/缺省放行）+ 抽的确定性 + 落空诊断（36 项）' },
-  { name: 'style:palette', cmd: ['tools/test-style-palette.mjs'], note: '风格包的底色是否真的画到画面上（比对 __animPalette.hex.bg 与画面像素 + 亮/暗分档）', slow: true },
+  // 要 Chrome：它把页面真的渲一遍再比对像素
+  { name: 'style:palette', cmd: ['tools/test-style-palette.mjs'], note: '风格包的底色是否真的画到画面上（比对 __animPalette.hex.bg 与画面像素 + 亮/暗分档）', slow: true, ciExclude: true, ciWhy: '要 Chrome + 真 GPU（起私有 Vite 渲一帧再读回像素）' },
   { name: 'unit:event-density', cmd: ['tools/test-event-density.mjs'], note: '事件密度判据回归（合成静止/运动片）：静止跨度与稀薄窗口必须分开报对，纯静止片必须被报成问题' },
   { name: 'unit:tempo', cmd: ['tools/test-tempo.mjs'], note: 'tempo 估计回归（合成鼓 80/96/120/140 + 半拍踩镲诱饵）：bpm 偏 ≤0.6%、网格间隔偏 ≤1% —— 修的是「analyze 把 80bpm 报成 83.3」那个 4% 偏差' },
   { name: 'unit:tasks-meta', cmd: ['tools/test-tasks-meta.mjs'], note: 'tasks --json（1-58）的字段解析 + 变体块不许污染任务级字段 + 真实任务能解析；--table 表路径（1-23③）的接线自检' },
   { name: 'unit:motion-caps', cmd: ['tools/test-motion-caps.mjs'], note: '运动上限静态扫描（BACKLOG 1-33）：判据与 waterfallOver 同口径（items × stagger > 0.5）/ 元素个数怎么读（const 字符串、数组，别抓 family 样式值）/ 读不出进 unchecked（含简写）/ 接线自检 + 夹具 _motion-lab 的 --strict 红证明' },
   { name: 'unit:transition-collision', cmd: ['tools/test-transition-collision.mjs'], note: '碰撞式转场（BACKLOG 1-33 ③ / MOTION.md §3.5）：受害者时长 = 入侵者 × 0.40–0.50 —— 区间内原样返回 / 越界夹回并给说明（不静默）/ NaN·±Inf 当场抛 / enterDur ≤ 0 ⇒ 时长记 0 / victimSpan 与 planCollision 同口径 / **不传 victimRatio ⇒ shader 源码与四个 uniform 逐字不变**（已交付片子的画面一个像素都不许动）+ kit 转发与回归清单接线自检' },
+  { name: 'unit:paper', cmd: ['tools/test-paper.mjs'], note: '剪纸 / 纸艺层叠（BACKLOG 1-49 缺口表第 5 行，覆盖素材包 20 条）：撕边采样密度必须跟边长走（默认 40 点 ⇒ 毛刺被 fillPoly 抹平，出图是直线）/ 白芯只浅 5–9%（第一版 35% ⇒ 雪白高光带）/ 投影必须不透明（半透明会在扫描行之间出条纹）/ 撕边只吃 seed 不吃 t / 层栈由远到近 / 平移不改原对象 + kit·文档接线自检' },
+  { name: 'unit:transition-modes', cmd: ['tools/test-transition-modes.mjs'], note: '参数化转场（BACKLOG 1-13）：八种模式两张表不许有孤儿 / 写错模式名当场抛并列出可用清单 / **push 的源码与 uniform 逐字符不变**（已交付片子的画面一个像素都不许动）/ 每支 shader 共用 6 个 uniform 且不重复声明 GLSL_COMMON 的函数（踩过：自写 vnoise ⇒ 编译失败）/ 掩码型转场不许再叠全局淡出 + engine·kit·文档接线自检' },
   { name: 'unit:variants', cmd: ['tools/test-variants.mjs'], note: '变体（BACKLOG 1-23）：deepMergeInto 语义（对象递归 / 数组整体替换 / 原始值覆盖）+ CLI 接线（--variant 进 URL、产物目录 taskOut 带子目录、无漏网调用点）+ 夹具声明' },
   { name: 'unit:pin-timing', cmd: ['tools/test-pin-timing.mjs'], note: 'anim say --pin-timing（BACKLOG 1-23）：同 id 且放得下 ⇒ slot/stretch 逐位不动；放不下 ⇒ 只重解那一段并警告长多少；部分钉住；pinned 缺 id / 为空 / 陌生 id 的边界' },
   { name: 'unit:pin-timing-e2e', cmd: ['tools/test-pin-timing-e2e.mjs'], note: 'anim say --pin-timing 端到端（真跑 CLI + 假 TTS 驱动 tools/fake-tts.mjs）：改短一句 ⇒ 时间线逐位不动；改长一句 ⇒ 只重解那一段' },
@@ -87,6 +113,14 @@ const ITEMS = [
   { name: 'unit:block-sig', cmd: ['tools/test-block-sig.mjs'], note: '分块增量重渲（1-45）：段 id→源文件（三种写法）/ 块的覆盖范围只算真正跨过的段 / 改一个镜头只有它那块失效 / 引擎或参数变=全失效 / 查不到源文件的段永远重渲（21 项）' },
   { name: 'unit:cjk', cmd: ['tools/test-cjk.mjs'], note: '字幕断行（禁则 / 平衡 / 不丢字）：行首不许出现 ，。）」/ 行尾不许留 「（/ 不拆 24fps 与 v0.9.0 / 两行不许 15+1 / 超长句给更多行而不是截断 / emoji 与全角标点拼接不丢字（28 项）' },
   { name: 'unit:motifs', cmd: ['tools/test-motifs.mjs'], note: '母题库（1-49）：方波级数收敛 + Gibbs 过冲 / 本轮末端 == 级数值 / DCT 往返 <1e-9 / 归一化不改形状 / 采样不出 NaN 且 x 单调 / 游标越界夹住（38 项）' },
+  { name: 'unit:woodcut', cmd: ['tools/test-woodcut.mjs'], note: '多方向排线（src/kit/views.js 的 woodcut 模式，BACKLOG 1-68，缺口表第 10 行）：五条出图才看得见的纪律 —— 每层更细 / 层边界要抖 / 断线段长 ≥8 格（3 格 ⇒ 出图是一排点划线）/ 明暗取 24 点黄金角螺旋局部平均（网格采样会与底纹拍频）/ 线距 22px 且低于下限要夹住并留痕（12px 时 45° 投影 8.5px 与行距凑成近整数比 ⇒ 整屏次谐波横带）/ woodcut 必须是第 9 个模式 / 两份夹具配置语义逐字相同 + 文档接线自检' },
+  { name: 'unit:pixel', cmd: ['tools/test-pixel.mjs'], note: '像素精灵 / 调色板量化 / 5x7 像素字（BACKLOG 1-67，素材包缺口表第 9 行）：抖动必须按**块**坐标取（按像素取 = 块被撕成噪点）/ 量化只在最近两色之间（按亮度找色阶会把饱和橙摊成灰）/ 覆盖率随距离单调 / 像素字的胶囊端点内缩半格（不缩每字右边多出半格墨）/ 时间台阶由整片时间算且 snapTime ≡ snapIndex/fps / 字模表每项恰好 7 行 x 5 列 + 覆盖 A-Z 0-9 标点 / 调色板名与精灵名写错必须抛 + kit·回归清单·AGENTS 接线自检' },
+  // BACKLOG 1-69：手绘笔迹（中心线 + 压力 -> 轮廓多边形）。钉的是**几何事实**：
+  // 窄了一半的坑全在这一层：斜率夹 / minW 下限 / 圆头半径 / 弧长生长 / 曲率 < 半宽时轮廓必然自交
+  { name: 'unit:stroke', cmd: ['tools/test-stroke.mjs'], note: '手绘笔迹（src/kit/stroke.js，BACKLOG 1-69，缺口表第 6 行）：MAX_WIDTH_SLOPE 0.45（>1 时上下偏移边互相追上 ⇒ 偶奇规则把自交处填成「洞」）/ minW 1.2 物理下限（更细时 fillPoly 的扫描行穿透 ⇒ 出一串虚线点）/ 端点圆头用**这一端自己的半宽**（平均值会在收笔处鼓墨滴）/ 生长按**弧长**截断（按点数截断时密采样段走得慢）/ 曲率半径 < 半宽时**轮廓必然自交**（这是几何事实，不是 bug：圆角 R 偏移 h 后内圈 = R-h，R<h 就翻转）⇒ drawStroke 的 auto 会自动退到胶囊链（端点沿切向外扩半宽补掉内切缝）/ boil 每 2 帧换一次且同组内不动 + kit·regress·文档接线自检' },
+  { name: 'unit:views', cmd: ['tools/test-views.mjs'], note: '仪器视图（src/kit/views.js，BACKLOG 1-11）：八种成像的清单与默认格子 / 字模必须按**实际着墨点数**排序（第一版手写顺序不单调，中灰底整片消失）/ 模式名写错必须抛而不是静默回落（27 项）' },
+  { name: 'unit:post-wear', cmd: ['tools/test-post-wear.mjs'], note: '胶片磨损（post.weave/flicker/scratch，BACKLOG 1-64）：默认必须全 0（不写 = 一个像素不变）/ uniform 与引擎喂 t 的接线自检 / 0 时走不到磨损代码 / 磨损函数只吃 t 不读帧号（23 项）' },
+  { name: 'unit:fill', cmd: ['tools/test-fill.mjs'], note: '填充面（src/core/fill.js，LineBatch 的 fillPoly/fillCircle/fillSector）：偶奇带洞 / 圆面积误差 <2% / 扇区角度方向（0=右 90=下 180=左 270=上，写反画面照样出） / 进度环缺口落在起点一侧（39 项）' },
   { name: 'meta:gates', cmd: ['tools/test-gates-meta.mjs'], note: '守门判据的**元测试**（1-51）：每条判据都要"注入缺陷必须报 + 去掉缺陷不许报"。覆盖版面三条 / 背景守门 / 采样四个出口（tol·cap·stall·NaN）/ 误差量具 / 节奏节拍器；文末一张覆盖表点名"哪个缺口没验"（37 项）' },
   { name: 'unit:blocks', cmd: ['tools/test-blocks.mjs'], note: '方块世界 kit：面朝向判据 / 深度排序 / 世界切片 / 摄影机关键帧' },
   { name: 'unit:check-skipped', cmd: ['tools/test-check-skipped.mjs'], note: '1-19「空≠干净」：skipped 收集/聚合/结论行 + --quick 分档 + 接线自检（25 项）' },
@@ -106,8 +140,9 @@ const ITEMS = [
 
   // ── Node 侧整条链（合成/摆位/闪避；不需要 GPU，但要 ffmpeg）──
   { name: 'say:offline', cmd: ['tools/test-say.mjs'], note: 'B 档 anim say + anim mix 全链路（stub 驱动，30 项）', timeout: 10 * 60e3 },
-  { name: 'say:real-tts', cmd: ['tools/probe-tts-edge.mjs'], allowSkip: true, note: 'B/C 档真 TTS（联网；连不上会「跳过」退出码 2 —— 服务端 403 也算这一类）', timeout: 10 * 60e3 },
+  { name: 'say:real-tts', cmd: ['tools/probe-tts-edge.mjs'], allowSkip: true, ciExclude: true, ciWhy: '要联网、要真 TTS 服务（edge-tts 端点），CI 上必然退化成 skip', note: 'B/C 档真 TTS（联网；连不上会「跳过」退出码 2 —— 服务端 403 也算这一类）', timeout: 10 * 60e3 },
   // ⚠ 这一项**会**在没有 ffmpeg 的机器上退出 2（"跳过，不算通过"）—— 所以挂 allowSkip
+  // ⚠ CI 上必须有这一项：显式装 ffmpeg 之后它是硬门（不是 allowSkip 的挡箭牌）
   { name: 'unit:loudness', cmd: ['tools/test-loudness.mjs'], allowSkip: true, note: '响度数字守门：合成已知响度的测试音、对不上就是函数错了 + **-t 是输入侧选项**与"真的截断"（39 项）' },
   // `anim mix --target`：**默认关**是硬约束（已交付片子的音轨不能因为这次改动而重新编码），
   // 所以这里同时钉"开"与"不开"两条路 —— 不开时逐字节相同、开了真的落在靶子上。
@@ -202,12 +237,30 @@ function runItem(it) {
   return { ...it, code, pass, skip, ms, log: path.relative(ROOT, log), out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 
-/** 从输出里挑一行最像"结论/错误"的，汇总表里显示。 */
+/**
+ * 从输出里挑几行最像「结论/错误」的，汇总表与 Job Summary 里显示。
+ *
+ * ⚠ 2026-10-30 修：原来只返回**最后一个**匹配行，于是 `say:offline` 的失败长这样 ——
+ *   最后一行是 `通过 110/112　❌ 失败 2`（它含「失败」二字，被正则抓中），
+ *   真正的 `✗ <断言名> <实测值>` 反而被它挤掉了。汇总表因此只显示「失败 2」，
+ *   谁也不知道是哪两条。现在的口径：
+ *   ① 先认**具体断言**（`FAIL` / `✗`）—— 那是真正有信息量的行；
+ *   ② 没有具体断言时，才退回「像错误/结论」的行；
+ *   ③ 最多给 3 行（>3 行说明问题很多，但汇总表不该变成日志）。
+ * 这样「失败 N」这种汇总行再也不会盖住「哪一条失败了」。
+ */
 function headline(res) {
   const lines = res.out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const clip = (s) => (s.length > 120 ? `${s.slice(0, 117)}…` : s);
+
+  // ① 具体断言：`FAIL  xxx` / `✗ xxx` —— 优先，且**按出现顺序**取，不取最后一行
+  const asserts = lines.filter((l) => /^(FAIL|✗|×)\s/.test(l));
+  if (asserts.length) return asserts.slice(0, 3).map(clip).join(' ／ ');
+
+  // ② 退回「像错误/结论」的行（保持旧行为：取最后一条）
   const bad = lines.filter((l) => /^[✗×]|FAIL|错误|失败|Error|error:|on problem|个问题/.test(l));
   const pick = bad[bad.length - 1] ?? lines[lines.length - 1] ?? '(无输出)';
-  return pick.length > 120 ? `${pick.slice(0, 117)}…` : pick;
+  return clip(pick);
 }
 
 if (process.argv.includes('--list')) {
@@ -215,7 +268,33 @@ if (process.argv.includes('--list')) {
   process.exit(0);
 }
 
-const list = only ? ITEMS.filter((it) => it.name.includes(only)) : ITEMS;
+// `--list-ci`：把「能在 CI 上跑 / 被排除且为什么」两张表打出来（人看的，不进退出码）
+//
+// 排除分两类，**只有第一类需要写理由**：
+//   ① 组内的项（`unit:` `meta:` `harness:` `say:offline`）被单独摘掉 —— 那是刻意的例外，必须写 `ciWhy`；
+//   ② 组外的项（`check:` `probe:` `smoke:` `hashes:` …）根本不进 CI 的收口 —— 它们默认就要 GPU/Chrome。
+if (process.argv.includes('--list-ci')) {
+  const inc = ITEMS.filter(isCiEligible);
+  const inGroupButExcluded = ITEMS.filter((it) => it.ciExclude && CI_GROUPS.some((g) => it.name.startsWith(g)));
+  const outOfGroup = ITEMS.filter((it) => !it.ciExclude && !CI_GROUPS.some((g) => it.name.startsWith(g)));
+  console.log(`CI 收 ${inc.length} / 共 ${ITEMS.length} 项`);
+  console.log(`  组外 ${outOfGroup.length} 项（check/probe/smoke/hashes …，默认要 GPU/Chrome，不进 CI）`);
+  console.log(`  组内显式排除 ${inGroupButExcluded.length} 项：`);
+  for (const it of inGroupButExcluded) console.log(`    ✗ ${it.name.padEnd(24)} ${it.ciWhy ?? '(没写理由 —— test-ci-coverage 会红)'}`);
+  process.exit(0);
+}
+
+// `--ci`：只跑 CI 能跑的那一批（判据见文件头的 CI_GROUPS / isCiEligible）。
+// 加了这一条之后 `.github/workflows/verify.yml` 不再手抄清单 —— 手抄必然漂移，
+// 而且漂移的方向永远是「少跑」（2026-10-30 那次 test-say 变红而 CI 全绿就是这样来的）。
+const ciMode = process.argv.includes('--ci');
+if (ciMode) {
+  const picked = ITEMS.filter(isCiEligible);
+  console.log(`CI 模式：清单 ${ITEMS.length} 项，其中 ${picked.length} 项在 CI 上跑；`
+    + `${ITEMS.length - picked.length} 项显式排除（--list-ci 看为什么）。\n`);
+}
+
+const list = (ciMode ? ITEMS.filter(isCiEligible) : ITEMS).filter((it) => (only ? it.name.includes(only) : true));
 if (!list.length) {
   console.error(`✗ --only ${only} 没匹配到任何项。用 --list 看清单。`);
   process.exit(2);
@@ -244,6 +323,24 @@ console.log(`通过 ${results.filter((r) => r.pass).length}/${results.length}`
 for (const s of skipped) console.log(`  ⏭ ${s.name}  (exit 2：环境不满足，这一项**没验**)  → ${s.log}`);
 for (const f of failed) console.log(`  ❌ ${f.name}  (exit ${f.code})  → ${f.log}\n     ${headline(f)}`);
 
+// ⚠ **失败项要在这里把完整输出打出来**（2026-10-30 加，起因是一次真实的排查卡壳）：
+//   日志落在 `out/_regress/<名字>.log`，而 `out/` 是 gitignore 的、CI 上 job 一结束**整个工作区就没了** ——
+//   于是「CI 红了」在 Actions 页面上只剩一行 exit code，看不到到底哪条断言断了。
+//   而在本地复现又可能因为 Node / ffmpeg / 平台差异而通不出同样结果（本轮实测本地 48/48 绿、CI 红）。
+//   把失败项的 stdout/stderr 直接吐进 CI 日志，是唯一不依赖权限、不依赖复现的取证方式。
+//   只在**有失败**时打（成功的项不刷屏），且每项最多 200 行（防止某个测试把日志撑爆）。
+if (failed.length) {
+  console.log(`\n${'='.repeat(72)}\n失败项完整输出（${failed.length} 项）\n${'='.repeat(72)}`);
+  for (const f of failed) {
+    const body = (f.out ?? '').split(/\r?\n/);
+    const capped = body.length > 200
+      ? [...body.slice(0, 200), `…（省略 ${body.length - 200} 行）`]
+      : body;
+    console.log(`\n--- ${f.name}  (exit ${f.code}) ---`);
+    console.log(capped.join('\n'));
+  }
+}
+
 const summary = {
   at: new Date().toISOString(),
   results: results.map((r) => ({ name: r.name, code: r.code, pass: r.pass, skip: !!r.skip, expectFail: !!r.expectFail, ms: r.ms, log: r.log, headline: headline(r) })),
@@ -256,4 +353,31 @@ writeFileSync(
   + '\n',
 );
 console.log(`\n汇总：out/_regress/summary.md`);
+
+// ⚠ **同时写一份到 GitHub Actions 的 Job Summary**（2026-10-30 加）。
+//
+//   为什么：CI 红了的时候 `out/_regress/*.log` 随 job 一起消失，而下载完整 raw 日志要仓库
+//   admin 权限（`/actions/jobs/<id>/logs` 对普通协作者返回 403）。Job Summary 是 Actions 页面上
+//   直接能看的一段 Markdown，**不用下载、不用权限** —— 失败的项名与实测值会出现在那里，
+//   而不是埋在 200 行日志中间。本地跑没有这个环境变量，整段静默跳过。
+const stepSummary = process.env.GITHUB_STEP_SUMMARY;
+if (stepSummary && failed.length) {
+  const md = [
+    `## 回归失败 ${failed.length} 项（共 ${results.length}）`,
+    '',
+    '| 项 | 退出码 | 最像结论的一行 |',
+    '|---|---|---|',
+    ...failed.map((f) => `| \`${f.name}\` | ${f.code} | ${headline(f).replace(/\|/g, '\\|')} |`),
+    '',
+    '### 失败项完整输出（前 120 行）',
+    '',
+    ...failed.flatMap((f) => [
+      `\`\`\`\n--- ${f.name} (exit ${f.code}) ---\n${(f.out ?? '').split(/\r?\n/).slice(0, 120).join('\n')}\n\`\`\``,
+      '',
+    ]),
+    `跳过（没跑 ≠ 通过）：${skipped.length ? skipped.map((k) => k.name).join(', ') : '无'}`,
+  ].join('\n');
+  try { appendFileSync(stepSummary, md + '\n'); } catch { /* 写不进去就算了，别把回归本身带崩 */ }
+}
+
 process.exit(failed.length ? 1 : 0);

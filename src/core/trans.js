@@ -55,6 +55,7 @@
 
 import { Pass } from './gl.js';
 import { sat } from './util.js';
+import { TRANSITION_FRAG } from './transition-frag.js';
 
 /* ═════════════ 碰撞式转场：受害者时长 = 入侵者时长 × 40–50%（§4.4） ═════════════ */
 
@@ -171,6 +172,85 @@ export function victimSpan(enterDur = 1, ratio = VICTIM_RATIO_DEFAULT) {
   return planCollision({ enterDur, ratio }).victimDur;
 }
 
+/* ═════════════ 参数化转场：wipe / iris / glitch / pixel / dissolve（BACKLOG 1-13） ═════════════ */
+
+/**
+ * **引擎内置的转场模式名**（`transition: '<名字>'` 的合法值）。
+ *
+ * 为什么要有这一层：以前只有两条路 —— 'push'（甩镜，默认）与 'mix'（交叉溶解），
+ * 想要别的（擦除 / 光圈 / 故障 / 像素化）就得整段 `handlesTransition: true` 自己写 shader。
+ * 于是**大多数片子的切法只有两种**，而"切法"恰恰是"像不像一支片子"最便宜的杠杆
+ * （BACKLOG 1-13；出处 `docs/REFERENCE-world-execute.md` §4 ④：对方 305 个镜头里大量用非溶解转场）。
+ *
+ * ⚠ **不写 `transition` ⇒ 还是 'push'，逐像素与从前一致**（已交付片子的硬要求）。
+ *   这与 `transitionPass` 的 `victimRatio` 是同一条纪律：新能力默认不改变旧画面。
+ *
+ * | 名字 | 画面 | 什么时候用 |
+ * |---|---|---|
+ * | 'push' | 旧帧沿摄影机方向加速甩走（默认） | 通用；文字量大的画面 |
+ * | 'mix' | 交叉溶解 | 两屏都是图形、没有大段文字 |
+ * | 'none' | 硬切 | 要"断"的时候 |
+ * | 'wipe' | 一条软边横扫（方向跟摄影机） | 段落推进、"翻页" |
+ * | 'iris' | 圆形光圈开合 | 聚焦一件事、开场 / 收尾 |
+ * | 'glitch' | 横向切片错位 + RGB 分离 | 冲击、故障、数据感 |
+ * | 'pixel' | 像素块溶解 | 数字化、降采样、回忆 |
+ * | 'dissolve' | 噪声阈值溶解（不是等比混合） | 梦境、时间流逝 |
+ */
+export const TRANSITION_MODES = /** @type {const} */ ([
+  'push', 'mix', 'none', 'wipe', 'iris', 'glitch', 'pixel', 'dissolve',
+]);
+
+const PASS_MODES = new Set(['push', 'wipe', 'iris', 'glitch', 'pixel', 'dissolve']);
+
+/**
+ * 校验转场模式名。**写错当场抛**（并列出可用清单）。
+ *
+ * 为什么抛而不是回落到 'push'：一个打错的 `transition: 'wipee'` 会静默变成甩镜 ——
+ * 画面照样出、`check` 照样绿，只把"我要的擦除怎么没出现"留给人。
+ * 这与"参数名拼错要抛"是同一条纪律（`src/timeline.js` 的 `configToCut`）。
+ *
+ * @param {unknown} mode
+ * @param {string} [where] 报错里点名的位置（段 id / 字段路径）
+ * @returns {string} 校验过的模式名
+ */
+export function resolveTransitionMode(mode, where = 'transition') {
+  if (mode === undefined || mode === null) return 'push';
+  if (typeof mode !== 'string') {
+    throw new TypeError(where + '：转场模式必须是字符串，收到 ' + typeof mode
+      + '（' + JSON.stringify(mode) + '）。可用：' + TRANSITION_MODES.join(' / '));
+  }
+  if (!TRANSITION_MODES.includes(/** @type {any} */ (mode))) {
+    throw new TypeError(where + '：没有转场模式 "' + mode + '"（大概是拼错了）。'
+      + '可用：' + TRANSITION_MODES.join(' / '));
+  }
+  return mode;
+}
+
+/** 某个模式是不是走 `transitionPass` 那一支（'mix' / 'none' 各有各的实现，不走）。 */
+export function isPassTransition(mode) {
+  return PASS_MODES.has(mode);
+}
+
+/**
+ * 一个模式下"旧帧该在 k 的多少之前退干净"—— 决定**两屏内容会不会叠着**。
+ *
+ * 溶解类（mix / dissolve / pixel）本来就要叠着（那是它们的画面），其余在交叠期就该退场。
+ * ⚠ 'push' 的 0.55 是**历史默认值**，一个字节都不许动（已交付片子逐像素不变）。
+ *
+ * @param {string} mode
+ * @returns {number} 0..1
+ */
+export function transitionFadeAt(mode) {
+  switch (resolveTransitionMode(mode)) {
+    case 'wipe': return 0.85;
+    case 'iris': return 0.9;
+    case 'glitch': return 0.7;
+    case 'pixel': return 0.8;
+    case 'dissolve': return 1;
+    default: return 0.55;
+  }
+}
+
 /**
  * 把「上一段那一帧」沿摄影机方向甩出去，并加方向拖尾。
  *
@@ -205,6 +285,7 @@ export function victimSpan(enterDur = 1, ratio = VICTIM_RATIO_DEFAULT) {
 export function transitionPass(gl, opts = {}) {
   const push = opts.push ?? 0.36;
   const blur = opts.blur ?? 0.085;
+  const mode = resolveTransitionMode(opts.mode, opts.where);
   const hasRatio = opts.victimRatio !== undefined && opts.victimRatio !== null;
   if (hasRatio && opts.fadeAt !== undefined && opts.fadeAt !== null) {
     throw new TypeError('trans: transitionPass 的 fadeAt 与 victimRatio 是同一个旋钮的两种写法'
@@ -212,35 +293,15 @@ export function transitionPass(gl, opts = {}) {
   }
   /** `enterDur: 1` = 以"一整段交叠期"为单位 ⇒ `collision.fadeAt` 就是 uniform 要的那个 k。 */
   const collision = hasRatio ? planCollision({ enterDur: 1, ratio: opts.victimRatio }) : null;
-  const fadeAt = opts.fadeAt ?? (collision ? collision.fadeAt : 0.55);
-  const pass = /** @type {Pass & { collision: ReturnType<typeof planCollision> | null }} */ (
-    new Pass(gl, /* glsl */ `
-    uniform sampler2D under;
-    uniform float k;
-    uniform vec2 dir;
-    uniform float push, blur, fadeAt;
-    void main() {
-      vec2 uv = vUv;
-      float kk = clamp(k, 0.0, 1.0);
-      // 位移随 k 加速，拖尾同时变宽 = 速度感
-      float p = push * kk * kk;
-      float b = 0.018 + blur * kk;
-      vec2 uv2 = clamp(uv - dir * p, vec2(0.001), vec2(0.999));
-      vec3 acc = vec3(0.0);
-      float wsum = 0.0;
-      for (int i = 0; i < 10; i++) {
-        float f = float(i) / 9.0;
-        float w = 1.0 - abs(f - 0.5) * 0.9;
-        acc += texture(under, clamp(uv2 + dir * (f - 0.5) * b, vec2(0.001), vec2(0.999))).rgb * w;
-        wsum += w;
-      }
-      // 前半程就送走，别让两屏文字长时间叠着
-      float a = 1.0 - smoothstep(0.0, max(0.02, fadeAt), kk);
-      fragColor = vec4(acc / wsum, a);
-    }`, { under: { value: null }, k: 1, dir: [1, 0], push, blur, fadeAt },
-  { key: opts.key ?? 'trans_push', blend: true }));
+  /** 没给 fadeAt 也没给 ratio ⇒ 按**模式**取默认（`'push'` 仍是 0.55，逐像素不变）。 */
+  const fadeAt = opts.fadeAt ?? (collision ? collision.fadeAt : transitionFadeAt(mode));
+  const pass = /** @type {Pass & { collision: ReturnType<typeof planCollision> | null, mode: string }} */ (
+    new Pass(gl, TRANSITION_FRAG[mode], { under: { value: null }, k: 1, dir: [1, 0], push, blur, fadeAt },
+      { key: opts.key ?? (mode === 'push' ? 'trans_push' : `trans_${mode}`), blend: true }));
   /** 这一笔用的是哪一套比例（没传 `victimRatio` 时是 `null` = 老行为） */
   pass.collision = collision;
+  /** 这一笔是哪一种转场（`'push'` = 老路径，源码与从前逐字符相同） */
+  pass.mode = mode;
   return pass;
 }
 

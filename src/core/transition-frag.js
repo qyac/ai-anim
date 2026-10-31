@@ -1,0 +1,154 @@
+// @ts-check
+/**
+ * 转场 shader 表（BACKLOG 1-13：wipe / iris / glitch / pixel / dissolve）。
+ *
+ * 为什么单独一个文件：这里只有 GLSL 字符串，改它**从不**需要动 `trans.js` 的逻辑；
+ * 而 `trans.js` 里混着碰撞比例、摄影机曲线、转场套件三件事，已经够长了。
+ *
+ * 约定（改任何一支之前先读）：
+ *   · 所有模式共用同一组 uniform：`under` / `k` / `dir` / `push` / `blur` / `fadeAt`；
+ *   · `fragColor` 的 **alpha = "旧帧还剩多少"**（引擎那侧是 blitBack + 叠加合成）；
+ *   · `'mix'` / `'none'` **不在**这张表里 —— 它们不走 Pass。
+ *
+ * ⚠ **`push` 的源码与 2026-10-30 之前 `trans.js` 内联的那一份逐字符相同。**
+ *   `tools/test-transition-collision.mjs` 用 `src` 字符串钉着这一条：
+ *   已交付片子的画面一个像素都不许动。
+ */
+
+export const TRANSITION_FRAG = {
+  /** 甩镜：沿摄影机方向加速推出去 + 方向拖尾（**默认**，源码与老版逐字符相同） */
+  push: /* glsl */ `    uniform sampler2D under;
+    uniform float k;
+    uniform vec2 dir;
+    uniform float push, blur, fadeAt;
+    void main() {
+      vec2 uv = vUv;
+      float kk = clamp(k, 0.0, 1.0);
+      // 位移随 k 加速，拖尾同时变宽 = 速度感
+      float p = push * kk * kk;
+      float b = 0.018 + blur * kk;
+      vec2 uv2 = clamp(uv - dir * p, vec2(0.001), vec2(0.999));
+      vec3 acc = vec3(0.0);
+      float wsum = 0.0;
+      for (int i = 0; i < 10; i++) {
+        float f = float(i) / 9.0;
+        float w = 1.0 - abs(f - 0.5) * 0.9;
+        acc += texture(under, clamp(uv2 + dir * (f - 0.5) * b, vec2(0.001), vec2(0.999))).rgb * w;
+        wsum += w;
+      }
+      // 前半程就送走，别让两屏文字长时间叠着
+      float a = 1.0 - smoothstep(0.0, max(0.02, fadeAt), kk);
+      fragColor = vec4(acc / wsum, a);
+    }`,
+  /** 擦除：一条软边沿扫描轴推过去，前沿带一道暖光 */
+  wipe: /* glsl */ `    uniform sampler2D under;
+    uniform float k;
+    uniform vec2 dir;
+    uniform float push, blur, fadeAt;
+    void main() {
+      float kk = clamp(k, 0.0, 1.0);
+      // 扫描轴：沿摄影机方向横着推过去
+      vec2 ax = normalize(dir + vec2(1e-6, 0.0));
+      float s = dot(vUv - 0.5, ax) + 0.5;          // 0..1 沿扫描轴的位置
+      float edge = mix(0.055, 0.012, kk);          // 前面细、收尾稍软，但不糊成溶解
+      float front = kk * (1.0 + edge * 2.0) - edge;
+      // ⚠ 旧帧在**前沿之外**（m = 1 在 s > front 那一侧）：前沿扫过去，扫过的部分就是新画面。
+      //   反过来写会让旧帧越擦越多，只在 alpha 归零时整体消失 —— 那不是擦除，是"渐显"。
+      float m = smoothstep(front - edge, front + edge, s);
+      // 前沿一条亮边 = "纸被掀起来"的那道光，只在擦除进行时可见
+      float band = 1.0 - smoothstep(0.0, edge * 2.5, abs(s - front));
+      float a = m;   // 掩码自己就收到 0（擦过的地方不该再有旧帧），再叠一层全局淡出只会让画面发灰
+      vec3 col = texture(under, vUv).rgb;
+      col += vec3(0.09, 0.085, 0.07) * band * (1.0 - kk);
+      fragColor = vec4(col, a);
+    }`,
+  /** 光圈：圆形从中心张开（取 RES_LOGICAL 的长宽比，所以是正圆不是椭圆） */
+  iris: /* glsl */ `    uniform sampler2D under;
+    uniform float k;
+    uniform vec2 dir;
+    uniform float push, blur, fadeAt;
+    void main() {
+      float kk = clamp(k, 0.0, 1.0);
+      vec2 d = vUv - 0.5;
+      d.x *= RES_LOGICAL.x / RES_LOGICAL.y;      // 圆形而不是椭圆
+      float r = length(d);
+      float rad = kk * 0.86;                      // 中心张开到铺满（对角半径 ≈ 0.71）
+      float aa = max(fwidth(r), 1e-4) * 1.5;
+      // ⚠ 旧帧留在**圈外**、新画面从圆心长出来：m = 1 表示"旧帧还在"，
+      //   所以必须随 r 递增（写成 1 - smoothstep 就是反的：光圈越开旧帧占得越多，
+      //   只在 alpha 归零时突然消失 —— 出图一眼能看出来是"反着放"的）。
+      float m = smoothstep(rad - aa, rad + aa, r);
+      float a = m;   // 同上：光圈张开就是时间轴，不要额外的全局淡出
+      vec3 col = texture(under, vUv).rgb;
+      // 光圈边缘一圈暖光（是"光"，不是描边）
+      float rim = (1.0 - smoothstep(0.0, aa * 6.0, abs(r - rad))) * (1.0 - kk);
+      col += vec3(0.10, 0.09, 0.07) * rim;
+      fragColor = vec4(col, a);
+    }`,
+  /** 故障：横向切片错位 + RGB 分离 + 极短闪白（全由 t 哈希，可 seek） */
+  glitch: /* glsl */ `    uniform sampler2D under;
+    uniform float k;
+    uniform vec2 dir;
+    uniform float push, blur, fadeAt;
+    void main() {
+      float kk = clamp(k, 0.0, 1.0);
+      // 切片：按行分块，每块一个哈希出的横向错位；越靠近中段越猛（钟形）
+      float env = sin(kk * PI);
+      float band = floor(vUv.y * 26.0);
+      float h = hash12(vec2(band, floor(t * 24.0)));
+      float h2 = hash12(vec2(band + 71.0, floor(t * 24.0) + 13.0));
+      float slice = (h - 0.5) * 0.14 * env * (0.35 + h2 * 0.65);
+      float ca = 0.006 * env * (0.4 + h * 0.6);   // RGB 分离
+      vec2 uv = vec2(vUv.x + slice, vUv.y);
+      vec3 col;
+      col.r = texture(under, clamp(uv + vec2(ca, 0.0), vec2(0.001), vec2(0.999))).r;
+      col.g = texture(under, clamp(uv, vec2(0.001), vec2(0.999))).g;
+      col.b = texture(under, clamp(uv - vec2(ca, 0.0), vec2(0.001), vec2(0.999))).b;
+      // 极短的整帧闪白：只在 k≈0.5 那一小段
+      float spike = smoothstep(0.42, 0.5, kk) * (1.0 - smoothstep(0.5, 0.58, kk));
+      col += vec3(0.10) * spike * env;
+      float a = 1.0 - smoothstep(0.0, max(0.02, fadeAt), kk);
+      fragColor = vec4(col, a);
+    }`,
+  /** 像素块溶解：格子由密到疏，每格用自己的哈希门限消失 */
+  pixel: /* glsl */ `    uniform sampler2D under;
+    uniform float k;
+    uniform vec2 dir;
+    uniform float push, blur, fadeAt;
+    void main() {
+      float kk = clamp(k, 0.0, 1.0);
+      // 格子从 240 个长到 34 个（块越散越大）；每格用自己的哈希决定何时消失
+      float cells = mix(240.0, 34.0, kk);
+      vec2 g = floor(vUv * cells);
+      vec2 uvq = (g + 0.5) / cells;              // 取格中心 = 天然像素化
+      float th = 0.55 + hash12(g) * 0.5;         // 门限错开：0.55..1.05
+      float m = step(kk, th);
+      vec3 col = texture(under, uvq).rgb;
+      float a = m;   // 同上：逐格门限就是时间轴
+      fragColor = vec4(col, a);
+    }`,
+  /** 噪声阈值溶解：多尺度哈希做门限，边缘微微发亮 */
+  dissolve: /* glsl */ `    uniform sampler2D under;
+    uniform float k;
+    uniform vec2 dir;
+    uniform float push, blur, fadeAt;
+    void main() {
+      float kk = clamp(k, 0.0, 1.0);
+      // 多尺度噪声阈值：等比混合会把中间调糊成一块，阈值溶解是"一点点被吃掉"。
+      // ⚠ 必须用**插值过的**值噪声（GLSL_COMMON 的 vnoise 就是）：每个像素各 hash 一个值
+      //   得到的是白噪声 —— 画面会变成"电视雪花"而不是"被吃掉"（第一版就是这样，出图当场看出来）。
+      //   尺度要粗（fbm 的 5 个八度已经到 16 格），越细越像噪点。
+      vec2 np = vUv * vec2(RES_LOGICAL.x / RES_LOGICAL.y, 1.0) * 5.0;
+      float n = sat(fbm(np) * 1.15);              // fbm 在 0..1 之间但集中在 0.5 附近，拉一下对比
+      float edge = 0.055;
+      // m = "旧帧还剩多少"：kk 越过这个像素的噪声值 ⇒ 它被吃掉。
+      // ⚠ 写成 smoothstep(n-…, n+…, kk)（不带 1-）是**反的**：kk 越大旧帧越多，
+      //   只在结尾整体消失 —— 出图是"新图先出来、旧图最后才盖回来"。
+      float m = 1.0 - smoothstep(n - edge, n + edge, kk);
+      vec3 col = texture(under, vUv).rgb;
+      // 消融边缘微微发亮：像被光吃掉
+      float burn = (1.0 - smoothstep(0.0, edge * 2.2, abs(kk - n))) * (1.0 - kk);
+      col += vec3(0.07, 0.065, 0.055) * burn;
+      fragColor = vec4(col, m);   // 同上：噪声门限就是时间轴
+    }`,
+};

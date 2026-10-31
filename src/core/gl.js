@@ -11,6 +11,7 @@
  */
 
 import { clamp, sat, linearToSrgb } from './util.js';
+import { polySpans, circleSpans, sectorSpans } from './fill.js';
 import { P as DEFAULT_PALETTE } from './palette.js';
 import { TextKit } from './text.js';
 
@@ -1310,6 +1311,42 @@ void main() {
       const yy = y + i * dy + dy * 0.5;
       this.seg(x, yy, x + w, yy, width, color);
     }
+    return this;
+  }
+
+  /**
+   * **填充多边形**（偶奇规则，带洞也支持）。
+   *
+   * `pts` 可以是单环 `[[x,y],…]`，也可以是多个环 `[[[...]], [[...]]]` —— 多环时内环自动挖洞。
+   * 实现是 `src/core/fill.js` 的扫描线（纯函数、可离线单测），这里只负责把跨度画成线。
+   *
+   * ⚠ 这是「面」，不是「线」：不要拿它叠一层描边再叠一层填充，两层都用 `lines` 会有排序问题；
+   *   描边用 `polyline(pts, w, col, true)`，填充用这个，先填充后描边即可。
+   *
+   * @param {number[][] | number[][][]} pts 单环或多环（多环 = 带洞）
+   * @param {number[]} color 线性 RGB 或 RGBA
+   * @param {number} [step] 扫描行距（逻辑像素，默认 2；越小越精确也越贵）
+   */
+  fillPoly(pts, color = [1, 1, 1], step = 2) {
+    const spans = polySpans(pts, step);
+    for (const sp of spans) this.seg(sp.x, sp.y, sp.x + sp.w, sp.y, sp.h, color);
+    return this;
+  }
+
+  /** **填充圆**（比 `fillPoly` 逼近更准也更便宜：每行一次 `sqrt`）。 */
+  fillCircle(cx, cy, r, color = [1, 1, 1], step = 2) {
+    const spans = circleSpans(cx, cy, r, step);
+    for (const sp of spans) this.seg(sp.x, sp.y, sp.x + sp.w, sp.y, sp.h, color);
+    return this;
+  }
+
+  /**
+   * **填充扇环 / 扇形**：`r0 > 0` 是扇环，`r0 = 0` 是实心扇形。
+   * 角度是弧度、0 指向 +x，y 向下为正（所以 π/2 朝下）。
+   */
+  fillSector(cx, cy, r0, r1, a0, a1, color = [1, 1, 1], step = 2) {
+    const spans = sectorSpans(cx, cy, r0, r1, a0, a1, step);
+    for (const sp of spans) this.seg(sp.x, sp.y, sp.x + sp.w, sp.y, sp.h, color);
     return this;
   }
 

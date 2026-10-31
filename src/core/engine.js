@@ -24,10 +24,13 @@ import { makeCaptionLayer, resolveCaptionStyle } from './captions.js';
 import { SILENT } from './audio.js';
 import * as U from './util.js';
 // 交叠期的默认转场（甩镜）。`transitions.js` 只依赖 gl/util，不会再反向依赖 engine —— 无环。
-import { transitionPass, cameraDir } from './trans.js';
+import { transitionPass, cameraDir, resolveTransitionMode } from './trans.js';
 // 画幅适配（竖屏，BACKLOG 1-52）：栅格与字号阶梯要按实际 W/H 换一套。
 // 依赖方向是 core → style 的唯一一处，且只用一个纯函数（`style/index.js` 不反向 import 引擎）。
 import { fitStyleToFrame } from '../style/index.js';
+// 整片介质（`style.view`，2026-10-30）：合成完 → post 之前把整帧换成一种成像方式。
+// 依赖方向 core → kit 的唯一一处：`kit/views.js` 只 import `core/gl.js`，不反向依赖引擎 —— 无环。
+import { applyStyleView } from '../kit/views.js';
 // 自适应子帧的**判据**（误差分位 / 停滞熔断 / 档位）在纯函数模块里，见文件头
 import {
   BASE_SAMPLES, MAX_SAMPLES, DEFAULT_TOL,
@@ -634,19 +637,41 @@ export class Engine {
        * 换句话说：**旧行为从"默认"降级成"显式选项"，新行为成为默认。**
        */
       // 优先级：段对象（`cut` 的 opts / 配置档节点）> 场景对象（`export default { transition }`）
-      const transMode = item.transition ?? item._scene?.transition ?? 'push';
+      // 模式名写错**当场抛**（`resolveTransitionMode`）—— 静默回落成甩镜等于"我要的擦除没出现"，
+      // 而画面照样出、check 照样绿（与"参数名拼错要抛"同一条纪律）。
+      const transMode = resolveTransitionMode(
+        item.transition ?? item._scene?.transition,
+        `段 "${item.id}" 的 transition`,
+      );
       if (k > 0 && !scene.handlesTransition && under) {
         if (transMode === 'mix') {
           this.comp.mixTo(this.gl, under, outTex, tin, this.mixRT);
           outTex = this.mixRT;
         } else if (transMode !== 'none') {
-          outTex = this._pushTransition(outTex, under, tin, t, subDt);
+          outTex = this._pushTransition(outTex, under, tin, t, subDt, transMode);
         }
       }
       under = outTex;
     }
     if (!outTex) { this.gl.clear(this.pool[0], [0, 0, 0]); outTex = this.pool[0]; }
-    return { tex: outTex, post };
+    // 整片介质（`style.view`）。默认 off —— 风格包没写 `view` 时这条路一行都不执行，
+    // 一个像素都不变。位置在「所有段合成完」之后：多段交叠 / 甩镜转场也要一起被印上，
+    // 否则切点两侧一边是网点一边是原图。
+    // ⚠ `skipScene`（背景守门）时不跑：守门要量的是背景本身，不是它被印成什么介质。
+    const styleView = this.style?.view;
+    if (styleView && !skipScene && outTex) {
+      if (!this._viewSlot) this._viewSlot = { rt: null, pass: null };
+      try {
+        outTex = applyStyleView({
+          gl: this.gl, out: outTex, P: this.P, comp: this.comp,
+          f: { t, dt: subDt }, _views: this._viewSlot,
+        }, styleView);
+      } catch (err) {
+        this.errors.push(`[style.view] ${fmtErr(err)}`);
+      }
+    }
+
+    return { tex: outTex, post, t };
   }
 
   /**
@@ -919,7 +944,9 @@ export class Engine {
       this.lastT = t;
       return { samples: n, errors: this.lastErrors, skippedPost: true };
     }
-    this.post.render(gl, this._hudOut ?? outTex, this.outRT, post, frameSeed(idx));
+    // 第 6 参 t：胶片磨损（post.weave/flicker/scratch）的动画时间源 —— t 的纯函数，可 seek。
+    // 其余 post 全程不用它，磨损全 0 时逐像素与旧版一致。
+    this.post.render(gl, this._hudOut ?? outTex, this.outRT, post, frameSeed(idx), t);
     this.lastPost = post;
     // 字幕：**后处理之后**叠上去（信息层，见 _drawCaptions 的注释）
     if (this.captions) this._drawCaptions(t);
@@ -958,20 +985,25 @@ export class Engine {
    * @param {number} dt 子帧步长
    * @returns {any} 合成后的帧（仍是 `mixRT`）
    */
-  _pushTransition(outTex, under, k, t, dt) {
+  _pushTransition(outTex, under, k, t, dt, mode = 'push') {
     const gl = this.gl;
     const keepPaint = gl.paint;
     gl.paint = null;
     try {
       this.comp.blitBack(gl, outTex, this.mixRT);
-      if (!this._push) {
-        this._push = transitionPass(gl, { key: 'engine_push' });
+      // 每种模式一支 Pass（`'push'` 的那支与从前逐字符相同）；按模式缓存，
+      // 别每帧新建 —— Pass 编译一次就要几十毫秒，转场每帧都跑。
+      this._transPasses ??= new Map();
+      let pass = this._transPasses.get(mode);
+      if (!pass) {
+        pass = transitionPass(gl, { mode, key: mode === 'push' ? 'engine_push' : `engine_trans_${mode}` });
+        this._transPasses.set(mode, pass);
       }
-      const u = this._push.u;
+      const u = pass.u;
       u.under.value = { tex: /** @type {any} */ (under).tex ?? under, __tex: true };
       u.k.value = U.sat(k);
       u.dir.value = cameraDir(t, dt);
-      this._push.render(gl, this.mixRT, t, dt);
+      pass.render(gl, this.mixRT, t, dt);
     } finally {
       gl.paint = keepPaint;
     }
