@@ -11,6 +11,8 @@
  * ```
  */
 
+
+import { contentOk, within } from './pick.js';
 import { Pass } from '../core/gl.js';
 import { css, ease, prog, clamp } from '../core/util.js';
 
@@ -193,3 +195,10 @@ chartShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+chartShot.tags = ['data', 'editorial', 'graphic'];
+chartShot.w = 1.4;
+chartShot.fits = (q) => contentOk(q) && within(q?.points, 3, 8);
+chartShot.fitsNote = '3–8 个值（points）；收尾位/转场位抽不到';

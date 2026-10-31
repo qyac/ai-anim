@@ -17,6 +17,8 @@
  * ```
  */
 
+
+import { transitionOnly } from './pick.js';
 import { Pass } from '../core/gl.js';
 import { ease } from '../core/util.js';
 
@@ -147,3 +149,10 @@ whipShot.spec = {
   requires: ['under'],
   outputs: { visual: 'transition', handlesTransition: true },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+whipShot.tags = ['transition'];
+whipShot.w = 1.0;
+whipShot.fits = transitionOnly;
+whipShot.fitsNote = '只抽转场位（slot: transition）';

@@ -14,6 +14,8 @@
  * 位置，读到的就是那一刻的音乐包络。beat 的这段在片头，所以两者相同 —— 别顺手改成 `f.lt`。
  */
 
+
+import { musicOk } from './pick.js';
 import { css } from '../core/util.js';
 
 /** 全部参数 = "什么都不传时的画面"（beat 用的就是这一套）。 */
@@ -142,3 +144,10 @@ waveShot.spec = {
   requires: ['music', 'analyze'],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+waveShot.tags = ['music', 'data'];
+waveShot.w = 0.9;
+waveShot.fits = musicOk;
+waveShot.fitsNote = '要音频（hasMusic !== false）；收尾位/转场位抽不到';

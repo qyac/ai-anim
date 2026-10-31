@@ -32,6 +32,7 @@ import {
 } from '../kit/pixel.js';
 import { css, prog, sat, mixColor, linearToSrgb } from '../core/util.js';
 import { resolveTypeSize } from '../style/tokens.js';
+import { contentOk } from './pick.js';
 
 /** 全部参数 = "什么都不传时的画面"。`crawl` 是地面上那一串精灵。 */
 const DEFAULTS = {
@@ -360,3 +361,9 @@ pixelShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+pixelShot.tags = ['graphic', 'pop', 'handmade'];
+pixelShot.w = 0.7;
+pixelShot.fits = contentOk;
+pixelShot.fitsNote = '讲「这台机器算出来的」；正文位可抽（收尾/转场位抽不到），无字数硬条件';

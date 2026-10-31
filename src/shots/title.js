@@ -11,6 +11,8 @@
  * ```
  */
 
+
+import { atMost } from './pick.js';
 import { Pass } from '../core/gl.js';
 import { css, ease, prog, pulse } from '../core/util.js';
 
@@ -165,3 +167,10 @@ titleShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+titleShot.tags = ['title', 'calm', 'editorial'];
+titleShot.w = 1.2;
+titleShot.fits = (q) => (q?.slot == null || q?.slot === 'opening') && atMost(q?.chars, 18);
+titleShot.fitsNote = '片头/章首（slot: opening）；主标 ≤18 字';

@@ -15,6 +15,8 @@
  * ```
  */
 
+
+import { contentOk, atMost } from './pick.js';
 import { Pass } from '../core/gl.js';
 import { css, ease, prog, clamp, mixColor } from '../core/util.js';
 import { resolveTypeSize } from '../style/tokens.js';
@@ -191,3 +193,10 @@ layersShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+layersShot.tags = ['structure', 'editorial'];
+layersShot.w = 0.6;
+layersShot.fits = (q) => contentOk(q) && atMost(q?.points, 5);
+layersShot.fitsNote = '≤5 层（用 points 传层数）；收尾位/转场位抽不到';

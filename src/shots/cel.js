@@ -13,6 +13,8 @@
  * ```
  */
 
+
+import { contentOk } from './pick.js';
 import { Pass } from '../core/gl.js';
 import { css, prog, sat, mixColor } from '../core/util.js';
 import { boilSeg, boilCircle } from '../kit/boil.js';
@@ -119,3 +121,10 @@ celShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+celShot.tags = ['handmade', 'emotional'];
+celShot.w = 0.6;
+celShot.fits = contentOk;
+celShot.fitsNote = '手绘感，无硬条件；收尾位/转场位抽不到';

@@ -7152,6 +7152,12 @@ function shotsCatalog(list, requireTokens = null) {
     ...(s && 'use' in s ? { use: s.use } : {}),
     ...(s && 'energy' in s ? { energy: s.energy } : {}),
     ...(s && 'avoid' in s ? { avoid: s.avoid } : {}),
+    // 选型元数据（1-62，学 JIZURA 的部件表）：tags / w / fitsNote 有才加。
+    // ⚠ `fits`（函数本体）不进 JSON——序列化会整个丢掉，读的人该看的是 `fitsNote` 人话版；
+    //   真条件在 `src/shots/pick.js` 的 brief 契约里。
+    ...(s && 'tags' in s ? { tags: s.tags } : {}),
+    ...(s && 'w' in s ? { w: s.w } : {}),
+    ...(s && 'fitsNote' in s ? { fitsNote: s.fitsNote } : {}),
   }));
   return {
     schema: SHOTS_SCHEMA,
@@ -7168,6 +7174,8 @@ function shotsCatalog(list, requireTokens = null) {
  *   node scripts/anim.mjs shots chart      # 某个模板的全部参数与默认值
  *   node scripts/anim.mjs shots --json     # 机器可读的参数表 + 声明式 spec（requires / outputs / requireTokens）
  *   node scripts/anim.mjs shots chart --json
+ *   node scripts/anim.mjs shots --pick --slot content --chars 8 --seed 7   # 按条件筛+按权重抽一个（1-62）
+ *   node scripts/anim.mjs shots --pick --n 6 --slot content --seed 3       # 抽一串（同一版内不重复）
  *
  * 为什么要有这条命令：模板名与参数名是这个库的公开 API（写错 `shot()` 会**抛错**，
  * 不静默忽略），而"有哪些模板、参数叫什么"不该靠翻源码才知道。
@@ -7178,12 +7186,72 @@ function shotsCatalog(list, requireTokens = null) {
  *   的示例是同一份事实，要改就得三处一起说清。
  */
 async function cmdShots() {
-  const { listShots, filterShots, SHOTS, SHOT_REQUIRES, SHOT_ENERGY } = await import('../src/shots/index.js');
+  const { listShots, filterShots, SHOTS, SHOT_REQUIRES, SHOT_ENERGY, pickShot, pickSequence, SHOT_SLOTS } = await import('../src/shots/index.js');
   const all = listShots();
   const use = opt('use', '');
   // ⚠ `positional()` 只按"以 - 开头"过滤，**不认识"某个 flag 的值"**：`shots --use 转场` 会把
   //   `转场` 当成 positional(0)。这条命令没有任务名参数，所以在这里把 flag 的值让开。
   const want = positional(0) === use && use !== '' ? positional(1) : positional(0);
+
+  /* ── 选型模式（BACKLOG 1-62，学 JIZURA 的部件表）────────────────────────────
+   *
+   *   node scripts/anim.mjs shots --pick --slot content --tags data,graphic --points 5 --seed 7
+   *   node scripts/anim.mjs shots --pick --n 6 --slot content --seed 3     # 抽一串（一支片子的骨架）
+   *
+   * 先筛后抽：energy / tags（任一命中） / fits（chars·rows·points·slot·hasMusic·hasScreenshot）
+   * 是硬条件，w 是权重，seed 决定抽到谁 —— 同一个查询 + 同一个 seed 永远同一个结果；
+   * 换 seed = 重抽一版；`--exclude chart` = 只换这一项。角色锁定：outro/lockup 只进 `--slot ending`，
+   * whip 只进 `--slot transition`（不指明角色槽，它们不会被抽到）。
+   */
+  const numOpt = (k) => (opt(k, '') === '' ? undefined : Number(opt(k, '')));
+  const pickQ = {
+    slot: opt('slot', '') || undefined,
+    tags: opt('tags', '').split(',').map((t) => t.trim()).filter(Boolean),
+    energy: opt('energy', '') || undefined,
+    chars: numOpt('chars'),
+    rows: numOpt('rows'),
+    points: numOpt('points'),
+    hasMusic: flag('music') ? true : flag('no-music') ? false : undefined,
+    hasScreenshot: flag('shot') ? true : flag('no-shot') ? false : undefined,
+    exclude: opt('exclude', '').split(',').map((t) => t.trim()).filter(Boolean),
+    seed: numOpt('seed'),
+  };
+  if (flag('pick') || Object.values(pickQ).some((v) => v != null && !(Array.isArray(v) && !v.length))) {
+    const n = numOpt('n') ?? 1;
+    const pool = use ? filterShots(all, use) : all;
+    const queryDesc = [
+      `pool ${pool.length}/${all.length}`,
+      pickQ.slot ? `slot=${pickQ.slot}` : '',
+      pickQ.tags.length ? `tags=[${pickQ.tags.join(',')}]` : '',
+      pickQ.energy ? `energy=${pickQ.energy}` : '',
+      pickQ.chars != null ? `chars=${pickQ.chars}` : '',
+      pickQ.rows != null ? `rows=${pickQ.rows}` : '',
+      pickQ.points != null ? `points=${pickQ.points}` : '',
+      pickQ.hasMusic !== undefined ? `hasMusic=${pickQ.hasMusic}` : '',
+      pickQ.hasScreenshot !== undefined ? `hasScreenshot=${pickQ.hasScreenshot}` : '',
+      pickQ.exclude.length ? `exclude=[${pickQ.exclude.join(',')}]` : '',
+      `seed=${pickQ.seed ?? 1}`,
+    ].filter(Boolean).join(' · ');
+    let seq;
+    try {
+      seq = n > 1 ? pickSequence(pool, pickQ, n) : [pickShot(pool, pickQ)];
+    } catch (e) {
+      die(e instanceof Error ? e.message : String(e));
+    }
+    if (flag('json')) {
+      log(JSON.stringify({ schema: 'anim.shots.pick/1', query: { ...pickQ, n }, pick: seq }, null, 2));
+      return;
+    }
+    log(`选型（${queryDesc}）${n > 1 ? `—— 抽 ${n} 个` : ''}：\n`);
+    for (const r of seq) {
+      log(`  ✓ ${r.name.padEnd(9)} w ${r.w}  [${r.tags.join(' ')}]  ${r.fitsNote}`);
+    }
+    const r0 = seq[0];
+    log(`\n  候选 ${r0.pool.length}：${r0.pool.map((c) => `${c.name}(${c.w})`).join(' ')}`);
+    log('\n只换这一项：--seed 换个数，或 --exclude <名字>；看全部模板：node scripts/anim.mjs shots');
+    log(`角色槽只有这几种：${SHOT_SLOTS.join(' / ')}（outro/lockup 只进 ending，whip 只进 transition）`);
+    return;
+  }
 
   if (!want) {
     if (flag('json')) { log(JSON.stringify(shotsCatalog(use ? filterShots(all, use) : all, SHOT_REQUIRES), null, 2)); return; }

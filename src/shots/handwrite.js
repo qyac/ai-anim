@@ -29,6 +29,7 @@ import { Pass } from '../core/gl.js';
 import { css, ease, prog, sat } from '../core/util.js';
 import { strokePath, strokeArc, inkOn } from '../kit/stroke.js';
 import { resolveTypeSize } from '../style/tokens.js';
+import { contentOk } from './pick.js';
 
 /** 手写体栈：楷体优先（中文手写笔记的默认观感），拉丁用 Cormorant。 */
 const HAND = "'KaiTi', 'STKaiti', 'Kaiti SC', 'Cormorant Garamond', serif";
@@ -274,3 +275,9 @@ handwriteShot.spec = {
   requires: [],
   outputs: { visual: 'full-frame', handlesTransition: false },
 };
+/* 选型元数据（BACKLOG 1-62）：tags / w / fits 的契约在 ./pick.js 头注释；brief 缺省字段 = 不设限。
+   改这里不改模板画面，只改 anim shots --pick 会抽到谁。 */
+handwriteShot.tags = ['handmade', 'editorial', 'calm'];
+handwriteShot.w = 0.8;
+handwriteShot.fits = contentOk;
+handwriteShot.fitsNote = '白板讲解 / 手写笔记；正文位可抽（收尾/转场位抽不到），无字数硬条件';

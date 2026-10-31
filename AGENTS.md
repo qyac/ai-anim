@@ -119,7 +119,10 @@ export default {
 > export default shot('chart', { values: [0.3, 0.7, 0.95], title: '这一轮的成绩' });
 > ```
 >
-> 参数与默认值只认 `node scripts/anim.mjs shots [名字]`（**参数名写错会抛错**，不会静默忽略）。
+> 有哪些模板、参数叫什么、默认值是多少：`node scripts/anim.mjs shots`（全部）、
+> `node scripts/anim.mjs shots chart`（某一个的全部参数与默认值）。**参数名写错会抛错**，不会静默忽略。
+> **「这一段用哪个模板」不想自己挑时**：`anim shots --pick --slot content --chars 8 --seed 7`
+> —— 按条件筛 + 按权重抽，同 seed 同结果（契约见 `docs/ENGINE.md` §14.10）。
 > 更省事的是 §3.2 的配置档（连场景文件都不用建）；整支片子特有的母题放该任务的 `scenes/_kit.js`。
 
 ---
