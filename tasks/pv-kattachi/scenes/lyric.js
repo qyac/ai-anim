@@ -11,7 +11,7 @@ import { css, prog, sat, clamp } from '../../../src/core/util.js';
 import { Pass } from '../../../src/core/gl.js';
 
 const INK = [0.95, 0.94, 0.90];
-const DIM = [0.42, 0.41, 0.40];
+const DIM = [0.55, 0.54, 0.52];
 
 function hash(i, j) {
   const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453;
@@ -147,7 +147,8 @@ export default {
         });
       });
     } else if (mode === 'mask') {
-      const reveal = sat(prog(t, 0.1, Math.min(1.4, total * 0.5)));
+      // 揭示必须快（≤0.42s）：歌词要"到句就看得见"，不能半句都在擦
+      const reveal = sat(prog(t, 0.02, Math.min(0.42, total * 0.35)));
       c.save();
       c.beginPath(); c.rect(0, 0, W * reveal, H); c.clip();
       fillRows(INK);
@@ -162,7 +163,7 @@ export default {
       strokeRows(INK, 3);
       if (fillK > 0) fillRows(INK, fillK * 0.94);
     } else if (mode === 'split') {
-      const off = (1 - sat(prog(t, 0.1, 0.85))) * px * 1.1;
+      const off = (1 - sat(prog(t, 0.05, 0.45))) * px * 0.8;
       c.save(); c.beginPath(); c.rect(0, 0, W, cy); c.clip();
       c.translate(-off, 0); fillRows(INK); c.restore();
       c.save(); c.beginPath(); c.rect(0, cy, W, H - cy); c.clip();
